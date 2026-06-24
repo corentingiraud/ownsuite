@@ -1,0 +1,20 @@
+# Local clone of the reference implementation — kept for inspiration, NOT part of this repo.
+/lasuite-platform/
+
+# MkDocs build output
+/site/
+
+# Python virtualenv / caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Secrets and local env files (never commit)
+*.secret-overrides.yaml
+environments/*.yaml
+!environments/*.example
+.env
+
+# OS noise
+.DS_Store

@@ -1,0 +1,141 @@
+# Roadmap (high level)
+
+> Self-host La Suite numérique, production-ready, on a single VPS, for a non-profit.
+> The org arrives with a domain name; we hand them the DNS records to set; everything
+> works. The admin then creates users in a single step.
+
+## Product vision (the global "definition of done")
+
+1. A volunteer rents a VPS + a domain name.
+2. They run an installer and answer ~5 questions (domain, admin email, which apps).
+3. The installer prints **the exact list of DNS records** to set at the registrar.
+4. Once DNS has propagated: every app responds over HTTPS, with **shared SSO**.
+5. The admin creates `firstname@assoc.org` once → that person has access to Docs,
+   Drive, etc.
+6. **Backups** run automatically — encrypted, off-site — and **restore is tested**
+   (not just the backup).
+
+---
+
+## Architecture decisions (locked)
+
+The full rationale lives in the [Architecture Decision Records](architecture/decisions.md).
+
+| Topic | Choice |
+|---|---|
+| Orchestration | **Single-node K3s + Helmfile** |
+| Reverse proxy / TLS | **Traefik (bundled with K3s) + cert-manager** |
+| SSO | **Keycloak**, 1 realm, 1 OIDC client per app |
+| Database | **CloudNativePG** (PostgreSQL + WAL/PITR to S3) |
+| Cache / broker | **Valkey** |
+| Object storage | **Pluggable: Garage (self-hosted) | external EU S3** |
+| Host provisioning | **Ansible** |
+| Upgrade model | **Semver releases + backup-gated `suite` CLI + Renovate** |
+
+**Out of scope for v1:** Meet (LiveKit/coturn — UDP, CPU, painful on a single VPS).
+**Advanced add-on, not in the core:** the mailbox (see Phase 6 — this is NOT part of La Suite).
+
+---
+
+## What we reuse from `lasuite-platform` vs what we rebuild
+
+**Reuse (mature logic, keep):**
+
+- The Helmfile orchestration of all apps with enable/disable conditions.
+- The `platform-configuration` that **generates the Keycloak realm + 1 OIDC client per
+  app** with derived secrets.
+- Deriving all secrets from a single `secretSeed`.
+- The "one domain → `app.{domain}` per app" model, cert-manager + Let's Encrypt.
+- The per-app `values/*.gotmpl` files (config starting point).
+
+**Rebuild / add (the core of our value):**
+
+- Infrastructure foundation **without Bitnami or MinIO** → CNPG, Valkey, Garage/external S3.
+- **Traefik** ingress (K3s) instead of HAProxy.
+- The whole **Backups & Restore** module (absent from the reference solution).
+- The **domain → DNS** experience (generating the records to set).
+- Simple **user provisioning** for the admin.
+- **Production hardening** (monitoring, limits, upgrades, non-profit-facing docs).
+
+---
+
+## Phases
+
+### Phase 0 — Scoping & technical foundation
+
+- Lock the stack (above), pick the name/license (AGPL-3.0 suggested), init the repo.
+- Reproducible VPS bootstrap (script or Ansible): install K3s, firewall, fail2ban, swap.
+- **Done:** `make bootstrap` turns a bare Debian VPS into a ready K3s cluster.
+
+### Phase 1 — Reusable infrastructure foundation (no Bitnami/MinIO)
+
+- Helmfile: Traefik (already there) + cert-manager + Let's Encrypt ClusterIssuer.
+- CloudNativePG (1 cluster, 1 db/app), Valkey, Garage **or** external S3 wiring.
+- Keycloak + realm/client generation (reused and adapted).
+- **Done:** `helmfile sync` brings up all shared infra, Keycloak reachable over HTTPS.
+
+### Phase 2 — Vertical slice: Docs end to end
+
+> Go deep on **one** app before broadening.
+
+- Deploy Docs wired to CNPG + Valkey + S3 + Keycloak SSO.
+- Validate SSO login, file upload (S3), real-time collaboration.
+- **Done:** a Keycloak user logs into Docs and creates a persistent document.
+
+### Phase 3 — Backups & Restore (the "production-ready" pillar)
+
+- Postgres: CNPG PITR to S3 (GFS retention).
+- Objects: bucket replication **or** `restic`/`rclone` off-site (even with external S3).
+- Keycloak: scheduled realm export.
+- **Tested restore procedure**: `make restore` brings up a clean instance.
+- **Done:** we destroy an instance and fully restore it from backups.
+
+### Phase 4 — "Domain → DNS → it works" experience
+
+- Interactive installer (domain, admin email, app selection).
+- **Generate the exact list of DNS records** (wildcard A/AAAA `*.assoc.org`, CAA; +MX/TXT if mail).
+- Wait for / validate propagation + issue the certificates.
+- **Done:** from a bare VPS + domain, the org follows the screen and everything serves HTTPS.
+
+### Phase 5 — Broaden apps + user provisioning
+
+- Add Drive, then People (directory/teams), via Helmfile profiles.
+- **Simple provisioning**: a CLI/small admin portal that creates a Keycloak user →
+  immediate access to all apps (JIT). Password reset, deactivation.
+- **Done:** the admin runs `suite user add firstname@assoc.org` and the person has Docs+Drive.
+
+### Phase 6 — (Advanced / optional) Mailbox
+
+> ⚠️ **La Suite numérique provides NO mail server.** This is an add-on, and the
+> hardest part to make reliable on a VPS.
+
+- A mail stack federated to the same Keycloak: **Stalwart** (modern, OIDC) recommended;
+  Mailcow/Mailu as alternatives.
+- Deliverability reality: port 25 often blocked by the host, **rDNS/PTR** set at the
+  host (not in DNS), SPF/DKIM/DMARC, IP reputation.
+- Offer **two modes**: self-hosted (sovereign, demanding) **or** an external EU relay/
+  provider (pragmatic, better deliverability). Mailbox provisioning wired into the Phase 5 CLI.
+- **Done:** `suite user add` also creates the mailbox; an outbound email lands in the inbox (not spam).
+
+### Phase 7 — Production hardening & packaging
+
+- Resource limits, health checks, light monitoring (Uptime Kuma / metrics).
+- Upgrade strategy (pinned image tags, DB migrations, Helm rollback).
+- "Non-profit admin" docs (non-K8s-expert), troubleshooting guide, VPS sizing.
+- **Done:** a third-party org installs and operates it without maintainer intervention.
+
+---
+
+## Main risks to watch
+
+1. **Email deliverability** (Phase 6) — the biggest risk; deliberately isolated as an optional module.
+2. **Kubernetes learning curve** for a volunteer — hidden behind installer + CLI.
+3. **Upstream drift** — official charts move; pin versions, track releases.
+4. **Per-app OIDC quirks** — validate one by one (residual ProConnect assumptions).
+5. **Storage sovereignty** — if external S3, pick an EU/CH provider and encrypt.
+
+## References
+
+- Reference repo (cloned as an inspiration base): `baptisterajaut/lasuite-platform`
+- More advanced production reference (governmental): `MinBZK/mijn-bureau-infra`
+- Upstream org: <https://github.com/suitenumerique>

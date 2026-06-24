@@ -1,0 +1,95 @@
+site_name: OwnSuite
+site_description: >-
+  Self-host La Suite numérique, production-ready, on a single VPS, for a
+  non-profit — K3s, Helmfile, shared SSO, backups included.
+# site_url is REQUIRED by the llmstxt plugin and by navigation.instant.
+site_url: https://corentingiraud.github.io/ownsuite/
+repo_url: https://github.com/corentingiraud/ownsuite
+repo_name: corentingiraud/ownsuite
+edit_uri: edit/main/docs/
+copyright: Documentation released under an open-source license — OwnSuite.
+
+theme:
+  name: material
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search:
+      lang: en
+  # Publishes /llms.txt (index) and /llms-full.txt (concatenated full text)
+  # so AI tools can fetch the whole documentation as a single source.
+  - llmstxt:
+      markdown_description: >-
+        OwnSuite: an open-source, production-ready deployment of La
+        Suite numérique on a single VPS for a non-profit (K3s + Helmfile, shared
+        Keycloak SSO, CloudNativePG, pluggable S3 storage, backups and tested
+        restore).
+      full_output: llms-full.txt
+      sections:
+        Overview:
+          - index.md: Project overview and product vision.
+        Architecture:
+          - architecture/overview.md: The stack and its building blocks.
+          - architecture/decisions.md: Architecture Decision Records (ADR) and their rationale.
+        Roadmap:
+          - roadmap.md: Project phases and definition of done.
+        Contributing:
+          - contributing/for-ai-agents.md: Conventions for AI agents and the documentation.
+
+nav:
+  - Home: index.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Decisions (ADR): architecture/decisions.md
+  - Roadmap: roadmap.md
+  - Contributing:
+      - For AI agents: contributing/for-ai-agents.md
