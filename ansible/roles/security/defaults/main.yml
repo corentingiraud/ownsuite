@@ -1,0 +1,23 @@
+---
+# Defaults for the security role. Override in group_vars/all.yml or the inventory.
+
+# Ingress TCP ports to open (in addition to the K3s CIDRs below).
+firewall_allowed_tcp_ports:
+  - 22
+  - 80
+  - 443
+# K3s pod/service networks must be allowed or in-cluster traffic (CoreDNS,
+# pod-to-pod) is dropped by ufw's default-deny.
+k3s_pod_cidr: "10.42.0.0/16"
+k3s_service_cidr: "10.43.0.0/16"
+
+# fail2ban
+fail2ban_bantime: "1h"
+fail2ban_findtime: "10m"
+fail2ban_maxretry: 5
+
+# SSH hardening. Disabling password auth on a box you only reach by password
+# will lock you out — set ssh_harden: false until your key is installed.
+ssh_harden: true
+ssh_permit_root_login: "prohibit-password"
+ssh_password_authentication: false

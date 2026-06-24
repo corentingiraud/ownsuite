@@ -1,0 +1,67 @@
+---
+# Base host preparation: packages, time, kernel modules/tunables, swap, auto-upgrades.
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ common_base_packages }}"
+    state: present
+
+- name: Set the system timezone
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Ensure time synchronization is running (systemd-timesyncd)
+  ansible.builtin.systemd_service:
+    name: systemd-timesyncd
+    enabled: true
+    state: started
+  # Containers used in CI have no real init for timesyncd; tolerate its absence.
+  failed_when: false
+
+# --- Kernel modules required by the container network --------------------------
+- name: Load required kernel modules now
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+  # br_netfilter is unavailable inside unprivileged CI containers; the privileged
+  # full-bootstrap scenario and real hosts load it fine.
+  failed_when: false
+
+- name: Persist required kernel modules across reboots
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/ownsuite-k3s.conf
+    content: |
+      # OwnSuite-managed (Ansible) - changes will be overwritten
+      overlay
+      br_netfilter
+    owner: root
+    group: root
+    mode: "0644"
+
+# --- Kernel tunables -----------------------------------------------------------
+- name: Deploy sysctl tunables
+  ansible.builtin.template:
+    src: sysctl.conf.j2
+    dest: /etc/sysctl.d/90-ownsuite.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload sysctl
+
+# --- Swap ----------------------------------------------------------------------
+- name: Configure swap
+  ansible.builtin.include_tasks: swap.yml
+  when: common_swap_size_mb | int > 0
+
+# --- Unattended upgrades -------------------------------------------------------
+- name: Configure unattended security upgrades
+  ansible.builtin.include_tasks: unattended-upgrades.yml
+  when: common_unattended_upgrades | bool

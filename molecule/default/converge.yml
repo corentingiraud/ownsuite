@@ -1,0 +1,9 @@
+---
+# Apply the host-preparation roles. K3s is excluded here — it needs a real init
+# and kernel features that plain containers lack; see the `full` scenario.
+- name: Converge (host preparation)
+  hosts: all
+  become: true
+  roles:
+    - role: common
+    - role: security

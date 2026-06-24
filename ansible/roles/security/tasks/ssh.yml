@@ -1,0 +1,25 @@
+---
+# SSH hardening via a drop-in (sshd_config.d), leaving the distro file untouched.
+
+- name: Ensure the SSH server is installed
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+
+- name: Ensure the SSH privilege separation directory exists
+  # `sshd -t` (the drop-in validation below) fails without it; systemd recreates
+  # it on boot via RuntimeDirectory, but it is absent right after install.
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    mode: "0755"
+
+- name: Deploy the SSH hardening drop-in
+  ansible.builtin.template:
+    src: sshd_hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/90-ownsuite.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "sshd -t -f %s"
+  notify: Restart ssh

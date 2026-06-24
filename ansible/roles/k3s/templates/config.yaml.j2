@@ -1,0 +1,9 @@
+# OwnSuite-managed (Ansible) - changes will be overwritten
+# K3s server configuration — /etc/rancher/k3s/config.yaml
+# https://docs.k3s.io/installation/configuration
+write-kubeconfig-mode: "{{ k3s_kubeconfig_mode }}"
+{% if k3s_extra_server_args %}
+{% for arg in k3s_extra_server_args %}
+{{ arg }}
+{% endfor %}
+{% endif %}

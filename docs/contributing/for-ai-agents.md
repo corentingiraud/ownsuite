@@ -35,7 +35,10 @@ To load the whole project context at once, fetch `/llms-full.txt`.
 
 - No going back to **Bitnami** or **MinIO** (deprecated — see [ADR-003](../architecture/decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3)
   and [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami)).
-- **Pinned** versions (charts, images, K3s); never `latest` in production.
+- **Pinned** versions (charts, images, K3s); never `latest` in production. Don't
+  hand-edit a pin to chase the newest release — **Renovate** opens tested bump PRs
+  (`renovate.json`, see [ADR-007](../architecture/decisions.md#adr-007-upgrade-model-semver-releases-backup-gated-cli)).
+  Staying current is Renovate's job; staying *tested* is the CI harness's.
 - Every secret derives from the `secretSeed` or an explicit override — **never commit a plaintext secret**.
 
 ## Build the docs locally

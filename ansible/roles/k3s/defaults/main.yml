@@ -1,0 +1,17 @@
+---
+# Defaults for the k3s role. Override in group_vars/all.yml or the inventory.
+
+# Pin an explicit release, never a channel (AGENTS.md: no `latest`).
+k3s_version: "v1.35.5+k3s1"
+# Official installer; pinned by SHA-agnostic URL but the version above is what
+# determines the binary. The script itself is idempotent.
+k3s_install_script_url: "https://get.k3s.io"
+
+k3s_kubeconfig_mode: "0644"
+# Extra server flags appended to the generated config. Traefik + ServiceLB stay
+# enabled on purpose (ADR-001) — do not add `--disable traefik` here.
+k3s_extra_server_args: []
+
+# Fetch the kubeconfig back to the operator's machine after install.
+k3s_fetch_kubeconfig: true
+k3s_kubeconfig_local_path: "./kubeconfig"

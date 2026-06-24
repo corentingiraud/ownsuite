@@ -1,0 +1,8 @@
+---
+# Ansible Galaxy collections required by the bootstrap playbook.
+# Pinned (ADR: never `latest` for anything shipped).
+collections:
+  - name: ansible.posix
+    version: "1.6.2"
+  - name: community.general
+    version: "10.5.0"

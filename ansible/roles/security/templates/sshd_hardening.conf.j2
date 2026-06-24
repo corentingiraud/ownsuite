@@ -1,0 +1,8 @@
+# OwnSuite-managed (Ansible) - changes will be overwritten
+# OwnSuite SSH hardening drop-in.
+PermitRootLogin {{ ssh_permit_root_login }}
+PasswordAuthentication {{ ssh_password_authentication | ternary('yes', 'no') }}
+ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
+X11Forwarding no
+MaxAuthTries 4

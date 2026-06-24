@@ -1,0 +1,39 @@
+---
+# OwnSuite bootstrap — pinned versions and host tunables.
+# Override per host/group in the inventory; never use `latest` here (AGENTS.md).
+
+# --- K3s ---------------------------------------------------------------------
+# Pin an explicit release, NOT a channel, so a bump is always an intentional diff.
+# Latest stable at time of writing (https://update.k3s.io/v1-release/channels).
+k3s_version: "v1.35.5+k3s1"
+# Default CIDRs baked into K3s/flannel. The firewall must allow these or
+# CoreDNS / pod-to-pod traffic breaks.
+k3s_pod_cidr: "10.42.0.0/16"
+k3s_service_cidr: "10.43.0.0/16"
+# kubeconfig is written world-readable-ish so the admin user can use kubectl.
+k3s_kubeconfig_mode: "0644"
+# Where to copy the kubeconfig back to the operator's machine (controller).
+k3s_fetch_kubeconfig: true
+k3s_kubeconfig_local_path: "./kubeconfig"
+
+# --- Host base ---------------------------------------------------------------
+common_swap_size_mb: 2048
+common_timezone: "Etc/UTC"
+common_base_packages:
+  - curl
+  - ca-certificates
+  - gnupg
+  - apt-transport-https
+  - python3-apt
+
+# --- Firewall / SSH ----------------------------------------------------------
+# Ingress ports opened by ufw (in addition to the K3s CIDRs above).
+firewall_allowed_tcp_ports:
+  - 22    # SSH
+  - 80    # HTTP (Traefik / ACME http-01)
+  - 443   # HTTPS
+# SSH hardening. Keep true in production; disable only if you bootstrap with a
+# password and have not yet installed an SSH key (you would lock yourself out).
+ssh_harden: true
+ssh_permit_root_login: "prohibit-password"
+ssh_password_authentication: false

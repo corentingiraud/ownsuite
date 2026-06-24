@@ -1,0 +1,18 @@
+---
+# ansible-lint configuration.
+profile: production
+
+exclude_paths:
+  - .venv/
+  - site/
+  - .galaxy/
+  - molecule/
+
+# Galaxy metadata rules don't apply to an application repo (not a published role).
+skip_list:
+  - galaxy[no-changelog]
+  - galaxy[version-incorrect]
+  # These roles are application components, not published reusable roles. Shared
+  # tunables (k3s_*, firewall_*, ssh_*, fail2ban_*) are centralized in
+  # group_vars/all.yml on purpose, so the per-role-prefix rule does not apply.
+  - var-naming[no-role-prefix]

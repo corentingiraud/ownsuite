@@ -1,0 +1,6 @@
+---
+# Collections required by the Molecule test harness (Docker driver), kept
+# separate from the application's ansible/requirements.yml. Pinned (never `latest`).
+collections:
+  - name: community.docker
+    version: "5.2.1"

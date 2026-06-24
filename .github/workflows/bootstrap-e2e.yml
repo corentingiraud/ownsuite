@@ -1,0 +1,53 @@
+name: bootstrap-e2e
+
+# Heavy end-to-end check: run the WHOLE bootstrap incl. a real, pinned K3s
+# install and assert the node reaches Ready. This is the machine-checked form of
+# the Phase 0 definition of done, so it runs nightly and whenever the k3s role
+# (or the bootstrap entrypoint) changes — not on every PR.
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "ansible/roles/k3s/**"
+      - "ansible/bootstrap.yml"
+      - "ansible/group_vars/**"
+      - "molecule/full/**"
+      - ".github/workflows/bootstrap-e2e.yml"
+  pull_request:
+    paths:
+      - "ansible/roles/k3s/**"
+      - "ansible/bootstrap.yml"
+      - "ansible/group_vars/**"
+      - "molecule/full/**"
+      - ".github/workflows/bootstrap-e2e.yml"
+  workflow_dispatch:
+
+jobs:
+  full-bootstrap:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian12
+            image: "geerlingguy/docker-debian12-ansible:latest"
+          - distro: debian13
+            image: "geerlingguy/docker-debian13-ansible:latest"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Install Ansible collections (app + test harness)
+        run: |
+          ansible-galaxy collection install -r ansible/requirements.yml
+          ansible-galaxy collection install -r molecule/requirements.yml
+      - name: Run Molecule (full scenario, real K3s -> node Ready)
+        run: molecule test -s full
+        env:
+          MOLECULE_DISTRO: ${{ matrix.distro }}
+          MOLECULE_IMAGE: ${{ matrix.image }}

@@ -1,0 +1,24 @@
+---
+# fail2ban with an sshd jail. Local config in a jail.d drop-in so package
+# upgrades to jail.conf never clobber it.
+
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+
+- name: Configure the sshd jail
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.d/ownsuite.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Ensure fail2ban is enabled and running
+  ansible.builtin.systemd_service:
+    name: fail2ban
+    enabled: true
+    state: started
+  failed_when: false

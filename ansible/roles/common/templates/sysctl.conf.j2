@@ -1,0 +1,16 @@
+# OwnSuite-managed (Ansible) - changes will be overwritten
+# OwnSuite kernel tunables for a single-node K3s host.
+
+# Keep the box off swap unless under real memory pressure.
+vm.swappiness = {{ common_swappiness }}
+
+# Kubernetes watches many files; default inotify limits are too low and cause
+# pods to crash-loop with "too many open files".
+fs.inotify.max_user_instances = 512
+fs.inotify.max_user_watches = 524288
+
+# Required for the container network (flannel/CNI) to route and to let
+# iptables see bridged traffic.
+net.ipv4.ip_forward = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1

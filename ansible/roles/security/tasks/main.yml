@@ -1,0 +1,12 @@
+---
+# Host hardening: firewall, intrusion prevention, SSH.
+
+- name: Configure the ufw firewall
+  ansible.builtin.include_tasks: ufw.yml
+
+- name: Configure fail2ban
+  ansible.builtin.include_tasks: fail2ban.yml
+
+- name: Harden SSH
+  ansible.builtin.include_tasks: ssh.yml
+  when: ssh_harden | bool

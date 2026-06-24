@@ -112,6 +112,15 @@ version}`. Upgrades run through a **`suite` CLI** that is *backup-gated*: snapsh
 **Consequences.** Sustainable maintenance; upgrades = a git operation plus one
 command. GitOps (Flux/ArgoCD) is possible later; deemed overkill for a single VPS in v1.
 
+**Concrete tooling (Phase 0).** **Renovate** (`renovate.json`), not Dependabot — one
+tool that tracks *every* pin we ship: Python tooling (`requirements-*.txt`), **Ansible
+Galaxy collections** (`ansible/requirements.yml`, `molecule/requirements.yml`), GitHub
+Actions, and the **K3s release** in `ansible/group_vars/all.yml` (via a custom manager
+against the `k3s-io/k3s` releases). Dependabot would only cover a subset and would race
+Renovate with duplicate PRs, so it is intentionally omitted. Each bump is a PR gated by
+the [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness) test harness, so
+"stay current" never means "stay untested".
+
 ---
 
 ## ADR-008 — Mailbox out of scope for v1 (feasible as an add-on)
@@ -144,3 +153,41 @@ Docusaurus (MDX/JSX). The `mkdocs-llmstxt` plugin publishes `/llms.txt` and
 **Consequences.** A site that's readable for humans, an ideal raw source for agents,
 and a fetchable full-text dump. Per-version docs via `mike`, aligned with releases
 (to enable later).
+
+---
+
+## ADR-010 — Testing & CI strategy: a layered, evolving harness
+
+**Context.** ADR-002 makes Ansible the host provisioner and ADR-006 promises a CI
+pipeline that replays **install → upgrade → restore** so the backup/restore promise
+stays true over time. We need automated tests from Phase 0 that are cheap enough to run
+on every change, yet able to grow into that full pipeline without being rebuilt.
+
+**Decision.** A **three-layer** test harness, established in Phase 0 and extended one
+phase at a time. The *harness* (Molecule + Testinfra + a Debian 12/13 matrix) is the
+stable contract; each phase only adds scenarios and assertions.
+
+1. **Static** — `yamllint`, `ansible-lint` (production profile),
+   `ansible-playbook --syntax-check`. Runs on every PR in seconds (`make lint`).
+2. **Per-role container** — Molecule (Docker driver, systemd-enabled Debian images)
+   converges the host-prep roles, asserts **idempotence** (a second run changes
+   nothing), then **Testinfra** asserts the resulting state (swap, sysctl, ufw rules,
+   fail2ban, SSH hardening). Runs on every PR across Debian 12 and 13 (`make test`).
+3. **Full definition-of-done** — Molecule's `full` scenario runs the *entire* bootstrap
+   incl. a real, pinned K3s install in a privileged systemd container, then asserts the
+   node reaches `Ready` and the core components (CoreDNS, Traefik, local-path) are up.
+   Heavy, so it runs **nightly and when the K3s role changes** (`make test-full`).
+
+**Why layered.** Most changes are caught in seconds by layers 1–2; the expensive
+real-cluster check (layer 3) is reserved for what actually affects the cluster. The DoD
+is still machine-verified, just not on every PR.
+
+**How it evolves.** Phase 1 adds a scenario asserting `helmfile sync` brings the shared
+infra up; Phase 3 adds the install → upgrade → **restore** replay ADR-006 mandates —
+both plug into the same Molecule/Testinfra/matrix harness rather than introducing a new
+one.
+
+**Consequences.** Robust feedback proportional to risk, and a test foundation that the
+later phases inherit instead of reinventing. Cost: Molecule/Testinfra are Python dev
+dependencies, and the nightly full run consumes CI minutes (bounded to the two Debian
+targets).
