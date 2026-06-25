@@ -18,6 +18,12 @@ REALM = "ownsuite"
 DOMAIN = os.environ.get("OWNSUITE_DOMAIN", "ownsuite.localhost")
 AUTH_HOST = f"auth.{DOMAIN}"
 DOCS_HOST = f"docs.{DOMAIN}"
+DRIVE_HOST = f"drive.{DOMAIN}"
+
+# Phase 5: a user created through the `suite user` CLI (run by run-e2e.sh before the
+# pre-stage), used to prove JIT access into BOTH Docs and Drive (ADR-022, ADR-023).
+CLI_USER = os.environ.get("OWNSUITE_E2E_USER", "")
+CLI_USER_PW = os.environ.get("OWNSUITE_E2E_USER_PW", "")
 
 SECRET_SEED = os.environ.get("OWNSUITE_SECRET_SEED")
 GARAGE_MODE = os.environ.get("OWNSUITE_OBJECT_STORAGE_MODE", "external") == "garage"
@@ -61,6 +67,23 @@ def derive_secret(secret_id, length=32):
     """Mirror the chart helper: sha256sum("<seed>:<id>") truncated (ADR-012)."""
     digest = hashlib.sha256(f"{SECRET_SEED}:{secret_id}".encode()).hexdigest()
     return digest[:length]
+
+
+def password_token(client_id, username, password):
+    """Mint an access token via the direct-access (password) grant for any app's
+    OIDC client (its secret is derived from the `<clientId>-oidc` id, ADR-012)."""
+    client_secret = derive_secret(f"{client_id}-oidc")
+    token_url = f"https://{AUTH_HOST}/realms/{REALM}/protocol/openid-connect/token"
+    out = curl(
+        AUTH_HOST, token_url,
+        "--data-urlencode", "grant_type=password",
+        "--data-urlencode", f"client_id={client_id}",
+        "--data-urlencode", f"client_secret={client_secret}",
+        "--data-urlencode", f"username={username}",
+        "--data-urlencode", f"password={password}",
+        "--data-urlencode", "scope=openid email",
+    )
+    return json.loads(out)["access_token"]
 
 
 def curl(host, url, *args):
@@ -292,3 +315,69 @@ def test_restore_preserves_document_and_user():
         assert DOC_TITLE in titles, f"restored document not found; got titles={titles}"
 
     retry(find_survivor)
+
+
+# --- Phase 5: Drive + CLI-driven user provisioning (ADR-022, ADR-023) -------
+
+
+def test_drive_database_applied():
+    applied = kubectl(
+        "-n", NAMESPACE, "get", "database", "drive", "-o", "jsonpath={.status.applied}"
+    ).stdout.strip()
+    assert applied == "true", f"Database drive not applied ({applied!r})"
+
+
+def test_drive_pods_ready():
+    """Drive's backend and frontend reach Ready (it has no y-provider, unlike Docs)."""
+    for component in ("backend", "frontend"):
+        out = kubectl(
+            "-n", NAMESPACE, "get", "pods",
+            "-l", f"app.kubernetes.io/name=drive,app.kubernetes.io/component={component}",
+            "-o", 'jsonpath={.items[*].status.conditions[?(@.type=="Ready")].status}',
+        ).stdout
+        assert "True" in out, f"Drive {component} pod not Ready ({out!r})"
+
+
+def test_drive_reachable_over_https():
+    """Drive answers over HTTPS through Traefik (its API config endpoint)."""
+    def fetch():
+        out = curl(DRIVE_HOST, f"https://{DRIVE_HOST}/api/v1.0/config/")
+        data = json.loads(out)
+        assert isinstance(data, dict) and data, "empty Drive config payload"
+        return data
+
+    retry(fetch, attempts=40, delay=3)
+
+
+def _assert_app_access(host, client):
+    """A token for `client` (minted for the CLI-created user) is accepted by the app
+    and JIT-provisions that user — proven by /users/me/ echoing their email."""
+    def whoami():
+        token = password_token(client, CLI_USER, CLI_USER_PW)
+        out = curl(
+            host, f"https://{host}/api/v1.0/users/me/",
+            "-H", f"Authorization: Bearer {token}",
+        )
+        data = json.loads(out)
+        assert (data.get("email") or "").lower() == CLI_USER.lower(), data
+
+    retry(whoami)
+
+
+@PRE_ONLY
+@pytest.mark.skipif(
+    not (SECRET_SEED and CLI_USER and CLI_USER_PW),
+    reason="needs OWNSUITE_SECRET_SEED + a CLI-created user (OWNSUITE_E2E_USER/_PW)",
+)
+def test_dod_cli_user_has_docs_and_drive():
+    """The Phase 5 definition of done: a user created through the `suite user` CLI
+    (Keycloak only — no per-app step) is just-in-time provisioned into BOTH Docs and
+    Drive on its first authenticated call (ADR-005, ADR-022, ADR-023).
+
+    Headless equivalent of "log in and you're in both apps": mint an access token
+    with each app's OIDC client for the CLI-created user (direct-access grant), then
+    call /users/me/ on each — a 200 echoing the user's email proves the token is
+    accepted and the account was JIT-created in that app.
+    """
+    _assert_app_access(DOCS_HOST, "docs")
+    _assert_app_access(DRIVE_HOST, "drive")

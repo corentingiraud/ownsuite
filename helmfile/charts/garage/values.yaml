@@ -31,8 +31,12 @@ storage:
   # Empty => cluster default StorageClass (local-path on K3s).
   storageClass: ""
 
-# Bucket created at bootstrap and granted to the imported app key.
-bucket: docs-media-storage
+# Buckets created at bootstrap and granted to the imported app key (one per app
+# that stores objects — e.g. docs + drive on the primary store). The single
+# seed-derived S3 key owns them all; separate buckets keep each app's objects
+# isolated. Helmfile passes the list of enabled apps' buckets (values/garage*).
+buckets:
+  - docs-media-storage
 # Name of the imported S3 key inside Garage (the credentials come from s3Secret).
 keyName: docs
 

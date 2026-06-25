@@ -2,7 +2,8 @@
 # Full Phase 1-3 definition-of-done on a throwaway k3d cluster:
 #   create single-node K3s (Traefik kept) -> helmfile sync (self-signed issuer,
 #   backups ON to a second in-cluster Garage acting as the off-site store) ->
-#   assert the shared infra + Docs SSO DoD -> seed a media object -> back up
+#   assert the shared infra + Docs/Drive SSO DoD (incl. a user created via the
+#   `suite user` CLI, JIT into both apps) -> seed a media object -> back up
 #   (PostgreSQL base backup + off-site object copy) -> DESTROY the primary state ->
 #   `make restore` -> assert the Docs document, the Keycloak user, and the media
 #   object all SURVIVED the cycle (ADR-006) -> destroy.
@@ -33,6 +34,12 @@ export OWNSUITE_SECRET_SEED="${OWNSUITE_SECRET_SEED:-$(openssl rand -hex 24)}"
 export OWNSUITE_OBJECT_STORAGE_MODE="${OWNSUITE_OBJECT_STORAGE_MODE:-garage}"
 export OWNSUITE_KC_SEED_TEST_USER="${OWNSUITE_KC_SEED_TEST_USER:-true}"
 export OWNSUITE_KC_DIRECT_GRANTS="${OWNSUITE_KC_DIRECT_GRANTS:-true}"
+# Phase 5: prove the DoD with a user created through the `suite user` CLI (not the
+# seeded realm user) — JIT into BOTH Docs and Drive. A PERMANENT password lets the
+# e2e mint a token via the direct-access grant (a temporary one would force a reset
+# before any token is issued). Drive is enabled by default (apps.drive.enabled).
+export OWNSUITE_E2E_USER="${OWNSUITE_E2E_USER:-phase5-tester@ownsuite.localhost}"
+export OWNSUITE_E2E_USER_PW="${OWNSUITE_E2E_USER_PW:-$(openssl rand -hex 16)}"
 # Phase 3: backups ON to a SECOND in-cluster Garage (`garage-backup`) standing in for
 # the off-site store. WAL archiving is continuous; the e2e takes an on-demand base
 # backup and triggers the object-copy CronJob manually, so the default schedule
@@ -206,7 +213,13 @@ export KUBECONFIG
 sync_with_watchdog "domain=$OWNSUITE_DOMAIN, issuer=$OWNSUITE_TLS_ISSUER, backups=on"
 wait_for_certs
 
-echo "==> Asserting the Phase 1+2 definition of done (creates the survivor document)"
+echo "==> Phase 5: provisioning a user through the suite CLI (JIT to all apps)"
+# Exercises the real CLI path (ADR-023): admin REST to the in-cluster Keycloak over
+# a kubectl port-forward (no SSH tunnel needed against k3d — ambient KUBECONFIG).
+python3 -m suite user add "$OWNSUITE_E2E_USER" \
+  --password "$OWNSUITE_E2E_USER_PW" --permanent --no-tunnel
+
+echo "==> Asserting the Phase 1+2+5 definition of done (Docs + Drive; creates the survivor document)"
 OWNSUITE_E2E_STAGE=pre python3 -m pytest helmfile/tests/test_platform.py -v
 
 # --- Phase 3: backup -> destroy -> restore --------------------------------------
@@ -251,8 +264,8 @@ echo "==> DESTROYING the primary state (DB + primary object store + apps)"
 # Keep platform-configuration (secrets), garage-backup (the off-site backups!), the
 # barman plugin and the operators — they stand in for what survives the server.
 helmfile -f "$HELMFILE" \
-  -l name=docs -l name=docs-ingress -l name=keycloak -l name=valkey \
-  -l name=postgres -l name=garage \
+  -l name=docs -l name=docs-ingress -l name=drive -l name=drive-ingress \
+  -l name=keycloak -l name=valkey -l name=postgres -l name=garage \
   destroy
 echo "    deleting leftover PVCs (StatefulSet/CNPG volumes are not removed by uninstall)"
 kubectl -n "$NS" delete pvc -l "cnpg.io/cluster=ownsuite-pg" --ignore-not-found

@@ -578,3 +578,108 @@ relay carries SPF/DKIM alignment; messages signs DKIM for the domain and SPF `in
   in-app. Not suitable for bulk/newsletters — that's a separate product.
 - Supersedes ADR-008's "Stalwart recommended" note; ADR-008's "optional add-on" and "relay
   outbound" decisions carry over unchanged.
+
+---
+
+## ADR-022 — Drive integration: reuse the Docs seam, per-app buckets
+
+**Context.** Phase 5 broadens the suite, and **Drive** (`suitenumerique` / drive) is the
+DoD-critical second app: `suite user add` must grant Docs **and** Drive immediately. Drive
+is a `suitenumerique` sibling of Docs — same Django/Next.js shape, same official Helm chart
+pattern, the same mozilla-django-oidc login — so the question is not *how to integrate a new
+kind of app* but *what, if anything, the existing Docs seam
+([ADR-016](#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)) must
+grow* to host a second one. Drive needs no People/teams service (sharing is per-item), so it
+takes on no new dependency.
+
+**Decision.** Add Drive as a Helmfile release that **mirrors Docs almost verbatim**, and make
+the few shared pieces multi-app instead of forking them:
+
+- **Same foundation, per-app instances.** Drive reuses CNPG (its own `drive` database +
+  owner role), Valkey, the pluggable S3 seam, and Keycloak SSO. Each app gets its **own**
+  database, its **own** S3 bucket (`drive-media-storage`), and its **own** OIDC client
+  (`drive`) — derived from the same seed
+  ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)) by the
+  same `<id>` convention the realm import and the app already share. Adding `drive` to
+  `keycloak.clients` is all the realm + the idempotent upsert Job
+  ([ADR-020](#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)) need.
+- **Distinct Valkey databases.** Docs and Drive share the one in-cluster Valkey, so Drive
+  uses Redis **db 2** (cache) and **db 3** (Celery broker); Docs keeps 0/1. A separate broker
+  db keeps the two apps' Celery queues from cross-consuming each other's tasks — the one real
+  trap of co-tenanting a broker.
+- **Garage creates a list of buckets.** The Garage bootstrap Job
+  ([ADR-015](#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key)) is
+  generalised from one bucket to a **list** (the enabled apps' buckets); the single
+  seed-derived S3 key owns them all. In `external` S3 mode the operator pre-creates the Drive
+  bucket alongside the Docs one, exactly as before.
+- **Traefik media glue, sibling chart.** Drive's authenticated media serving is the Docs
+  pattern with two cosmetic differences: the media-auth endpoint is `/api/v1.0/items/`
+  (Drive calls them *items*, not *documents*) and the rewrite targets the Drive bucket. A
+  `drive-ingress` chart carries those two Middleware CRs, mirroring `docs-ingress`. Drive's
+  upstream chart already routes `/api` + `/external_api` to the backend on the main ingress,
+  so no extra API ingress is needed.
+- **No realtime collaboration.** Drive is a file manager, not a collaborative editor, so it
+  ships **no y-provider** — its values are the Docs wiring minus the collaboration server and
+  its websocket/api ingresses.
+- **Individually enable-able.** Each app is gated on its own `apps.<name>.enabled` flag
+  (`OWNSUITE_APP_DOCS` / `OWNSUITE_APP_DRIVE`); both default on (the DoD wants both), either
+  can be turned off.
+
+**Consequences.** Drive comes up over HTTPS with real SSO and per-app isolated state, proven
+at the API level by the same kind of token→create→read-back e2e as Docs (Phase 5 DoD). The
+seam now hosts N apps without forking: a future app is another `keycloak.clients` entry, a
+bucket in the list, a database, and a values file. **Deferred:** the media-**preview**
+(thumbnail) ingress — a visual nicety whose upstream rewrite path needs validating against our
+Traefik setup, not part of the DoD; it is left off with a `ponytail:` marker and enabled once
+proven. External-S3 media keeps the same pre-existing limitation as Docs (the media upstream
+points at the in-cluster Garage), out of Phase 5 scope.
+
+---
+
+## ADR-023 — User provisioning: `suite user`, admin REST over the tunnel, JIT
+
+**Context.** Phase 5's definition of done is `suite user add firstname@assoc.org` → that person
+immediately has Docs **and** Drive. ADR-005 already decided **one Keycloak identity, JIT into
+every app**, and ADR-018 built the `suite` CLI (pure standard library) that prefigured this
+verb. What was left open: *where* user provisioning runs, *how* it reaches Keycloak, and *how
+the admin authenticates* — without exposing the admin API or storing a second secret.
+
+**Decision.** Extend the existing `suite` package with `suite user add|disable|passwd <email>`:
+
+- **JIT only — no per-app calls.** `add` creates **one** Keycloak user (username = email,
+  `emailVerified`, enabled) and sets an initial password. Because every app authenticates
+  through the same realm and provisions its local account from the token on first login
+  ([ADR-005](#adr-005-shared-keycloak-jit-provisioning)), that single create grants access to
+  **all enabled apps** — the CLI never touches Docs/Drive/etc. directly, so a newly added app
+  needs no change here. `disable` deactivates the user (revoking access everywhere at once);
+  `passwd` resets the password. Generated passwords are **temporary** by default (forced reset
+  at first login) and shown once.
+- **Admin REST over the in-cluster service, through the tunnel.** The CLI talks the Keycloak
+  **admin REST API** (stdlib `urllib`, no HTTP-client dependency) to the in-cluster
+  `keycloak-keycloakx-http` service, reached over the existing SSH tunnel
+  ([ADR-014](#adr-014-operator-control-plane-local-workstation-ssh-tunnel)) plus a short-lived
+  `kubectl port-forward`. Admin traffic therefore **stays private** — it never crosses the
+  public `auth.{domain}` endpoint — consistent with ADR-014 (the API is never exposed) and
+  ADR-020 (the upsert Job also talks to the in-cluster service).
+- **Admin password derived from the seed, not read from the cluster.** The admin credential is
+  re-derived locally from `$OWNSUITE_SECRET_SEED` with the same helper id (`keycloak-admin`)
+  the platform used ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)),
+  so the CLI needs only the seed the operator already guards — no new secret, no `kubectl get
+  secret`.
+- **HTTP transport is injectable.** The `KeycloakAdmin` client takes its transport as a
+  parameter, so the create/disable/reset logic is unit-tested against an in-memory fake admin
+  API (no live Keycloak), matching the harness's existing fake-the-boundary style
+  ([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness)). The tunnel/port-forward
+  glue is thin orchestration, exercised by the k3d e2e instead.
+
+**Why not kcadm-exec or the public admin API.** `kubectl exec … kcadm.sh` (as the ADR-020 Job
+does in-cluster) would couple the CLI to pod internals and a shell session file, and is awkward
+to unit-test; the public `auth.{domain}/admin` API would expose admin operations to the
+internet. Admin REST to the in-cluster service keeps clean idempotent semantics *and* a private
+surface.
+
+**Consequences.** A non-profit admin provisions people with one command and no Kubernetes
+knowledge; the verb is app-count-agnostic by construction (JIT). The same path is what the e2e
+drives to prove the DoD (create a user via the CLI → it reaches Docs **and** Drive). `suite
+upgrade` / `suite restore` remain later verbs (ADR-007). Residual: the CLI assumes the realm's
+default (no password policy); a stricter policy would need the generated password to conform.

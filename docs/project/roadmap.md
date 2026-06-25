@@ -126,10 +126,21 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 
 ### Phase 5 — Broaden apps + user provisioning
 
-- Add Drive, then People (directory/teams), via Helmfile profiles.
-- **Simple provisioning**: a CLI/small admin portal that creates a Keycloak user →
-  immediate access to all apps (JIT). Password reset, deactivation.
-- **Done:** the admin runs `suite user add firstname@assoc.org` and the person has Docs+Drive.
+- **Drive** ✅ — the DoD-critical second app, wired to the same CNPG + Valkey + S3 + Keycloak
+  seam as Docs (per-app database, bucket and OIDC client), with **no People dependency**
+  ([ADR-022](../understand/decisions.md#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)).
+  See [Drive application](../understand/drive.md).
+- **Grist** (collaborative spreadsheet, getgrist self-hosted) and **Projects**
+  (suitenumerique/projects, kanban) broaden the suite *after* the DoD; they are Node stacks,
+  not the impress Django/React shape, so their OIDC wiring differs — each gets its own ADR
+  before coding.
+- **People deferred / optional** — identity lives in Keycloak
+  ([ADR-012](../understand/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)/[ADR-020](../understand/decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert));
+  revisit only if app-level teams need it.
+- **Simple provisioning**: the `suite user` CLI creates/disables/resets a Keycloak user →
+  immediate access to all enabled apps (JIT — no per-app step).
+- **Done:** the admin runs `suite user add firstname@assoc.org` and the person has Docs **and**
+  Drive.
 
 ### Phase 6 — (Advanced / optional) Mailbox
 

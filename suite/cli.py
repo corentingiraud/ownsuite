@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import argparse
 
-from . import steps
+from . import steps, users
 from .errors import SuiteError
 
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="suite", description="OwnSuite installer (Phase 4).")
+    p = argparse.ArgumentParser(prog="suite", description="OwnSuite installer + admin CLI.")
     sub = p.add_subparsers(dest="command", required=True)
+
     i = sub.add_parser("install", help="Guided install: bare server + domain -> HTTPS.")
     i.add_argument("--env-file", default=".env")
     i.add_argument("--domain", help="Base domain (else prompted / read from .env)")
@@ -26,13 +27,37 @@ def build_parser():
     i.add_argument("--skip-bootstrap", action="store_true")
     i.add_argument("--skip-dns", action="store_true")
     i.add_argument("--skip-propagation", action="store_true")
+
+    # `suite user <verb> <email>` — Keycloak user provisioning (JIT to all apps).
+    u = sub.add_parser("user", help="Manage Keycloak users (one identity, all apps via JIT).")
+    uver = u.add_subparsers(dest="action", required=True)
+    for verb, helptext in (
+        ("add", "Create (or update) a user and set an initial password."),
+        ("passwd", "Reset a user's password."),
+        ("disable", "Deactivate a user (revokes access across all apps)."),
+    ):
+        sp = uver.add_parser(verb, help=helptext)
+        sp.add_argument("email", help="The user's email (also their username).")
+        sp.add_argument("--env-file", default=".env")
+        sp.add_argument("--ssh", help="Server SSH target user@host (else read from .env)")
+        sp.add_argument("--no-tunnel", action="store_true", help="Use the ambient KUBECONFIG")
+        sp.add_argument("--local-port", type=int, default=8081, help="Local port-forward port")
+        if verb in ("add", "passwd"):
+            sp.add_argument("--password", help="Set this password (else generated, shown once)")
+            sp.add_argument(
+                "--permanent", action="store_true",
+                help="Do not force a password change at next login",
+            )
     return p
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
-        steps.install(args)
+        if args.command == "user":
+            users.run(args)
+        else:
+            steps.install(args)
     except SuiteError as exc:
         print(f"\nERROR: {exc}")
         return 1

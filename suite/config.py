@@ -7,6 +7,7 @@ the process env for the run; on re-run the operator re-exports it). Non-secret
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 from pathlib import Path
 
@@ -22,6 +23,16 @@ PROMPTS = [
 
 def generate_seed():
     return secrets.token_hex(24)  # same format as `openssl rand -hex 24`
+
+
+def derive_secret(seed, secret_id, length=32):
+    """Mirror the Helm chart helper (ADR-012): sha256("<seed>:<id>") truncated.
+
+    Same (seed, id) the chart used, so a credential the platform derived in-cluster
+    (e.g. the Keycloak admin password, id "keycloak-admin") is reproduced here with
+    nothing secret read from the cluster.
+    """
+    return hashlib.sha256(f"{seed}:{secret_id}".encode()).hexdigest()[:length]
 
 
 def load_env(path):

@@ -1,0 +1,9 @@
+---
+# Overridden by Helmfile (values/drive-ingress.yaml.gotmpl). Listed for standalone
+# `helm lint` / `helm template`.
+
+# Backend service that authorizes media requests (the drive backend, port 80).
+# The drive chart names it "<release>-backend"; our release is "drive".
+backendService: drive-backend
+# Bucket the media path rewrites to (path-style S3).
+bucket: drive-media-storage
