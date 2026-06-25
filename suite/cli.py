@@ -48,6 +48,11 @@ def build_parser():
                 "--permanent", action="store_true",
                 help="Do not force a password change at next login",
             )
+        if verb == "add":
+            # Keycloak's user profile requires first/last name; default to the email
+            # local part so the account is usable (login works) without prompting.
+            sp.add_argument("--first-name", help="First name (default: email local part)")
+            sp.add_argument("--last-name", help="Last name (default: email local part)")
     return p
 
 

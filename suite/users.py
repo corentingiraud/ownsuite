@@ -51,7 +51,11 @@ def run(args):
 def _dispatch(args, kc):
     email = args.email
     if args.action == "add":
-        user_id, created = kc.ensure_user(email)
+        user_id, created = kc.ensure_user(
+            email,
+            first_name=getattr(args, "first_name", None),
+            last_name=getattr(args, "last_name", None),
+        )
         password, generated = _resolve_password(args)
         kc.set_password(user_id, password, temporary=not args.permanent)
         print(f"  {'created' if created else 'updated'} Keycloak user {email}")
