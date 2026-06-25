@@ -1,11 +1,11 @@
 # Architecture — overview
 
-The stack targets **a single VPS**, without the complexity of a multi-node cluster,
+The stack targets **a single server**, without the complexity of a multi-node cluster,
 while staying aligned with La Suite's **official** deployment path (Helm).
 
 ```mermaid
 flowchart TB
-    subgraph VPS["Single VPS — single-node K3s"]
+    subgraph server["Single server — single-node K3s"]
         T["Traefik (bundled with K3s)\nIngress + TLS"]
         CM["cert-manager\nLet's Encrypt"]
         subgraph APPS["Applications (official charts, via Helmfile)"]
@@ -46,7 +46,7 @@ flowchart TB
 | Cache / broker | **Valkey** | Cache and Celery broker | Replaces `bitnami/redis` (deprecated) |
 | Object storage | **Garage** *or* **external EU S3** | Drive files, Docs media… | Replaces MinIO (archived) |
 | Backups | **CNPG + restic/rclone** | Encrypted off-site backups + tested restore | Missing from existing solutions |
-| Host provisioning | **Ansible** | VPS bootstrap + K3s install + patches | See [ADR](decisions.md) |
+| Host provisioning | **Ansible** | Server bootstrap + K3s install + patches | See [ADR](decisions.md) |
 
 ## The principle that makes it "a suite"
 
@@ -57,7 +57,7 @@ account is created automatically on first login (*JIT provisioning*).
 ## Out of scope for v1
 
 - **Meet (video)**: LiveKit + coturn require direct UDP and a lot of CPU/bandwidth,
-  painful on a single VPS. Deferred.
+  painful on a single server. Deferred.
 - **Mailbox**: **not part of La Suite numérique**. Feasible as an add-on (a mail
   server federated to the same Keycloak), but it's the hardest part to make reliable
   (deliverability, port 25, rDNS). See the [roadmap](../project/roadmap.md) (Phase 6).

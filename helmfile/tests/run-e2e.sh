@@ -249,7 +249,7 @@ wait_job object-backup-e2e 180
 
 echo "==> DESTROYING the primary state (DB + primary object store + apps)"
 # Keep platform-configuration (secrets), garage-backup (the off-site backups!), the
-# barman plugin and the operators — they stand in for what survives the VPS.
+# barman plugin and the operators — they stand in for what survives the server.
 helmfile -f "$HELMFILE" \
   -l name=docs -l name=docs-ingress -l name=keycloak -l name=valkey \
   -l name=postgres -l name=garage \

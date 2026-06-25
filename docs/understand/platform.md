@@ -94,10 +94,10 @@ The backup/restore knobs (`OWNSUITE_BACKUP_*`, `OWNSUITE_RESTORE`) are documente
     Phase 5 `suite` CLI will grow upgrades/restore on top.
 
 Everything runs from **your workstation** (clone the repo locally once; nothing to
-install on the VPS beyond the bootstrap — [ADR-014](decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).
+install on the server beyond the bootstrap — [ADR-014](decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).
 
 ```bash
-# 1. Provision the VPS (Ansible, remote over SSH) — fetches ./kubeconfig
+# 1. Provision the server (Ansible, remote over SSH) — fetches ./kubeconfig
 make bootstrap
 
 # 2. Configure (copy the example, edit, load into the shell)
@@ -105,7 +105,7 @@ cp .env.example .env && $EDITOR .env
 set -a && source .env && set +a
 
 # 3. Open an SSH tunnel to the K8s API — keep it running in another terminal
-make tunnel            # ssh -N -L 6443:127.0.0.1:6443 $OWNSUITE_VPS_SSH
+make tunnel            # ssh -N -L 6443:127.0.0.1:6443 $OWNSUITE_SERVER_SSH
 
 # 4. Deploy the shared infrastructure
 make diff              # preview

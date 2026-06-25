@@ -12,11 +12,11 @@ from .errors import SuiteError
 def build_parser():
     p = argparse.ArgumentParser(prog="suite", description="OwnSuite installer (Phase 4).")
     sub = p.add_subparsers(dest="command", required=True)
-    i = sub.add_parser("install", help="Guided install: bare VPS + domain -> HTTPS.")
+    i = sub.add_parser("install", help="Guided install: bare server + domain -> HTTPS.")
     i.add_argument("--env-file", default=".env")
     i.add_argument("--domain", help="Base domain (else prompted / read from .env)")
-    i.add_argument("--ssh", help="VPS SSH target user@host (for bootstrap/tunnel/IP)")
-    i.add_argument("--public-ip", help="Override the detected VPS public IPv4")
+    i.add_argument("--ssh", help="Server SSH target user@host (for bootstrap/tunnel/IP)")
+    i.add_argument("--public-ip", help="Override the detected server public IPv4")
     i.add_argument(
         "--tls-mode", choices=("selfsigned", "staging", "prod"), default="prod",
         help="selfsigned (CI), staging (LE staging only), prod (staging then prod)",

@@ -4,7 +4,7 @@ OwnSuite backs up the **three sources of state** and **proves** it can restore t
 ([ADR-006](../understand/decisions.md#adr-006-backups-and-tested-restore),
 [ADR-017](../understand/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
 Backups are **off-site by construction**: the destination must survive the loss of the
-VPS, so it is **never** the in-cluster Garage you are backing up.
+Server, so it is **never** the in-cluster Garage you are backing up.
 
 ## What is backed up
 

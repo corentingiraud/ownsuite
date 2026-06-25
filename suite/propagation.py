@@ -2,7 +2,7 @@
 
 Queries a few public resolvers for a *random* probe label under the wildcard
 (proving the wildcard resolves, not a stale specific record) plus the apex, and
-needs a majority to return the VPS IP. The query function is injectable, so the
+needs a majority to return the server IP. The query function is injectable, so the
 quorum logic is unit-tested with a fake; the real one shells out to ``dig`` (a
 ubiquitous tool — no DNS-library dependency for a one-line query).
 """

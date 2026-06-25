@@ -1,6 +1,6 @@
 site_name: OwnSuite
 site_description: >-
-  Self-host La Suite numérique, production-ready, on a single VPS, for a
+  Self-host La Suite numérique, production-ready, on a single server, for a
   non-profit — K3s, Helmfile, shared SSO, backups included.
 # site_url is REQUIRED by the llmstxt plugin and by navigation.instant.
 site_url: https://corentingiraud.github.io/ownsuite/
@@ -74,7 +74,7 @@ plugins:
   - llmstxt:
       markdown_description: >-
         OwnSuite: an open-source, production-ready deployment of La
-        Suite numérique on a single VPS for a non-profit (K3s + Helmfile, shared
+        Suite numérique on a single server for a non-profit (K3s + Helmfile, shared
         Keycloak SSO, CloudNativePG, pluggable S3 storage, backups and tested
         restore).
       full_output: llms-full.txt
@@ -82,8 +82,8 @@ plugins:
         Overview:
           - index.md: Project overview and product vision.
         Get started:
-          - get-started/bootstrap.md: Step 1 — one-command VPS bootstrap into a single-node K3s cluster.
-          - get-started/install.md: Step 2 — guided installer (suite install), bare VPS + domain to all-in-HTTPS.
+          - get-started/bootstrap.md: Step 1 — one-command server bootstrap into a single-node K3s cluster.
+          - get-started/install.md: Step 2 — guided installer (suite install), bare server + domain to all-in-HTTPS.
         Operate:
           - operate/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
         Understand the stack:
@@ -110,7 +110,7 @@ plugins:
 nav:
   - Home: index.md
   - Get started:
-      - 1. Prepare the VPS: get-started/bootstrap.md
+      - 1. Prepare the server: get-started/bootstrap.md
       - 2. Install: get-started/install.md
   - Operate:
       - Backups & restore: operate/backups.md

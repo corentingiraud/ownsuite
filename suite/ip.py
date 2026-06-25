@@ -1,7 +1,7 @@
-"""Detect the VPS public IP for the DNS records.
+"""Detect the server public IP for the DNS records.
 
 Read the host's bound global address over SSH (``ip -json addr show scope
-global``), not an outbound echo service, so a NATed VPS reports the IP clients
+global``), not an outbound echo service, so a NATed server reports the IP clients
 reach. Parsing is pure (unit-tested against captured ``ip -json``); detection
 shells out and the caller falls back to the inventory / an explicit override.
 """

@@ -14,7 +14,7 @@ from pathlib import Path
 PROMPTS = [
     ("OWNSUITE_DOMAIN", "Base domain (e.g. assoc.example.org)", ""),
     ("OWNSUITE_ADMIN_EMAIL", "Admin email", ""),
-    ("OWNSUITE_VPS_SSH", "VPS SSH target (user@host)", ""),
+    ("OWNSUITE_SERVER_SSH", "Server SSH target (user@host)", ""),
     ("OWNSUITE_OBJECT_STORAGE_MODE", "Object storage [external|garage]", "external"),
     ("OWNSUITE_BACKUP_ENABLED", "Enable off-site backups [true|false]", "true"),
 ]

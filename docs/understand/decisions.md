@@ -8,7 +8,7 @@ format. Each decision is numbered so it can be referenced and revised.
 ## ADR-001 — K3s + Helmfile (not Compose or raw Helm)
 
 **Context.** La Suite's official production path is Helm; the apps' `compose.yml`
-files are flagged *dev only*. We target a single VPS.
+files are flagged *dev only*. We target a single server.
 
 **Decision.** A **single-node K3s** cluster orchestrated with **Helmfile**. Helmfile
 is `helm upgrade --install` done with discipline: it brings dependency ordering
@@ -22,7 +22,7 @@ installer and a `suite` CLI.
 
 ## ADR-002 — Ansible for the host (not Nix)
 
-**Context.** We must provision the VPS (firewall, fail2ban, swap, sysctl, patches,
+**Context.** We must provision the server (firewall, fail2ban, swap, sysctl, patches,
 K3s install) reproducibly. Target audience: non-profit volunteers, not Kubernetes/Nix
 experts.
 
@@ -32,7 +32,7 @@ experts.
 restores the **OS config**, not the cluster state (K3s sqlite/etcd, volumes, app
 data). For a **stateful** stack, that rollback hands you an empty shell you must
 restore from backups anyway: you'd pay Nix's entry cost without reaping its real
-benefit. Add a much smaller contributor pool and scarce VPS images. A community NixOS
+benefit. Add a much smaller contributor pool and scarce server images. A community NixOS
 variant remains possible later, off the main path.
 
 **Consequences.** Low barrier for admins and contributors; re-runnable playbooks for
@@ -49,7 +49,7 @@ binaries/images discontinued. Drive can store hundreds of GB.
 French, lightweight) **or** a **managed EU/CH S3** (Infomaniak, Scaleway, OVH).
 Recommended production default: external S3.
 
-**Consequences.** No storage ops with external S3, smaller VPS disk, simpler backups;
+**Consequences.** No storage ops with external S3, smaller server disk, simpler backups;
 Garage for full sovereignty. Even with external S3, an **off-site application-level
 backup** of the objects is still required (accidental deletion, lock-in).
 
@@ -110,7 +110,7 @@ version}`. Upgrades run through a **`suite` CLI** that is *backup-gated*: snapsh
 **Renovate/Dependabot** opens bump PRs, tested in CI before a release.
 
 **Consequences.** Sustainable maintenance; upgrades = a git operation plus one
-command. GitOps (Flux/ArgoCD) is possible later; deemed overkill for a single VPS in v1.
+command. GitOps (Flux/ArgoCD) is possible later; deemed overkill for a single server in v1.
 
 **Concrete tooling (Phase 0).** **Renovate** (`renovate.json`), not Dependabot — one
 tool that tracks *every* pin we ship: Python tooling (`requirements-*.txt`), **Ansible
@@ -201,7 +201,7 @@ targets).
 Bitnami is banned (ADR-004). Three credible install methods remain: the
 `codecentric/keycloakx` Helm chart, the official **Keycloak Operator** (Quarkus, with
 `Keycloak`/`KeycloakRealmImport` CRs), or a hand-rolled local chart. The deciding
-criterion is long-term **upgradeability** on a single VPS (ADR-007).
+criterion is long-term **upgradeability** on a single server (ADR-007).
 
 **Decision.** Use **`codecentric/keycloakx`** — the chart `lasuite-platform` already
 relies on, with realm import via `--import-realm` from a ConfigMap that
@@ -229,7 +229,7 @@ locally if its maintenance ever lapses.
 
 **Context.** Every credential (Postgres roles, Keycloak admin/DB, Valkey, S3, per-app
 OIDC client secrets) must exist without committing any plaintext (hard rule), on a target
-that is a **single VPS** run by non-experts. Options range from a secrets manager
+that is a **single server** run by non-experts. Options range from a secrets manager
 (Vault/External Secrets) or SOPS to in-template derivation.
 
 **Decision.** Derive **everything from one `secretSeed`** with a Helm template helper —
@@ -265,7 +265,7 @@ through the Traefik ingress for production, and a **`selfsigned`** ClusterIssuer
 an API credential — exactly the "domain → DNS" experience **Phase 4** owns. HTTP-01 needs
 nothing but the port 80 the firewall already opens, so it is the right minimum for Phase 1.
 
-**Consequences.** HTTPS works on a bare VPS with no DNS-provider integration, and CI proves
+**Consequences.** HTTPS works on a bare server with no DNS-provider integration, and CI proves
 end-to-end TLS termination with the self-signed issuer (Let's Encrypt cannot be exercised
 without public DNS). DNS-01 wildcard becomes an additive ClusterIssuer in Phase 4 — no
 rework of the issuer-selection seam.
@@ -274,26 +274,26 @@ rework of the issuer-selection seam.
 
 ## ADR-014 — Operator control plane: local workstation + SSH tunnel
 
-**Context.** The Ansible bootstrap (ADR-002) runs remotely (workstation → VPS over
+**Context.** The Ansible bootstrap (ADR-002) runs remotely (workstation → server over
 SSH). The Phase 1 Helmfile layer needs the Kubernetes API (port 6443), but the
 firewall opens only 22/80/443 and the fetched kubeconfig points at
 `https://127.0.0.1:6443`. We must decide where `helmfile`/`kubectl`/the future `suite`
 CLI run, and how they reach the API.
 
 **Decision.** The **operator's workstation is the single control plane**. The repo is
-cloned locally once; nothing is installed on the VPS beyond what the bootstrap lays
+cloned locally once; nothing is installed on the server beyond what the bootstrap lays
 down. `helmfile`/`kubectl`/the `suite` CLI reach the cluster through an **SSH tunnel**
 to `127.0.0.1:6443` (`make tunnel`). The K8s API is **never exposed** — 6443 stays out
 of the firewall. The bootstrap-fetched kubeconfig is used **unchanged**: its
 `127.0.0.1:6443` server is correct through the tunnel, and the K3s API certificate
 lists `127.0.0.1` in its SANs, so TLS verification holds (no rewriting, no `--insecure`).
 
-**Why not run on the VPS.** It would mean cloning the repo and installing tooling on
+**Why not run on the server.** It would mean cloning the repo and installing tooling on
 the box, splitting the workflow across two machines. **Why not expose 6443.** It
-enlarges the attack surface for no benefit on a single VPS; a tunnel is free and keeps
+enlarges the attack surface for no benefit on a single server; a tunnel is free and keeps
 the API private.
 
-**Consequences.** One place to operate from, a minimal VPS, and a private API. The
+**Consequences.** One place to operate from, a minimal server, and a private API. The
 tunnel must be open during `sync` (a manual `make tunnel` for now). The Phase 4
 installer / Phase 5 `suite` CLI will open the tunnel automatically, making this
 invisible — they implement this model rather than change it.
@@ -342,7 +342,7 @@ browser-facing URLs.
 **Decision.**
 - **One workloads namespace.** Docs runs in the same `ownsuite` namespace as the Phase 1
   infra, reusing the secrets already there. No per-app namespaces or cross-namespace secret
-  reflector in v1 — unnecessary moving parts for a single VPS. (Per-app namespaces remain a
+  reflector in v1 — unnecessary moving parts for a single server. (Per-app namespaces remain a
   clean later evolution.)
 - **Traefik ingress.** The official chart ships nginx annotations; we override them for
   Traefik. Websockets need no annotation (Traefik proxies them natively), and a single
@@ -404,10 +404,10 @@ credentials, the depth of Keycloak backup, and how to prove the cycle hermetical
 - **Keycloak → PITR only.** Keycloak keeps realm + users in its `keycloak` database, which CNPG
   recovery restores verbatim (the user's subject/id is stable, so JIT-provisioned app accounts
   map back). This **refines** ADR-006's "scheduled realm export": a separate `kc.sh` export adds
-  a recurring Job and RAM pressure on a single VPS for portability we don't need in v1. Deferred,
+  a recurring Job and RAM pressure on a single server for portability we don't need in v1. Deferred,
   not forbidden — it stays an easy add-on for migration/portability later.
 - **Off-site by construction.** The backup destination is a **distinct** S3 (`OWNSUITE_BACKUP_S3_*`)
-  that must survive loss of the VPS — **never** the in-cluster Garage being backed up. In
+  that must survive loss of the server — **never** the in-cluster Garage being backed up. In
   **production** it is a managed S3 in a *different account/provider* than the primary; in **CI**
   it is a **second in-cluster Garage** (`garage-backup`, own PVC/service/bucket) that is *kept*
   when the primary is destroyed — hermetic, and respecting the no-MinIO rule. The off-site
@@ -443,7 +443,7 @@ ADR-006/ADR-010 promise; `make restore` prefigures the backup-gated `suite resto
 **Consequences.** Credible, *proven* disaster recovery from off-site backups with one seed and
 one command. Cost: a heavier nightly e2e, a small barman sidecar next to PostgreSQL, an rclone
 CronJob, and (in CI) a second Garage — all kept on modest `requests`/`limits` so Keycloak and
-Docs are not starved on a single VPS. Operator guide: [Backups & restore](../operate/backups.md).
+Docs are not starved on a single server. Operator guide: [Backups & restore](../operate/backups.md).
 
 ---
 
@@ -451,14 +451,14 @@ Docs are not starved on a single VPS. Operator guide: [Backups & restore](../ope
 
 **Context.** Phases 0–3 leave a working stack driven by a **manual sequence** (`make bootstrap`
 → edit/source `.env` → `make tunnel` → `make sync` → curl-check HTTPS — see
-[platform.md](platform.md)). The Phase 4 promise is "bare VPS + a domain →
+[platform.md](platform.md)). The Phase 4 promise is "bare server + a domain →
 all-in-HTTPS by following the screen". We must decide the installer's form and language, how it
 reaches the cluster, and how it handles the single secret.
 
 **Decision.** A small **Python package `suite/`** (standard library only — `argparse`,
 `secrets`, `urllib`, `subprocess`), invoked as `python -m suite install` and wrapped by
 `make install`. It **orchestrates the existing layers** rather than reimplementing them: capture
-config → (optional) `make bootstrap` → detect the VPS public IP over SSH → print the exact DNS
+config → (optional) `make bootstrap` → detect the server public IP over SSH → print the exact DNS
 records → wait for propagation → open the SSH tunnel (ADR-014) → `helmfile sync` → issue
 certificates (ADR-019) → verify HTTPS per host. Every step is idempotent, so the replay story is
 simply **re-running `suite install`** (no resume bookkeeping). The **seed is generated with
@@ -472,9 +472,9 @@ DNS-record generation and propagation logic are unit-tested with fakes, and Pyth
 Phase 5 `suite` CLI (ADR-007). **No third-party runtime dependency is added**: propagation shells
 out to `dig` (ubiquitous), HTTPS verification uses the standard library's own TLS trust check, and
 everything else is `subprocess` to `ssh`/`helmfile`/`kubectl` — tools the operator already has.
-The installer runs on the operator's workstation, adding nothing to the single VPS.
+The installer runs on the operator's workstation, adding nothing to the single server.
 
-**Consequences.** One command takes an operator from a bare VPS to HTTPS, the SSH tunnel becomes
+**Consequences.** One command takes an operator from a bare server to HTTPS, the SSH tunnel becomes
 invisible, and the manual flow stays documented as the fallback. The installer is a thin
 orchestrator with no privileged cluster component. It only *prefigures* the `suite` CLI: a single
 `install` verb, with upgrades/restore (`suite upgrade` / `suite restore`) left to Phase 5.
@@ -505,7 +505,7 @@ ingresses at a shared secret — exactly the seam rework ADR-013 forbids — so 
 issuer is deferred**. The seam stays ready: a future `letsencrypt-dns01` ClusterIssuer (with a
 DNS-provider token Secret — the first credential *not* derived from the seed) is purely additive.
 
-**Consequences.** Real HTTPS on a bare VPS with **zero DNS-provider credentials**, proven
+**Consequences.** Real HTTPS on a bare server with **zero DNS-provider credentials**, proven
 staging-first so production rate limits stay safe. CI keeps using `selfsigned` (no public DNS).
 The single-seed invariant (ADR-012) is preserved in v1 because no DNS-provider credential is
 introduced yet.

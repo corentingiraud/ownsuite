@@ -1,7 +1,7 @@
 # OwnSuite
 
 Self-host **[La Suite numérique](https://github.com/suitenumerique)**,
-*production-ready*, on a **single VPS**, for a **non-profit** — single-node K3s +
+*production-ready*, on a **single server**, for a **non-profit** — single-node K3s +
 Helmfile, shared Keycloak SSO, CloudNativePG, pluggable S3 storage, and backups with
 tested restore.
 

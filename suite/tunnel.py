@@ -1,4 +1,4 @@
-"""Background SSH tunnel to the VPS K8s API on :6443 (ADR-014). Reuses an
+"""Background SSH tunnel to the server K8s API on :6443 (ADR-014). Reuses an
 existing tunnel if the port is already open, so re-runs don't stack tunnels."""
 
 from __future__ import annotations

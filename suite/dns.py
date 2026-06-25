@@ -2,7 +2,7 @@
 for an exact domain + IP.
 
 A wildcard ``A`` covers every current and future subdomain (``auth.``, ``docs.``,
-...); the apex makes the bare domain resolve; ``AAAA`` only when the VPS has
+...); the apex makes the bare domain resolve; ``AAAA`` only when the server has
 public IPv6; ``CAA`` authorises Let's Encrypt. A wildcard *A record* is independent
 of a wildcard *certificate* — Phase 4 issues per-host certs over it (ADR-013/019).
 """

@@ -43,7 +43,7 @@ provisioner:
         k3s_fetch_kubeconfig: false
         # Test-only: containerd's overlayfs snapshotter can't mount overlay-on-
         # overlay inside a container (Docker-in-Docker), so use the native
-        # snapshotter here. A real VPS keeps the default overlayfs on real disk.
+        # snapshotter here. A real server keeps the default overlayfs on real disk.
         k3s_extra_server_args:
           - "snapshotter: native"
       ownsuite-full-debian13: *full_overrides

@@ -6,7 +6,7 @@ companion to the docs site. Keep it short; deep detail lives in `docs/`.
 ## What this project is
 
 **OwnSuite** — an open-source, production-ready way to self-host
-[La Suite numérique](https://github.com/suitenumerique) on a **single VPS** for a
+[La Suite numérique](https://github.com/suitenumerique) on a **single server** for a
 **non-profit**: single-node K3s + Helmfile, shared Keycloak SSO, CloudNativePG,
 pluggable S3 storage, and backups with tested restore.
 
@@ -28,7 +28,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `mkdocs.yml` | Docs site config (theme, nav, llms.txt plugin). |
 | `requirements-docs.txt` | Docs toolchain (MkDocs Material + plugins). |
 | `Makefile` | Operator/dev entrypoints: `bootstrap`, `install`, `check`, `lint`, `test`, `test-full`, `test-platform`, `test-install`. |
-| `ansible/` | VPS bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles (Phase 0). |
+| `ansible/` | Server bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles (Phase 0). |
 | `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, Garage, the Docs app, and the off-site backups (rclone object copy, `garage-backup`); local charts, values, versions, k3d e2e. |
 | `suite/` | Phase 4 guided installer (`suite install`, ADR-018): config + seed, DNS records, propagation gate, SSH tunnel, ACME (staging→prod), HTTPS verify. Pure standard library; lint with `ruff` (`ruff.toml`). |
 | `tests/` | Unit tests for the `suite` installer (pytest; mocked resolvers, no cluster). |
@@ -55,7 +55,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
    `helmfile/versions/versions.yaml` (Renovate-tracked).
 4. **No plaintext secrets** — everything derives from `secretSeed` or an explicit
    override; nothing secret is committed.
-5. **Backups go off-site** — the backup destination must survive loss of the VPS, so it
+5. **Backups go off-site** — the backup destination must survive loss of the server, so it
    is **never** the in-cluster store you are backing up (ADR-006, ADR-017).
 
 ## Build the docs
@@ -66,12 +66,12 @@ pip install -r requirements-docs.txt
 mkdocs serve   # http://127.0.0.1:8000
 ```
 
-## Bootstrap & test the VPS layer
+## Bootstrap & test the server layer
 
 ```bash
 make deps        # Ansible + collections + test tooling (requirements-dev.txt)
 make check       # dry-run the bootstrap against your inventory
-make bootstrap   # provision a Debian VPS into a ready single-node K3s cluster
+make bootstrap   # provision a Debian server into a ready single-node K3s cluster
 make lint test   # static checks + Molecule container tests (Docker required)
 ```
 
@@ -81,7 +81,7 @@ the operator guide is [docs/get-started/bootstrap.md](docs/get-started/bootstrap
 ## Deploy & test the shared infrastructure (Phase 1)
 
 ```bash
-make install         # Phase 4: guided bare VPS + domain -> HTTPS (wraps the steps below)
+make install         # Phase 4: guided bare server + domain -> HTTPS (wraps the steps below)
 
 export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required; never committed
 make sync            # helmfile sync — cert-manager, CNPG, Valkey, Keycloak (HTTPS)

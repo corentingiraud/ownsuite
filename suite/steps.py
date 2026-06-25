@@ -1,4 +1,4 @@
-"""The `install` pipeline: bare VPS + a domain -> all-in-HTTPS (ADR-018).
+"""The `install` pipeline: bare server + a domain -> all-in-HTTPS (ADR-018).
 
 Idempotent by construction — every step (helmfile sync, kubectl wait, DNS/TLS
 reads, ansible) is safe to repeat, so the replay story is simply re-running
@@ -28,7 +28,7 @@ def install(args):
     cfg = config.load_env(args.env_file)
     overrides = {
         k: v
-        for k, v in (("OWNSUITE_DOMAIN", args.domain), ("OWNSUITE_VPS_SSH", args.ssh))
+        for k, v in (("OWNSUITE_DOMAIN", args.domain), ("OWNSUITE_SERVER_SSH", args.ssh))
         if v
     }
     cfg = config.capture(cfg, interactive=not args.non_interactive, overrides=overrides)
@@ -42,11 +42,11 @@ def install(args):
         seed = config.generate_seed()
         _seed_banner(seed)
 
-    ssh = cfg.get("OWNSUITE_VPS_SSH", "")
+    ssh = cfg.get("OWNSUITE_SERVER_SSH", "")
     _preflight(args, ssh)
 
     if not args.skip_bootstrap:
-        print("\n==> Bootstrapping the VPS (ansible)")
+        print("\n==> Bootstrapping the server (ansible)")
         run(["make", "bootstrap"], step="bootstrap")
 
     if args.tls_mode != "selfsigned" and not args.skip_dns:
@@ -75,7 +75,7 @@ def install(args):
 def _dns_and_propagation(args, domain, ssh):
     ipv4 = args.public_ip or (ip.detect_over_ssh(ssh, 4) if ssh else None)
     if not ipv4:
-        ipv4 = input("VPS public IPv4: ").strip()
+        ipv4 = input("Server public IPv4: ").strip()
     ipv6 = ip.detect_over_ssh(ssh, 6) if ssh else None
     print("\n==> Create these DNS records at your registrar:\n")
     print(dns.format_table(dns.records(domain, ipv4, ipv6)))

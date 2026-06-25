@@ -1,12 +1,12 @@
 # Roadmap (high level)
 
-> Self-host La Suite numérique, production-ready, on a single VPS, for a non-profit.
+> Self-host La Suite numérique, production-ready, on a single server, for a non-profit.
 > The org arrives with a domain name; we hand them the DNS records to set; everything
 > works. The admin then creates users in a single step.
 
 ## Product vision (the global "definition of done")
 
-1. A volunteer rents a VPS + a domain name.
+1. A volunteer rents a server + a domain name.
 2. They run an installer and answer ~5 questions (domain, admin email, which apps).
 3. The installer prints **the exact list of DNS records** to set at the registrar.
 4. Once DNS has propagated: every app responds over HTTPS, with **shared SSO**.
@@ -32,7 +32,7 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 | Host provisioning | **Ansible** |
 | Upgrade model | **Semver releases + backup-gated `suite` CLI + Renovate** |
 
-**Out of scope for v1:** Meet (LiveKit/coturn — UDP, CPU, painful on a single VPS).
+**Out of scope for v1:** Meet (LiveKit/coturn — UDP, CPU, painful on a single server).
 **Advanced add-on, not in the core:** the mailbox (see Phase 6 — this is NOT part of La Suite).
 
 ---
@@ -64,11 +64,11 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 ### Phase 0 — Scoping & technical foundation
 
 - Lock the stack (above), pick the name/license (AGPL-3.0 suggested), init the repo.
-- Reproducible VPS bootstrap with **Ansible**: K3s (pinned), ufw, fail2ban, swap, sysctl,
-  SSH hardening, unattended security upgrades. See [VPS bootstrap](../get-started/bootstrap.md).
+- Reproducible server bootstrap with **Ansible**: K3s (pinned), ufw, fail2ban, swap, sysctl,
+  SSH hardening, unattended security upgrades. See [server bootstrap](../get-started/bootstrap.md).
 - A **layered, evolving CI test harness** (lint → Molecule/Testinfra on Debian 12/13 →
   nightly real-K3s bootstrap) — the seed of the install/upgrade/restore pipeline ([ADR-010](../understand/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)).
-- **Done:** `make bootstrap` turns a bare Debian VPS into a ready K3s cluster.
+- **Done:** `make bootstrap` turns a bare Debian server into a ready K3s cluster.
 
 ### Phase 1 — Reusable infrastructure foundation (no Bitnami/MinIO)
 
@@ -109,8 +109,8 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 - **Guided installer `suite install`** ([ADR-018](../understand/decisions.md#adr-018-phase-4-guided-installer-suite-install)):
   one idempotent command captures config + the seed (shown once, never written to the repo), runs
   the bootstrap, opens the SSH tunnel and drives `helmfile sync` — orchestrating the existing
-  layers in pure standard library, adding nothing to the VPS.
-- **Generate the exact DNS records** (wildcard A `*.{domain}` + apex, AAAA when the VPS has public
+  layers in pure standard library, adding nothing to the server.
+- **Generate the exact DNS records** (wildcard A `*.{domain}` + apex, AAAA when the server has public
   IPv6, CAA authorising Let's Encrypt; MX/TXT deferred with mail), then a **propagation gate** that
   blocks ACME until public resolvers agree — so a typo never burns the production rate limits.
 - **Certificates staging → production**: an additive `letsencrypt-staging` ClusterIssuer issues
@@ -122,7 +122,7 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
   ([ADR-020](../understand/decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)).
 - The k3d e2e drives the stack through the installer to self-signed HTTPS; real Let's Encrypt is
   validated off-CI (staging then production). See [Guided install](../get-started/install.md).
-- **Done:** from a bare VPS + domain, the org follows the screen and everything serves HTTPS.
+- **Done:** from a bare server + domain, the org follows the screen and everything serves HTTPS.
 
 ### Phase 5 — Broaden apps + user provisioning
 
@@ -134,7 +134,7 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 ### Phase 6 — (Advanced / optional) Mailbox
 
 > ⚠️ **La Suite numérique provides NO mail server.** This is an add-on, and the
-> hardest part to make reliable on a VPS.
+> hardest part to make reliable on a server.
 
 - A mail stack federated to the same Keycloak: **Stalwart** (modern, OIDC) recommended;
   Mailcow/Mailu as alternatives.
@@ -148,7 +148,7 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 
 - Resource limits, health checks, light monitoring (Uptime Kuma / metrics).
 - Upgrade strategy (pinned image tags, DB migrations, Helm rollback).
-- "Non-profit admin" docs (non-K8s-expert), troubleshooting guide, VPS sizing.
+- "Non-profit admin" docs (non-K8s-expert), troubleshooting guide, server sizing.
 - **Done:** a third-party org installs and operates it without maintainer intervention.
 
 ---

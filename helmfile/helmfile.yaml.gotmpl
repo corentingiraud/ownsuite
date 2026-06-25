@@ -125,7 +125,7 @@ releases:
   # --- Off-site backup store: second in-cluster Garage (ADR-006, ADR-017) ---
   # Deployed only when backups target an in-cluster store (CI / hermetic). Distinct
   # name/PVC/bucket from the primary Garage and kept across a primary destroy, so it
-  # stands in for storage that survives the VPS. In prod the off-site is external and
+  # stands in for storage that survives the server. In prod the off-site is external and
   # this release is absent.
   - name: garage-backup
     namespace: {{ $ns }}

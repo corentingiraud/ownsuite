@@ -1,9 +1,9 @@
-# VPS bootstrap
+# Server bootstrap
 
-Phase 0's deliverable: turn a **bare Debian VPS** into a ready **single-node K3s**
+Phase 0's deliverable: turn a **bare Debian server** into a ready **single-node K3s**
 cluster with one command.
 
-> **Definition of done:** `make bootstrap` turns a bare Debian VPS into a ready
+> **Definition of done:** `make bootstrap` turns a bare Debian server into a ready
 > single-node K3s cluster.
 
 This is implemented with **Ansible** (see
@@ -20,7 +20,7 @@ playbook applies three roles in order: `common` → `security` → `k3s`.
 
 ## Requirements
 
-- A VPS running **Debian 12 (bookworm)** or **13 (trixie)**, reachable over SSH.
+- A server running **Debian 12 (bookworm)** or **13 (trixie)**, reachable over SSH.
 - On your machine: Python 3.12+, then `make deps` (installs Ansible + collections).
 
 ## Run it
@@ -42,7 +42,7 @@ KUBECONFIG=./kubeconfig kubectl get nodes   # the node should be Ready
 
 **Next:** the [guided installer](install.md) (`make install`) wraps bootstrap and
 everything after it — config, DNS records, the SSH tunnel, `helmfile sync`, and
-staging→production certificates — so a bare VPS + a domain reaches HTTPS in one flow.
+staging→production certificates — so a bare server + a domain reaches HTTPS in one flow.
 
 !!! note "Pinned versions"
     The K3s release and all collection versions are pinned in

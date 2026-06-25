@@ -16,12 +16,12 @@ KUBECONFORM_SCHEMAS := -schema-location default -schema-location 'https://raw.gi
 
 # Everything runs from your workstation (ADR-014). helmfile/kubectl reach the
 # cluster through the kubeconfig fetched by the bootstrap (server 127.0.0.1:6443),
-# via an SSH tunnel to the VPS — the K8s API is never exposed (firewall keeps only
+# via an SSH tunnel to the server — the K8s API is never exposed (firewall keeps only
 # 22/80/443). Open the tunnel with `make tunnel` before `make sync`.
 KUBECONFIG ?= ./kubeconfig
 export KUBECONFIG
-# SSH target for the tunnel, e.g. OWNSUITE_VPS_SSH=root@203.0.113.10
-OWNSUITE_VPS_SSH ?=
+# SSH target for the tunnel, e.g. OWNSUITE_SERVER_SSH=root@203.0.113.10
+OWNSUITE_SERVER_SSH ?=
 
 .DEFAULT_GOAL := help
 
@@ -37,7 +37,7 @@ deps: ## Install Python tooling and Ansible collections (app + test harness)
 	ansible-galaxy collection install -r molecule/requirements.yml
 
 .PHONY: bootstrap
-bootstrap: ## Provision the VPS into a ready single-node K3s cluster
+bootstrap: ## Provision the server into a ready single-node K3s cluster
 	cd $(ANSIBLE_DIR) && ansible-playbook bootstrap.yml
 
 .PHONY: check
@@ -64,13 +64,13 @@ lint-py: ## Python static checks for the `suite` installer (ruff)
 	ruff check suite tests
 
 .PHONY: install
-install: ## Guided installer (Phase 4): bare VPS + domain -> HTTPS (ADR-018)
+install: ## Guided installer (Phase 4): bare server + domain -> HTTPS (ADR-018)
 	python3 -m suite install
 
 .PHONY: tunnel
-tunnel: ## Open an SSH tunnel to the VPS K8s API on :6443 (set OWNSUITE_VPS_SSH=user@host)
-	@test -n "$(OWNSUITE_VPS_SSH)" || { echo "Set OWNSUITE_VPS_SSH=user@host (your VPS)"; exit 1; }
-	ssh -N -L 6443:127.0.0.1:6443 $(OWNSUITE_VPS_SSH)
+tunnel: ## Open an SSH tunnel to the server K8s API on :6443 (set OWNSUITE_SERVER_SSH=user@host)
+	@test -n "$(OWNSUITE_SERVER_SSH)" || { echo "Set OWNSUITE_SERVER_SSH=user@host (your server)"; exit 1; }
+	ssh -N -L 6443:127.0.0.1:6443 $(OWNSUITE_SERVER_SSH)
 
 .PHONY: sync
 sync: ## Deploy/upgrade the shared infra (needs $$OWNSUITE_SECRET_SEED + an open `make tunnel`)

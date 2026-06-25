@@ -14,9 +14,9 @@ in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
 - [x] Lock the stack (K3s + Helmfile, CNPG, Valkey, Garage/external S3 — see ADRs)
 - [x] Pick name (**OwnSuite**) and license (**AGPL-3.0**)
 - [x] Initialize repo + documentation site (MkDocs Material + `llms.txt`)
-- [x] VPS bootstrap (Ansible): K3s, firewall, fail2ban, swap, sysctl
+- [x] server bootstrap (Ansible): K3s, firewall, fail2ban, swap, sysctl
 - [x] Layered, evolving CI test harness (lint + Molecule/Testinfra + nightly full bootstrap — ADR-010)
-- **DoD:** `make bootstrap` turns a bare Debian VPS into a ready single-node K3s cluster.
+- **DoD:** `make bootstrap` turns a bare Debian server into a ready single-node K3s cluster.
 
 ## Phase 1 — Reusable infrastructure foundation ✅
 - [x] Traefik + cert-manager + Let's Encrypt / self-signed ClusterIssuers (ADR-013)
@@ -51,7 +51,7 @@ in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
 - [x] SSH tunnel automation + per-host HTTPS verification
 - [x] Idempotent Keycloak OIDC client upsert on an already-imported realm (ADR-020)
 - [x] k3d e2e: installer drives config→sync→certs Ready→HTTPS (self-signed); real ACME proven off-CI
-- **DoD:** from a bare VPS + domain, the org follows the screen and everything serves HTTPS.
+- **DoD:** from a bare server + domain, the org follows the screen and everything serves HTTPS.
 
 ## Phase 5 — Broaden apps + user provisioning ⬜
 - [ ] Add Drive (Helmfile profile; same CNPG + Valkey + S3 + Keycloak seam as Docs — no People dependency)
@@ -69,11 +69,11 @@ in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
 ## Phase 7 — Production hardening & packaging ⬜
 - [ ] Resource limits, health checks, light monitoring
 - [ ] Upgrade strategy (pinned versions, migrations, Helm rollback, Renovate)
-- [ ] Non-profit-admin docs, troubleshooting, VPS sizing
+- [ ] Non-profit-admin docs, troubleshooting, server sizing
 - **DoD:** a third-party org installs and operates it without maintainer help.
 
 ---
 
 ## Out of scope (v1)
-- **Meet (video)** — LiveKit/coturn, painful on a single VPS. Deferred.
+- **Meet (video)** — LiveKit/coturn, painful on a single server. Deferred.
 - **Mailbox** — not part of La Suite numérique; optional add-on (Phase 6).
