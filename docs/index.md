@@ -27,8 +27,10 @@ cache, storage and — above all — **one SSO** across every app, plus everythi
 production needs: **backups, tested restore, controlled upgrades**.
 
 !!! info "Status"
-    Early-stage project. The design is documented here; code follows the
-    [roadmap](project/roadmap.md). See also the [architecture decisions](understand/decisions.md).
+    Phases 0–4 are built and proven in CI — bootstrap, shared infrastructure, the Docs
+    app, off-site backups with a tested restore, and the guided installer. Broader apps
+    and hardening are on the [roadmap](project/roadmap.md); the rationale is in the
+    [architecture decisions](understand/decisions.md).
 
 ## Where to start
 
