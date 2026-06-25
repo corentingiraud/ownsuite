@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
-# Full Phase 1-3 definition-of-done on a throwaway k3d cluster:
-#   create single-node K3s (Traefik kept) -> helmfile sync (self-signed issuer,
-#   backups ON to a second in-cluster Garage acting as the off-site store) ->
-#   assert the shared infra + Docs/Drive SSO DoD (incl. a user created via the
-#   `suite user` CLI, JIT into both apps) -> seed a media object -> back up
+# Full Phase 1-5 definition-of-done on a throwaway k3d cluster:
+#   create single-node K3s (Traefik kept) -> `suite install` brings the stack up
+#   (self-signed issuer, backups ON to a second in-cluster Garage as the off-site
+#   store) -> assert the shared infra + Docs/Drive SSO DoD (incl. a user created via
+#   the `suite user` CLI, JIT into both apps) -> seed a media object -> back up
 #   (PostgreSQL base backup + off-site object copy) -> DESTROY the primary state ->
 #   `make restore` -> assert the Docs document, the Keycloak user, and the media
 #   object all SURVIVED the cycle (ADR-006) -> destroy.
+#
+# Provisioning goes through the installer (ADR-018), so this ONE cluster proves the
+# `suite install` orchestration AND the platform/restore DoD — there is no second
+# from-scratch build (the old run-install-e2e.sh is folded in here).
 #
 # Heavy (pulls operators + Keycloak + runs a recovery); runs in helmfile-e2e.yml
 # (scheduled + on helmfile changes) and locally via `make test-platform`.
@@ -90,11 +94,13 @@ trap cleanup EXIT
 # IMMEDIATELY on an unrecoverable pod state (image pull errors, container start
 # errors, or a pod stuck in CrashLoopBackOff) — turning a 15-minute silent timeout
 # into a ~15-second, actionable failure. Reused for the initial sync and `restore`.
-sync_with_watchdog() {
-  local desc="$1"
-  echo "==> helmfile sync ($desc)"
+provision_with_watchdog() {
+  # Run an arbitrary provisioning command ("$@") in the background while monitoring
+  # pods, so a wedged bring-up fails fast instead of waiting out the helm timeout.
+  local desc="$1"; shift
+  echo "==> provisioning the stack ($desc)"
   local log; log="$(mktemp)"
-  helmfile -f "$HELMFILE" sync >"$log" 2>&1 &
+  "$@" >"$log" 2>&1 &
   local pid=$!
   local empty=0
   while kill -0 "$pid" 2>/dev/null; do
@@ -212,8 +218,22 @@ k3d cluster create "$CLUSTER" \
 KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
 export KUBECONFIG
 
-# --- Phase 1+2: bring the stack up and assert the SSO definition of done --------
-sync_with_watchdog "domain=$OWNSUITE_DOMAIN, issuer=$OWNSUITE_TLS_ISSUER, backups=on"
+# The installer verifies HTTPS for auth.{domain} + docs.{domain} with Python's TLS
+# stack (urllib honours /etc/hosts); point them at the k3d loadbalancer so that step
+# runs hermetically. The pytest below resolves per-request with `curl --resolve`, so
+# it needs no hosts entry (that path also covers drive.{domain}).
+echo "127.0.0.1 auth.${OWNSUITE_DOMAIN} docs.${OWNSUITE_DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
+
+# --- Phase 1+2+5: bring the stack up VIA THE INSTALLER and assert the SSO DoD ----
+# `suite install` (ADR-018) is the provisioning path, so this single e2e proves the
+# installer orchestration AND the platform/restore DoD on one cluster. The installer
+# reads OWNSUITE_SECRET_SEED from the environment and inherits the exported OWNSUITE_*
+# (backups on, garage, seeded user, direct grants) through `helmfile sync`; in
+# self-signed mode it syncs once, waits for the keycloak/docs certs, verifies HTTPS.
+provision_with_watchdog "domain=$OWNSUITE_DOMAIN, issuer=$OWNSUITE_TLS_ISSUER, backups=on" \
+  python3 -m suite install \
+    --non-interactive --no-tunnel --skip-bootstrap --skip-dns --skip-propagation \
+    --tls-mode selfsigned --domain "$OWNSUITE_DOMAIN" --env-file "$(mktemp)"
 wait_for_certs
 
 echo "==> Phase 5: provisioning a user through the suite CLI (JIT to all apps)"
@@ -284,7 +304,10 @@ echo "==> RESTORING from off-site backups (make restore)"
 # CI runner, so keep it OUT of the restore: it was destroyed above and stays disabled
 # here. Drive's own DoD (JIT into Docs+Drive) is fully proven in the pre stage.
 export OWNSUITE_APP_DRIVE=false
-OWNSUITE_RESTORE=true sync_with_watchdog "RESTORE: CNPG recovery + object copy"
+# Restore is a direct `helmfile sync` (recovery bootstrap), NOT the installer — only
+# the initial provisioning goes through `suite install` (above).
+OWNSUITE_RESTORE=true provision_with_watchdog "RESTORE: CNPG recovery + object copy" \
+  helmfile -f "$HELMFILE" sync
 wait_for_certs
 
 echo "==> Verifying the media object came back into the primary bucket"

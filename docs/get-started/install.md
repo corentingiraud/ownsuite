@@ -92,10 +92,11 @@ python -m suite install --non-interactive --no-tunnel --skip-bootstrap \
   --skip-dns --skip-propagation --tls-mode selfsigned --domain ownsuite.localhost
 ```
 
-This is exactly what `make test-install` drives against a throwaway k3d cluster
-(`helmfile/tests/run-install-e2e.sh`): config → sync → certificates Ready → HTTPS →
-the SSO definition of done — proving the orchestration hermetically, without public DNS
-or real ACME.
+This is exactly the path `make test-platform` drives against a throwaway k3d cluster
+(`helmfile/tests/run-e2e.sh`): the installer **provisions** the cluster — config → sync →
+certificates Ready → HTTPS → the SSO definition of done — and the same run then exercises the
+Phase 3 backup/restore, all hermetically, without public DNS or real ACME. (One cluster proves
+both the installer orchestration and the platform/restore DoD.)
 
 ## Real-ACME acceptance (off-CI)
 
