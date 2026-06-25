@@ -12,10 +12,12 @@ on:
     branches: [main]
     paths:
       - "helmfile/**"
+      - "suite/**"
       - ".github/workflows/helmfile-e2e.yml"
   pull_request:
     paths:
       - "helmfile/**"
+      - "suite/**"
       - ".github/workflows/helmfile-e2e.yml"
   workflow_dispatch:
 
@@ -53,3 +55,5 @@ jobs:
           sudo install kubectl /usr/local/bin/kubectl
       - name: Helmfile e2e (sync + Keycloak HTTPS DoD)
         run: make test-platform
+      - name: Installer e2e (suite install -> self-signed HTTPS, ADR-018)
+        run: make test-install

@@ -1,0 +1,68 @@
+{{- /*
+Idempotent OIDC client upsert (ADR-016, ADR-020). A post-install/post-upgrade Helm
+hook, so `helm --wait` blocks the release until the clients are reconciled; the
+`before-hook-creation` delete policy lets it re-run on every sync (a completed Job
+is otherwise immutable). It reaches Keycloak over the in-cluster HTTP service and
+authenticates with the seed-derived admin credentials — no Kubernetes API access,
+hence no ServiceAccount/RBAC.
+*/ -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-config-upsert
+  labels:
+    app.kubernetes.io/name: keycloak-config
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak-config
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+      volumes:
+        - name: upsert
+          configMap:
+            name: keycloak-config-upsert
+            defaultMode: 0555
+        - name: oidc-secrets
+          secret:
+            secretName: {{ .Values.oidcClientsSecretName | quote }}
+            optional: true
+      containers:
+        - name: kcadm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["/bin/sh", "/config/upsert.sh"]
+          env:
+            - name: KC_SERVER
+              value: {{ .Values.keycloakServiceUrl | quote }}
+            - name: KC_REALM
+              value: {{ .Values.realm | quote }}
+            - name: KC_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.adminSecretName | quote }}
+                  key: username
+            - name: KC_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.adminSecretName | quote }}
+                  key: password
+          volumeMounts:
+            - name: upsert
+              mountPath: /config
+            - name: oidc-secrets
+              mountPath: /oidc-secrets
+              readOnly: true
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "256Mi"
+            limits:
+              memory: "512Mi"

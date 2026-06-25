@@ -1,3 +1,10 @@
 acmeEmail: {{ .Values.tls.acmeEmail | quote }}
 ingressClassName: traefik
+# `tls.issuer` selects a ClusterIssuer BY NAME; cert-manager's ingress-shim then
+# follows the `cert-manager.io/cluster-issuer` annotation on each ingress. Adding
+# `letsencrypt-staging` is purely additive — no ingress or Certificate rework
+# (ADR-013, ADR-019).
 letsencryptEnabled: {{ eq .Values.tls.issuer "letsencrypt-http01" }}
+letsencryptStagingEnabled: {{ eq .Values.tls.issuer "letsencrypt-staging" }}
+acmeServer: {{ .Values.tls.acmeServer | quote }}
+acmeStagingServer: {{ .Values.tls.acmeStagingServer | quote }}

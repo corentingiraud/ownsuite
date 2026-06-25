@@ -83,12 +83,14 @@ sensible defaults), e.g.:
 The backup/restore knobs (`OWNSUITE_BACKUP_*`, `OWNSUITE_RESTORE`) are documented in full in
 [Backups & restore](backups.md).
 
-## Run it (interim manual flow)
+## Run it (manual fallback)
 
-!!! note "This becomes the `suite` CLI"
-    Everything below is the Phase 1 manual path, documented lightly. The Phase 4
-    installer and the `suite` CLI (Phase 5) will wrap these steps — config prompts
-    and the SSH tunnel — so an admin won't run them by hand.
+!!! tip "Prefer the guided installer"
+    [`make install`](install.md) now wraps every step below — config prompts, the SSH
+    tunnel, the DNS records, propagation, and staging→production certificates
+    ([ADR-018](../architecture/decisions.md#adr-018-phase-4-guided-installer-suite-install)).
+    The manual flow stays here as a fallback and to show what the installer does; the
+    Phase 5 `suite` CLI will grow upgrades/restore on top.
 
 Everything runs from **your workstation** (clone the repo locally once; nothing to
 install on the VPS beyond the bootstrap — [ADR-014](../architecture/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).

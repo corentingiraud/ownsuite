@@ -27,9 +27,11 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `docs/` | MkDocs (Material) documentation — the spec. Pure Markdown. |
 | `mkdocs.yml` | Docs site config (theme, nav, llms.txt plugin). |
 | `requirements-docs.txt` | Docs toolchain (MkDocs Material + plugins). |
-| `Makefile` | Operator/dev entrypoints: `bootstrap`, `check`, `lint`, `test`, `test-full`. |
+| `Makefile` | Operator/dev entrypoints: `bootstrap`, `install`, `check`, `lint`, `test`, `test-full`, `test-platform`, `test-install`. |
 | `ansible/` | VPS bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles (Phase 0). |
 | `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, Garage, the Docs app, and the off-site backups (rclone object copy, `garage-backup`); local charts, values, versions, k3d e2e. |
+| `suite/` | Phase 4 guided installer (`suite install`, ADR-018): config + seed, DNS records, propagation gate, SSH tunnel, ACME (staging→prod), HTTPS verify. Pure standard library; lint with `ruff` (`ruff.toml`). |
+| `tests/` | Unit tests for the `suite` installer (pytest; mocked resolvers, no cluster). |
 | `molecule/` | `default` (fast, host-prep roles) and `full` (real K3s) test scenarios + Testinfra. |
 | `requirements-dev.txt` | Dev/CI toolchain (Ansible, ansible-lint, yamllint, Molecule, Testinfra). |
 | `.github/workflows/docs.yml` | Builds & deploys the docs to GitHub Pages. |
@@ -79,6 +81,8 @@ the operator guide is [docs/operations/bootstrap.md](docs/operations/bootstrap.m
 ## Deploy & test the shared infrastructure (Phase 1)
 
 ```bash
+make install         # Phase 4: guided bare VPS + domain -> HTTPS (wraps the steps below)
+
 export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required; never committed
 make sync            # helmfile sync — cert-manager, CNPG, Valkey, Keycloak (HTTPS)
 make diff            # preview pending changes

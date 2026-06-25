@@ -106,9 +106,22 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 
 ### Phase 4 — "Domain → DNS → it works" experience
 
-- Interactive installer (domain, admin email, app selection).
-- **Generate the exact list of DNS records** (wildcard A/AAAA `*.assoc.org`, CAA; +MX/TXT if mail).
-- Wait for / validate propagation + issue the certificates.
+- **Guided installer `suite install`** ([ADR-018](architecture/decisions.md#adr-018-phase-4-guided-installer-suite-install)):
+  one idempotent command captures config + the seed (shown once, never written to the repo), runs
+  the bootstrap, opens the SSH tunnel and drives `helmfile sync` — orchestrating the existing
+  layers in pure standard library, adding nothing to the VPS.
+- **Generate the exact DNS records** (wildcard A `*.{domain}` + apex, AAAA when the VPS has public
+  IPv6, CAA authorising Let's Encrypt; MX/TXT deferred with mail), then a **propagation gate** that
+  blocks ACME until public resolvers agree — so a typo never burns the production rate limits.
+- **Certificates staging → production**: an additive `letsencrypt-staging` ClusterIssuer issues
+  first, then the installer promotes to production and verifies HTTPS per host
+  ([ADR-019](architecture/decisions.md#adr-019-phase-4-tls-staging-first-issuance-dns-01-deferred)).
+  A wildcard *A record* is not a wildcard *certificate* — certs stay per-host; the DNS-01 issuer
+  stays deferred (the seam is additive).
+- **Keycloak OIDC clients reconciled** on an already-imported realm via an idempotent kcadm Job
+  ([ADR-020](architecture/decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)).
+- The k3d e2e drives the stack through the installer to self-signed HTTPS; real Let's Encrypt is
+  validated off-CI (staging then production). See [Guided install](operations/install.md).
 - **Done:** from a bare VPS + domain, the org follows the screen and everything serves HTTPS.
 
 ### Phase 5 — Broaden apps + user provisioning

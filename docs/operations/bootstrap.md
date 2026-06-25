@@ -39,6 +39,10 @@ When it finishes, a `kubeconfig` is fetched to the repo root:
 KUBECONFIG=./kubeconfig kubectl get nodes   # the node should be Ready
 ```
 
+**Next:** the [guided installer](install.md) (`make install`) wraps bootstrap and
+everything after it — config, DNS records, the SSH tunnel, `helmfile sync`, and
+staging→production certificates — so a bare VPS + a domain reaches HTTPS in one flow.
+
 !!! note "Pinned versions"
     The K3s release and all collection versions are pinned in
     `ansible/group_vars/all.yml` and `ansible/requirements.yml`. Bumping a version is

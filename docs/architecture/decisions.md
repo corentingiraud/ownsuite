@@ -444,3 +444,93 @@ ADR-006/ADR-010 promise; `make restore` prefigures the backup-gated `suite resto
 one command. Cost: a heavier nightly e2e, a small barman sidecar next to PostgreSQL, an rclone
 CronJob, and (in CI) a second Garage — all kept on modest `requests`/`limits` so Keycloak and
 Docs are not starved on a single VPS. Operator guide: [Backups & restore](../operations/backups.md).
+
+---
+
+## ADR-018 — Phase 4 guided installer (`suite install`)
+
+**Context.** Phases 0–3 leave a working stack driven by a **manual sequence** (`make bootstrap`
+→ edit/source `.env` → `make tunnel` → `make sync` → curl-check HTTPS — see
+[platform.md](../operations/platform.md)). The Phase 4 promise is "bare VPS + a domain →
+all-in-HTTPS by following the screen". We must decide the installer's form and language, how it
+reaches the cluster, and how it handles the single secret.
+
+**Decision.** A small **Python package `suite/`** (standard library only — `argparse`,
+`secrets`, `urllib`, `subprocess`), invoked as `python -m suite install` and wrapped by
+`make install`. It **orchestrates the existing layers** rather than reimplementing them: capture
+config → (optional) `make bootstrap` → detect the VPS public IP over SSH → print the exact DNS
+records → wait for propagation → open the SSH tunnel (ADR-014) → `helmfile sync` → issue
+certificates (ADR-019) → verify HTTPS per host. Every step is idempotent, so the replay story is
+simply **re-running `suite install`** (no resume bookkeeping). The **seed is generated with
+`secrets.token_hex(24)`, shown once, and never written to the repo**; on re-run the operator
+re-exports `OWNSUITE_SECRET_SEED` (non-secret `OWNSUITE_*` are saved to the git-ignored `.env`).
+A `--non-interactive` / `--no-tunnel` / `--tls-mode` surface lets CI drive the same code path
+against k3d.
+
+**Why Python, standard-library only.** pytest is already the harness (ADR-010), so the
+DNS-record generation and propagation logic are unit-tested with fakes, and Python prefigures the
+Phase 5 `suite` CLI (ADR-007). **No third-party runtime dependency is added**: propagation shells
+out to `dig` (ubiquitous), HTTPS verification uses the standard library's own TLS trust check, and
+everything else is `subprocess` to `ssh`/`helmfile`/`kubectl` — tools the operator already has.
+The installer runs on the operator's workstation, adding nothing to the single VPS.
+
+**Consequences.** One command takes an operator from a bare VPS to HTTPS, the SSH tunnel becomes
+invisible, and the manual flow stays documented as the fallback. The installer is a thin
+orchestrator with no privileged cluster component. It only *prefigures* the `suite` CLI: a single
+`install` verb, with upgrades/restore (`suite upgrade` / `suite restore`) left to Phase 5.
+
+---
+
+## ADR-019 — Phase 4 TLS: staging-first issuance, DNS-01 deferred
+
+**Context.** ADR-013 shipped the issuer seam (`tls.issuer` selects a ClusterIssuer **by name**;
+the ingress annotation follows it) with `selfsigned` and `letsencrypt-http01`, and explicitly
+handed the wildcard DNS-01 issuer to Phase 4 "as an additive ClusterIssuer — no rework of the
+seam". The installer must issue *real* certificates without burning Let's Encrypt's tight
+**production** rate limits on a misconfiguration.
+
+**Decision.** Add an **additive `letsencrypt-staging` ClusterIssuer** (HTTP-01 via Traefik, the
+Let's Encrypt staging directory, a *distinct* account-key Secret so the staging and production
+ACME accounts never collide) and wire the previously-dead `acmeServer`/`acmeStagingServer` chart
+values through. The installer issues against **staging first**, verifies the path end to end, then
+**promotes to production** by re-syncing with `tls.issuer=letsencrypt-http01` and waiting for the
+same `keycloak-tls`/`docs-tls` certificates to go Ready again. No ingress or Certificate resource
+changes — the annotation already follows `tls.issuer`.
+
+**Wildcard A record ≠ wildcard certificate; DNS-01 deferred.** The installer generates a wildcard
+**A record** (`*.{domain}`) so every subdomain resolves, but v1 keeps issuing **per-host
+certificates** (`auth.`, `docs.`) over HTTP-01 — which needs only the port 80 the firewall already
+opens. A true `*.{domain}` *certificate* would require explicit Certificate CRs and pointing the
+ingresses at a shared secret — exactly the seam rework ADR-013 forbids — so the **DNS-01 wildcard
+issuer is deferred**. The seam stays ready: a future `letsencrypt-dns01` ClusterIssuer (with a
+DNS-provider token Secret — the first credential *not* derived from the seed) is purely additive.
+
+**Consequences.** Real HTTPS on a bare VPS with **zero DNS-provider credentials**, proven
+staging-first so production rate limits stay safe. CI keeps using `selfsigned` (no public DNS).
+The single-seed invariant (ADR-012) is preserved in v1 because no DNS-provider credential is
+introduced yet.
+
+---
+
+## ADR-020 — Keycloak realm convergence: idempotent OIDC client upsert
+
+**Context.** ADR-016 noted that Keycloak's `--import-realm` only seeds the realm on its **first**
+boot, so adding or changing an OIDC client on an already-imported realm has no effect on upgrade —
+and slated the fix for "the Phase 4 installer / Phase 5 `suite` CLI". Phase 4 ships it.
+
+**Decision.** A new local chart **`keycloak-config`**, deployed as a Helmfile release ordered
+after Keycloak (`needs: keycloak`), runs an idempotent **`kcadm` upsert Job** (a
+post-install/post-upgrade Helm hook with `before-hook-creation` delete, so it re-runs on every
+sync — mirroring the Garage bootstrap Job of ADR-015). For each `keycloak.clients` entry it
+create-or-updates the OIDC client (redirect URIs, web origins, flags, secret) with `kcadm.sh` from
+the **already-pinned Keycloak image** — no new image, and no Kubernetes API access (it talks to the
+in-cluster Keycloak HTTP service). Per ADR-012, derivation stays in one place:
+`platform-configuration` emits a `keycloak-oidc-clients` Secret (one key per client, derived from
+the same `<clientId>-oidc` id the app and the realm import use), which the Job consumes by
+secretKeyRef — it never re-derives.
+
+**Consequences.** Adding or changing an app's OIDC client now takes effect on a **running**
+install, not just a fresh one — the day-2 path ADR-016 deferred. `helm --wait` blocks the sync
+until the clients are reconciled, and the e2e exercises the Job on every run (the SSO
+definition-of-done mints a token with the upserted `docs` client). The realm import remains the
+first-boot seed; the Job is the authoritative reconciler thereafter.

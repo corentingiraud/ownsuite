@@ -45,7 +45,7 @@ check: ## Dry-run the bootstrap (--check --diff), no changes applied
 	cd $(ANSIBLE_DIR) && ansible-playbook bootstrap.yml --check --diff
 
 .PHONY: lint
-lint: lint-ansible lint-helm ## Static checks: Ansible + Helm/Helmfile
+lint: lint-ansible lint-helm lint-py ## Static checks: Ansible + Helm/Helmfile + Python
 
 .PHONY: lint-ansible
 lint-ansible: ## Ansible static checks: yamllint + ansible-lint + syntax-check
@@ -58,6 +58,14 @@ lint-helm: ## Helm/Helmfile static checks: helm lint + render + kubeconform
 	helm lint helmfile/charts/*
 	$(LINT_SEED) helmfile -f $(HELMFILE) template | \
 		kubeconform -strict -ignore-missing-schemas -summary $(KUBECONFORM_SCHEMAS)
+
+.PHONY: lint-py
+lint-py: ## Python static checks for the `suite` installer (ruff)
+	ruff check suite tests
+
+.PHONY: install
+install: ## Guided installer (Phase 4): bare VPS + domain -> HTTPS (ADR-018)
+	python3 -m suite install
 
 .PHONY: tunnel
 tunnel: ## Open an SSH tunnel to the VPS K8s API on :6443 (set OWNSUITE_VPS_SSH=user@host)
@@ -87,6 +95,10 @@ test-full: ## Full bootstrap incl. real K3s (Molecule full scenario)
 .PHONY: test-platform
 test-platform: ## Full Helmfile DoD on a throwaway k3d cluster (heavy)
 	helmfile/tests/run-e2e.sh
+
+.PHONY: test-install
+test-install: ## Installer-driven e2e to self-signed HTTPS on k3d (heavy)
+	helmfile/tests/run-install-e2e.sh
 
 # --- Backups & tested restore (ADR-006, ADR-017) -----------------------------
 PG_CLUSTER ?= ownsuite-pg

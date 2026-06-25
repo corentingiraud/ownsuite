@@ -6,7 +6,7 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 
 **Legend:** ✅ done · 🚧 in progress · ⬜ not started
 
-**Current focus:** Phase 3 — backups & tested restore.
+**Current focus:** Phase 5 — broaden apps + user provisioning.
 
 ---
 
@@ -36,7 +36,7 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 - [ ] Full browser-driven SSO + collaboration check (deferred to a targeted job)
 - **DoD:** a Keycloak user logs into Docs and creates a persistent document.
 
-## Phase 3 — Backups & restore (production pillar) 🚧
+## Phase 3 — Backups & restore (production pillar) ✅
 - [x] Postgres PITR to off-site S3 via CNPG Barman Cloud Plugin (recovery-window retention — ADR-017)
 - [x] Object backup off-site with `rclone` (encrypted, both garage and external modes)
 - [x] Keycloak covered by PITR of its database (realm + users) — refines ADR-006's realm export
@@ -44,10 +44,13 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 - [x] Tested restore path: `make restore` + k3d e2e backup→destroy→restore cycle
 - **DoD:** destroy an instance and fully restore it from backups (Docs document + Keycloak user survive, proven by CI).
 
-## Phase 4 — "Domain → DNS → it works" experience ⬜
-- [ ] Interactive installer (domain, admin email, app selection)
-- [ ] Generate the exact DNS records to set (wildcard A/AAAA, CAA)
-- [ ] Propagation check + certificate issuance
+## Phase 4 — "Domain → DNS → it works" experience ✅
+- [x] Interactive, idempotent installer `suite install` (config + seed) wrapping bootstrap→sync (ADR-018)
+- [x] Generate the exact DNS records (wildcard A + apex, AAAA when present, CAA) + propagation gate
+- [x] Certificate issuance: additive `letsencrypt-staging` issuer, staging→production (ADR-019)
+- [x] SSH tunnel automation + per-host HTTPS verification
+- [x] Idempotent Keycloak OIDC client upsert on an already-imported realm (ADR-020)
+- [x] k3d e2e: installer drives config→sync→certs Ready→HTTPS (self-signed); real ACME proven off-CI
 - **DoD:** from a bare VPS + domain, the org follows the screen and everything serves HTTPS.
 
 ## Phase 5 — Broaden apps + user provisioning ⬜

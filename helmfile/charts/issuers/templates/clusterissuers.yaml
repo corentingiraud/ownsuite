@@ -28,3 +28,27 @@ spec:
           ingress:
             ingressClassName: {{ .Values.ingressClassName | quote }}
 {{- end }}
+{{- if .Values.letsencryptStagingEnabled }}
+---
+# Staging issuer — Let's Encrypt STAGING via HTTP-01 through the Traefik ingress
+# (ADR-019). Identical flow to the production issuer but against the staging ACME
+# directory, whose leaf is untrusted yet whose rate limits are very high: the
+# Phase 4 installer issues here FIRST to prove the full ACME path (DNS + port 80
+# + challenge) before promoting to production, so a misconfiguration never burns
+# the production rate limits. A DISTINCT account-key Secret keeps the staging and
+# production ACME accounts from colliding.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: {{ .Values.acmeStagingServer | quote }}
+    email: {{ .Values.acmeEmail | quote }}
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: {{ .Values.ingressClassName | quote }}
+{{- end }}
