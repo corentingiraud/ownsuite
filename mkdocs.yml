@@ -81,31 +81,32 @@ plugins:
       sections:
         Overview:
           - index.md: Project overview and product vision.
-        Architecture:
+        Get started:
+          - operations/bootstrap.md: Step 1 — one-command VPS bootstrap into a single-node K3s cluster.
+          - operations/install.md: Step 2 — guided installer (suite install), bare VPS + domain to all-in-HTTPS.
+        Operate:
+          - operations/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
+        Understand the stack:
           - architecture/overview.md: The stack and its building blocks.
-          - architecture/decisions.md: Architecture Decision Records (ADR) and their rationale.
-        Roadmap:
-          - roadmap.md: Project phases and definition of done.
-        Operations:
-          - operations/bootstrap.md: One-command VPS bootstrap into a single-node K3s cluster.
-          - operations/install.md: Guided installer (suite install) — bare VPS + domain to all-in-HTTPS.
           - operations/platform.md: Helmfile shared infrastructure (cert-manager, CNPG, Valkey, Keycloak over HTTPS).
           - operations/docs.md: Docs application (SSO, S3 storage, real-time collaboration) wired to the foundation.
-          - operations/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
-        Contributing:
+          - architecture/decisions.md: Architecture Decision Records (ADR) and their rationale.
+        Project:
+          - roadmap.md: Project phases and definition of done.
           - contributing/for-ai-agents.md: Conventions for AI agents and the documentation.
 
 nav:
   - Home: index.md
-  - Architecture:
-      - Overview: architecture/overview.md
-      - Decisions (ADR): architecture/decisions.md
-  - Roadmap: roadmap.md
-  - Operations:
-      - VPS bootstrap: operations/bootstrap.md
-      - Guided install: operations/install.md
+  - Get started:
+      - 1. Prepare the VPS: operations/bootstrap.md
+      - 2. Install: operations/install.md
+  - Operate:
+      - Backups & restore: operations/backups.md
+  - Understand the stack:
+      - Architecture: architecture/overview.md
       - Shared infrastructure: operations/platform.md
       - Docs application: operations/docs.md
-      - Backups & restore: operations/backups.md
-  - Contributing:
+      - Decisions (ADR): architecture/decisions.md
+  - Project:
+      - Roadmap: roadmap.md
       - For AI agents: contributing/for-ai-agents.md

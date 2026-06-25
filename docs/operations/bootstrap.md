@@ -26,6 +26,7 @@ playbook applies three roles in order: `common` → `security` → `k3s`.
 ## Run it
 
 ```bash
+git clone https://github.com/corentingiraud/ownsuite.git && cd ownsuite
 make deps                                   # one-time: tooling + collections
 cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml
 $EDITOR ansible/inventory/hosts.yml         # set ansible_host / ansible_user

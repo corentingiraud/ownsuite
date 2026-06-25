@@ -9,17 +9,26 @@ into one idempotent command.
 > follows the prompts and the "create these DNS records" screen, and every host serves
 > HTTPS with real Let's Encrypt certificates.
 
-## Prerequisites
+## Before you start
 
-On **your workstation** (nothing is installed on the VPS beyond the bootstrap —
-[ADR-014](../architecture/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)):
+This is **step 2**. Everything runs from **your workstation** — nothing is installed on the
+VPS beyond the bootstrap ([ADR-014](../architecture/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).
 
-- `ssh`, `make`, `helmfile`, `helm`, `kubectl`, `dig`, `python3` (3.10+) on `PATH`.
-- A Debian VPS reachable over SSH, and a domain whose DNS you control.
-- The Ansible inventory: `cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml`
-  and set your VPS IP/user (git-ignored).
+1. **Do [step 1 — Prepare the VPS](bootstrap.md) first.** It clones the repo, runs
+   `make deps`, sets the inventory, and — importantly — installs your **SSH key before the
+   hardening disables password login** (don't skip its warning, or you can lock yourself
+   out). `make install` *can* run `make bootstrap` for you, but read that page first.
+2. **Install these CLI tools** on your workstation (the installer only orchestrates them and
+   adds no Python dependencies of its own):
 
-The installer adds **no Python dependencies** — it orchestrates the tools above.
+    | Tool | Used for | Get it |
+    |---|---|---|
+    | `helm` + `helmfile` | deploy the stack | [helm.sh](https://helm.sh/docs/intro/install/) · [helmfile releases](https://github.com/helmfile/helmfile/releases) |
+    | `kubectl` | talk to the cluster | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
+    | `dig` | DNS propagation check | `apt install dnsutils` (Debian/Ubuntu) · `brew install bind` (macOS) |
+    | `ssh`, `make`, `python3` ≥ 3.10 | tunnel, entrypoints, the installer | usually already present |
+
+3. **A domain** whose DNS records you can edit at your registrar.
 
 ## Run it
 
