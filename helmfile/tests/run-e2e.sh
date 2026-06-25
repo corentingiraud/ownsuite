@@ -89,10 +89,25 @@ sync_with_watchdog() {
   local log; log="$(mktemp)"
   helmfile -f "$HELMFILE" sync >"$log" 2>&1 &
   local pid=$!
+  local empty=0
   while kill -0 "$pid" 2>/dev/null; do
     sleep 15
-    echo "[watch $(date -u +%H:%M:%S)] pods: $(kubectl get pods -A --no-headers 2>/dev/null \
+    local summary
+    summary="$(kubectl get pods -A --no-headers 2>/dev/null \
       | awk '{c[$4]++} END{for(k in c) printf "%s=%d ", k, c[k]}')"
+    echo "[watch $(date -u +%H:%M:%S)] pods: $summary"
+    # kube-system pods appear within ~1 min of a healthy k3d cluster. A prolonged
+    # empty listing means the cluster API is unreachable (k3d/runner flakiness) —
+    # fail fast instead of waiting out the helm timeout.
+    if [ -z "$summary" ]; then empty=$((empty + 1)); else empty=0; fi
+    if [ "$empty" -ge 10 ]; then
+      echo "==> FAIL-FAST: no pods visible for ${empty} checks — cluster API unreachable"
+      kubectl get nodes -o wide 2>&1 | head -5 || true
+      kubectl cluster-info 2>&1 | head -5 || true
+      kill "$pid" 2>/dev/null || true
+      cat "$log"
+      exit 1
+    fi
     if kubectl get pods -A --no-headers 2>/dev/null | awk '
         $4 ~ /ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerError|RunContainerError|CreateContainerConfigError/ {bad=1; print "  ! "$0}
         $4 == "CrashLoopBackOff" && ($5+0) >= 3 {bad=1; print "  ! "$0}
