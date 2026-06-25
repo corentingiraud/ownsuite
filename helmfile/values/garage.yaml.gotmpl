@@ -1,0 +1,24 @@
+# In-cluster Garage object store (ADR-015). Deployed only in `garage` mode; the
+# production default is an external EU S3 (ADR-003). Image tags pinned in
+# versions.yaml. The S3 access key/secret are the seed-derived s3-credentials,
+# imported into Garage by the bootstrap Job — apps and the store share creds.
+image:
+  repository: dxflrs/garage
+  tag: {{ .Values.imageVersions.garage | quote }}
+
+bootstrapImage:
+  repository: alpine/kubectl
+  tag: {{ .Values.imageVersions.kubectl | quote }}
+
+replicationFactor: 1
+region: {{ .Values.garage.region | quote }}
+
+storage:
+  meta: {{ .Values.garage.metaStorage | quote }}
+  data: {{ .Values.garage.dataStorage | quote }}
+
+bucket: {{ .Values.objectStorage.bucket | quote }}
+keyName: docs
+
+credentialsSecret: garage-credentials
+s3Secret: s3-credentials

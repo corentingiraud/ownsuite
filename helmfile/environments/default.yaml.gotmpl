@@ -31,8 +31,27 @@ valkey:
 keycloak:
   enabled: true
   realm: ownsuite
-  # One OIDC client per app (added in Phase 2). Each entry: {clientId: docs}.
-  clients: []
+  # One OIDC client per app. Each entry: {clientId, directAccessGrants?}.
+  clients:
+    - clientId: docs
+      # Resource Owner Password Credentials grant — off by default; enabled in CI
+      # so the e2e can mint a token for the SSO definition-of-done without a
+      # browser (see helmfile/tests). Keep it off in production.
+      directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
+  # Optional realm user seeded for the e2e SSO check (CI only). Its password is
+  # derived from the seed (id "kc-test-user") — never committed in plaintext.
+  seedTestUser:
+    enabled: {{ env "OWNSUITE_KC_SEED_TEST_USER" | default "false" }}
+    username: {{ env "OWNSUITE_KC_TEST_USER" | default "docs-tester" | quote }}
+    email: {{ env "OWNSUITE_KC_TEST_EMAIL" | default "docs-tester@example.org" | quote }}
+
+# Per-app toggles. Each app is a Helmfile release gated on its flag (ADR-001).
+apps:
+  docs:
+    enabled: true
+
+# Contact address used for app admin / superuser accounts.
+adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}
 
 postgres:
   enabled: true
@@ -45,6 +64,8 @@ postgres:
 databases:
   - name: keycloak
     secretName: keycloak-db
+  - name: docs
+    secretName: docs-db
 
 # TLS issuance (ADR-013). `selfsigned` works anywhere (CI/dev, no public DNS);
 # `letsencrypt-http01` is the production issuer (needs public DNS + port 80).
@@ -59,3 +80,15 @@ objectStorage:
   mode: {{ env "OWNSUITE_OBJECT_STORAGE_MODE" | default "external" | quote }}
   endpoint: {{ env "OWNSUITE_S3_ENDPOINT" | default "" | quote }}
   region: {{ env "OWNSUITE_S3_REGION" | default "eu-west" | quote }}
+  # Bucket holding Docs media/attachments. Created by Garage in `garage` mode;
+  # expected to pre-exist on the external S3 in `external` mode.
+  bucket: {{ env "OWNSUITE_S3_BUCKET" | default "docs-media-storage" | quote }}
+
+# In-cluster Garage object store (ADR-015), deployed only in `garage` mode. Its
+# S3 access key/secret are the seed-derived s3-access/s3-secret credentials,
+# imported into Garage so apps and the store share creds with no manual sync.
+garage:
+  enabled: {{ eq (env "OWNSUITE_OBJECT_STORAGE_MODE" | default "external") "garage" }}
+  region: garage
+  metaStorage: {{ env "OWNSUITE_GARAGE_META_STORAGE" | default "1Gi" | quote }}
+  dataStorage: {{ env "OWNSUITE_GARAGE_DATA_STORAGE" | default "10Gi" | quote }}

@@ -29,7 +29,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `requirements-docs.txt` | Docs toolchain (MkDocs Material + plugins). |
 | `Makefile` | Operator/dev entrypoints: `bootstrap`, `check`, `lint`, `test`, `test-full`. |
 | `ansible/` | VPS bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles (Phase 0). |
-| `helmfile/` | Phase 1 shared infrastructure (Helmfile): cert-manager, CNPG, Valkey, Keycloak; local charts, values, versions, k3d e2e. |
+| `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG, Valkey, Keycloak, Garage (Phase 2), and the Docs app; local charts, values, versions, k3d e2e. |
 | `molecule/` | `default` (fast, host-prep roles) and `full` (real K3s) test scenarios + Testinfra. |
 | `requirements-dev.txt` | Dev/CI toolchain (Ansible, ansible-lint, yamllint, Molecule, Testinfra). |
 | `.github/workflows/docs.yml` | Builds & deploys the docs to GitHub Pages. |

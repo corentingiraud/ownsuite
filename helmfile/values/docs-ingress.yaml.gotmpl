@@ -1,0 +1,4 @@
+# Traefik middlewares for Docs media serving (ADR-016). Released after Keycloak so
+# the K3s Traefik CRDs exist before these CRs are applied.
+backendService: docs
+bucket: {{ .Values.objectStorage.bucket | quote }}

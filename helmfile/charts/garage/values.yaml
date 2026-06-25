@@ -1,0 +1,41 @@
+---
+# Defaults are overridden by Helmfile (values/garage.yaml.gotmpl). Listed here so
+# `helm lint` / `helm template` can render the chart standalone.
+
+image:
+  repository: dxflrs/garage
+  tag: v2.3.0
+
+# Image used by the bootstrap Job to `kubectl exec` the Garage CLI into the pod.
+# Alpine-based (ships a shell); kubectl exec/get are version-stable across skew.
+bootstrapImage:
+  repository: alpine/kubectl
+  tag: "1.34.1"
+
+# Single node: no replication.
+replicationFactor: 1
+# S3 region advertised by the API and used when assigning the layout zone.
+region: garage
+
+storage:
+  meta: 1Gi
+  data: 10Gi
+  # Empty => cluster default StorageClass (local-path on K3s).
+  storageClass: ""
+
+# Bucket created at bootstrap and granted to the imported app key.
+bucket: docs-media-storage
+# Name of the imported S3 key inside Garage (the credentials come from s3Secret).
+keyName: docs
+
+# Secrets produced by platform-configuration.
+credentialsSecret: garage-credentials  # rpcSecret, adminToken
+s3Secret: s3-credentials               # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY
+
+# Lightweight by design (Rust); bump the limit if media throughput grows.
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi

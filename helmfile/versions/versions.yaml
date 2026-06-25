@@ -14,7 +14,24 @@ chartVersions:
   keycloakx: "7.2.0"
   # renovate: datasource=helm registryUrl=https://groundhog2k.github.io/helm-charts depName=valkey
   valkey: "2.3.0"
+  # Docs (suitenumerique / impress) — official chart. The chart's appVersion is
+  # "latest", so the impress image tags below are pinned independently.
+  # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/docs depName=docs
+  docs: "5.3.0"
 
 imageVersions:
   # renovate: datasource=docker depName=quay.io/keycloak/keycloak
   keycloak: "26.6.3"
+  # Docs images — keep these three in lockstep with the chart appVersion.
+  # renovate: datasource=docker depName=lasuite/impress-backend
+  docsBackend: "v5.3.0"
+  # renovate: datasource=docker depName=lasuite/impress-frontend
+  docsFrontend: "v5.3.0"
+  # renovate: datasource=docker depName=lasuite/impress-y-provider
+  docsYProvider: "v5.3.0"
+  # Garage object store (ADR-015), deployed from the local ./charts/garage chart.
+  # renovate: datasource=docker depName=dxflrs/garage
+  garage: "v2.3.0"
+  # kubectl image used by the Garage bootstrap Job to exec the Garage CLI.
+  # renovate: datasource=docker depName=alpine/kubectl
+  kubectl: "1.34.1"

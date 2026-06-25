@@ -1,0 +1,224 @@
+# Docs (suitenumerique / impress) — the Phase 2 vertical slice (ADR-016).
+# Wired to the Phase 1 foundation: CNPG (`docs` DB), Valkey (cache + Celery
+# broker), S3 (Garage in-cluster or external), and Keycloak SSO (client `docs`).
+# Every credential comes from a seed-derived Secret via secretKeyRef (ADR-012);
+# nothing secret is rendered here. Image tags are pinned in versions.yaml.
+#
+# OIDC uses an external/internal endpoint split: the browser hits Keycloak at
+# https://auth.{domain}, while the backend reaches it in-cluster over plain HTTP
+# (no TLS trust needed, works with the self-signed issuer in CI).
+
+{{- $domain := .Values.domain -}}
+{{- $host := printf "docs.%s" $domain -}}
+{{- $realm := .Values.keycloak.realm -}}
+{{- $ns := .Values.workloadsNamespace -}}
+{{- $pgHost := printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName $ns -}}
+{{- $kcExternal := printf "https://auth.%s/realms/%s/protocol/openid-connect" $domain $realm -}}
+{{- $kcInternal := printf "http://keycloak-keycloakx-http.%s.svc.cluster.local/realms/%s/protocol/openid-connect" $ns $realm -}}
+{{- $s3Endpoint := .Values.objectStorage.endpoint -}}
+{{- $s3Region := .Values.objectStorage.region -}}
+{{- if .Values.garage.enabled -}}
+{{-   $s3Endpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
+{{-   $s3Region = .Values.garage.region -}}
+{{- end -}}
+{{- $verifySsl := ternary "False" "True" (eq .Values.tls.issuer "selfsigned") -}}
+{{- $mediaMiddlewares := printf "%s-docs-media-auth@kubernetescrd,%s-docs-media-rewrite@kubernetescrd" $ns $ns }}
+
+image:
+  repository: lasuite/impress-backend
+  tag: {{ .Values.imageVersions.docsBackend | quote }}
+  pullPolicy: IfNotPresent
+
+backend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      memory: "1Gi"
+  celery:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "256Mi"
+      limits:
+        memory: "768Mi"
+  envVars:
+    # --- Django core ---
+    DJANGO_SETTINGS_MODULE: impress.settings
+    DJANGO_CONFIGURATION: Production
+    DJANGO_ALLOWED_HOSTS: {{ $host | quote }}
+    DJANGO_CSRF_TRUSTED_ORIGINS: {{ printf "https://%s" $host | quote }}
+    DJANGO_SECRET_KEY:
+      secretKeyRef:
+        name: docs-secrets
+        key: DJANGO_SECRET_KEY
+    DJANGO_SUPERUSER_EMAIL: {{ .Values.adminEmail | quote }}
+    DJANGO_SUPERUSER_PASSWORD:
+      secretKeyRef:
+        name: docs-secrets
+        key: DJANGO_SUPERUSER_PASSWORD
+    # --- PostgreSQL (CNPG) ---
+    DB_HOST: {{ $pgHost | quote }}
+    DB_NAME: docs
+    DB_USER: docs
+    DB_PORT: "5432"
+    DB_PASSWORD:
+      secretKeyRef:
+        name: docs-db
+        key: password
+    # --- Cache + Celery broker (Valkey) ---
+    REDIS_URL:
+      secretKeyRef:
+        name: docs-secrets
+        key: REDIS_URL
+    DJANGO_CELERY_BROKER_URL:
+      secretKeyRef:
+        name: docs-secrets
+        key: DJANGO_CELERY_BROKER_URL
+    # --- Object storage (S3 / Garage) ---
+    AWS_S3_ENDPOINT_URL: {{ $s3Endpoint | quote }}
+    AWS_S3_ACCESS_KEY_ID:
+      secretKeyRef:
+        name: s3-credentials
+        key: AWS_S3_ACCESS_KEY_ID
+    AWS_S3_SECRET_ACCESS_KEY:
+      secretKeyRef:
+        name: s3-credentials
+        key: AWS_S3_SECRET_ACCESS_KEY
+    AWS_STORAGE_BUCKET_NAME: {{ .Values.objectStorage.bucket | quote }}
+    AWS_S3_REGION_NAME: {{ $s3Region | quote }}
+    STORAGES_STATICFILES_BACKEND: django.contrib.staticfiles.storage.StaticFilesStorage
+    # --- OIDC (Keycloak) — external endpoints for the browser, internal for the backend ---
+    OIDC_RP_CLIENT_ID: docs
+    OIDC_RP_CLIENT_SECRET:
+      secretKeyRef:
+        name: docs-secrets
+        key: OIDC_RP_CLIENT_SECRET
+    OIDC_RP_SIGN_ALGO: RS256
+    OIDC_RP_SCOPES: "openid email profile"
+    OIDC_OP_AUTHORIZATION_ENDPOINT: {{ printf "%s/auth" $kcExternal | quote }}
+    OIDC_OP_LOGOUT_ENDPOINT: {{ printf "%s/logout" $kcExternal | quote }}
+    OIDC_OP_JWKS_ENDPOINT: {{ printf "%s/certs" $kcInternal | quote }}
+    OIDC_OP_TOKEN_ENDPOINT: {{ printf "%s/token" $kcInternal | quote }}
+    OIDC_OP_USER_ENDPOINT: {{ printf "%s/userinfo" $kcInternal | quote }}
+    OIDC_VERIFY_SSL: {{ $verifySsl | quote }}
+    OIDC_REDIRECT_ALLOWED_HOSTS: {{ printf "https://%s" $host | quote }}
+    LOGIN_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
+    LOGIN_REDIRECT_URL_FAILURE: {{ printf "https://%s" $host | quote }}
+    LOGOUT_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
+    # --- Real-time collaboration (y-provider) ---
+    Y_PROVIDER_API_BASE_URL: "http://docs-y-provider:443/api/"
+    COLLABORATION_API_URL: "http://docs-y-provider:443/api/"
+    COLLABORATION_WS_URL: {{ printf "wss://%s/collaboration/ws/" $host | quote }}
+    COLLABORATION_SERVER_SECRET:
+      secretKeyRef:
+        name: docs-secrets
+        key: COLLABORATION_SERVER_SECRET
+    Y_PROVIDER_API_KEY:
+      secretKeyRef:
+        name: docs-secrets
+        key: Y_PROVIDER_API_KEY
+
+frontend:
+  replicas: 1
+  image:
+    repository: lasuite/impress-frontend
+    tag: {{ .Values.imageVersions.docsFrontend | quote }}
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      memory: "384Mi"
+
+yProvider:
+  replicas: 1
+  image:
+    repository: lasuite/impress-y-provider
+    tag: {{ .Values.imageVersions.docsYProvider | quote }}
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      memory: "384Mi"
+  envVars:
+    COLLABORATION_BACKEND_BASE_URL: {{ printf "https://%s" $host | quote }}
+    COLLABORATION_SERVER_ORIGIN: {{ printf "https://%s" $host | quote }}
+    COLLABORATION_LOGGING: "true"
+    COLLABORATION_SERVER_SECRET:
+      secretKeyRef:
+        name: docs-secrets
+        key: COLLABORATION_SERVER_SECRET
+    Y_PROVIDER_API_KEY:
+      secretKeyRef:
+        name: docs-secrets
+        key: Y_PROVIDER_API_KEY
+
+# --- Ingress (Traefik, K3s-bundled). cert-manager issues docs-tls on the main
+#     ingress; the other ingresses reuse that secret for the same host. Traefik
+#     proxies websockets natively, so the collaboration routes need no special
+#     annotations (single y-provider replica => no room-sticky routing needed).
+ingress:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  path: /
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.tls.issuer | quote }}
+  tls:
+    enabled: true
+    secretName: docs-tls
+
+ingressCollaborationWS:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  path: /collaboration/ws/
+  annotations: {}
+  tls:
+    enabled: true
+    secretName: docs-tls
+
+ingressCollaborationApi:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  path: /collaboration/api/
+  annotations: {}
+  tls:
+    enabled: true
+    secretName: docs-tls
+
+ingressAdmin:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  path: /admin
+  annotations: {}
+  tls:
+    enabled: true
+    secretName: docs-tls
+
+# Authenticated media serving: Traefik forwardAuth to the backend media-auth
+# endpoint, then a path rewrite to the bucket (path-style S3). The two Middleware
+# CRs live in the platform-configuration chart (docs-traefik-middlewares.yaml).
+ingressMedia:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  path: /media/
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $mediaMiddlewares | quote }}
+  tls:
+    enabled: true
+    secretName: docs-tls
+
+serviceMedia:
+  host: {{ printf "garage.%s.svc.cluster.local" $ns | quote }}
+  port: 3900

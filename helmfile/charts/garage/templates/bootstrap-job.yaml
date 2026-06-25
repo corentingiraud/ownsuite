@@ -1,0 +1,91 @@
+{{- /*
+Bootstrap Job (ADR-015). Runs as a post-install/post-upgrade Helm hook, so
+`helm --wait` blocks the release (and anything that `needs` Garage, i.e. Docs)
+until the store is actually usable. It execs the Garage CLI inside garage-0
+(the CLI auto-connects via /etc/garage.toml + the inherited GARAGE_* env), then
+idempotently: assigns + applies the single-node layout, imports the deterministic
+S3 key (from the seed-derived s3-credentials Secret), creates the bucket, and
+grants the key full access. Each step is guarded by an `info`/`show` check, since
+`layout apply` / `key import` / `bucket create` are not safe to blindly re-run.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: garage-bootstrap
+  labels:
+    app.kubernetes.io/name: garage
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: garage
+    spec:
+      serviceAccountName: garage-bootstrap
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: "{{ .Values.bootstrapImage.repository }}:{{ .Values.bootstrapImage.tag }}"
+          env:
+            - name: AWS_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3Secret }}
+                  key: AWS_S3_ACCESS_KEY_ID
+            - name: AWS_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3Secret }}
+                  key: AWS_S3_SECRET_ACCESS_KEY
+            - name: BUCKET
+              value: {{ .Values.bucket | quote }}
+            - name: KEY_NAME
+              value: {{ .Values.keyName | quote }}
+          command:
+            - /bin/sh
+            - -ceu
+            - |
+              POD=garage-0
+              g() { kubectl exec "$POD" -c garage -- /garage "$@"; }
+
+              echo "Waiting for Garage to answer RPC..."
+              i=0
+              until g status >/dev/null 2>&1; do
+                i=$((i + 1))
+                if [ "$i" -gt 60 ]; then echo "Garage not ready in time" >&2; exit 1; fi
+                sleep 3
+              done
+
+              NODE_ID=$(g node id -q | cut -d@ -f1 | tr -d '[:space:]')
+              echo "Garage node id: $NODE_ID"
+
+              if g layout show | grep -q "$NODE_ID"; then
+                echo "Layout already assigned, skipping."
+              else
+                echo "Assigning single-node layout..."
+                g layout assign -z dc1 -c 1G "$NODE_ID"
+                g layout apply --version 1
+              fi
+
+              if g key info "$AWS_S3_ACCESS_KEY_ID" >/dev/null 2>&1; then
+                echo "S3 key already imported, skipping."
+              else
+                echo "Importing deterministic S3 key..."
+                g key import "$AWS_S3_ACCESS_KEY_ID" "$AWS_S3_SECRET_ACCESS_KEY" -n "$KEY_NAME" --yes
+              fi
+
+              if g bucket info "$BUCKET" >/dev/null 2>&1; then
+                echo "Bucket $BUCKET already exists, skipping create."
+              else
+                echo "Creating bucket $BUCKET..."
+                g bucket create "$BUCKET"
+              fi
+
+              echo "Granting key access to $BUCKET (idempotent)..."
+              g bucket allow --read --write --owner "$BUCKET" --key "$AWS_S3_ACCESS_KEY_ID"
+
+              echo "Garage bootstrap complete."

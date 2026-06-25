@@ -1,0 +1,9 @@
+apiVersion: v2
+name: docs-ingress
+description: >-
+  Traefik middlewares for Docs authenticated media serving (ADR-016): a
+  forwardAuth to the backend media-auth endpoint plus a path rewrite to the S3
+  bucket. Kept in a dedicated release ordered after Keycloak so the Traefik CRDs
+  (installed with K3s) are present before these CRs are applied.
+type: application
+version: 0.1.0
