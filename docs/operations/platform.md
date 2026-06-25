@@ -14,15 +14,19 @@ deploys, in dependency order:
 |---|---|---|---|
 | 1 | `cert-manager` + `issuers` | TLS certificates (Let's Encrypt / self-signed ClusterIssuers) | [ADR-013](../architecture/decisions.md#adr-013-tls-issuance-cert-manager-http-01-per-subdomain-wildcard-dns-01-deferred) |
 | 2 | `cnpg-operator` | CloudNativePG operator (Postgres CRDs) | [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
-| 3 | `platform-configuration` | All derived secrets + the Keycloak realm ConfigMap | [ADR-012](../architecture/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating) |
-| 4 | `postgres` | One CNPG `Cluster` + one `Database` per app | [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
-| 5 | `valkey` | Cache / broker | [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
-| 6 | `garage` | In-cluster object store + bucket bootstrap (only in `garage` mode) | [ADR-015](../architecture/decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key) |
-| 7 | `keycloak` | SSO over HTTPS — the Phase 1 DoD | [ADR-011](../architecture/decisions.md#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator) |
+| 3 | `barman-cloud-plugin` | CNPG backup/recovery plugin (only when `backup.enabled`) | [ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
+| 4 | `platform-configuration` | All derived secrets + the Keycloak realm ConfigMap | [ADR-012](../architecture/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating) |
+| 5 | `postgres` | One CNPG `Cluster` + one `Database` per app (+ backup `ObjectStore`/`ScheduledBackup` when enabled) | [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
+| 6 | `valkey` | Cache / broker | [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
+| 7 | `garage` | In-cluster object store + bucket bootstrap (only in `garage` mode) | [ADR-015](../architecture/decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key) |
+| 8 | `garage-backup` | Off-site object store for backups (only when `backup.s3.target=in-cluster`) | [ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
+| 9 | `object-backup` | rclone off-site media copy CronJob (+ restore Job, when `backup.enabled`) | [ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
+| 10 | `keycloak` | SSO over HTTPS — the Phase 1 DoD | [ADR-011](../architecture/decisions.md#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator) |
 
 After the shared infrastructure, **apps** are deployed as further releases (each
 gated on `apps.<name>.enabled`). The first is **Docs** — see
 [Docs application](docs.md) and [ADR-016](../architecture/decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split).
+Backups (off-site, with a tested restore) are covered in [Backups & restore](backups.md).
 
 ## Layout
 
@@ -35,8 +39,11 @@ helmfile/
   charts/                     # local charts
     platform-configuration/   #   derives secrets, builds the Keycloak realm
     issuers/                  #   cert-manager ClusterIssuers
-    postgres/                 #   CNPG Cluster + Database CRs
-  tests/                      # k3d end-to-end DoD check
+    postgres/                 #   CNPG Cluster + Database + backup ObjectStore/ScheduledBackup
+    barman-cloud-plugin/      #   vendored CNPG backup/recovery plugin (ADR-017)
+    garage/                   #   in-cluster object store (primary + off-site backup)
+    object-backup/            #   rclone off-site media copy + restore (ADR-017)
+  tests/                      # k3d end-to-end DoD check (incl. backup→restore cycle)
 ```
 
 ## Secrets — one seed, nothing committed
@@ -70,6 +77,11 @@ sensible defaults), e.g.:
 | `OWNSUITE_GARAGE_META_STORAGE` | `1Gi` | Garage metadata volume size (`garage` mode) |
 | `OWNSUITE_GARAGE_DATA_STORAGE` | `10Gi` | Garage data volume size (`garage` mode) |
 | `OWNSUITE_PG_STORAGE` | `10Gi` | Postgres volume size |
+| `OWNSUITE_BACKUP_ENABLED` | `false` | Enable off-site backups (see [Backups & restore](backups.md)) |
+| `OWNSUITE_BACKUP_S3_TARGET` | `in-cluster` | `external` (prod) or `in-cluster` (CI) off-site destination |
+
+The backup/restore knobs (`OWNSUITE_BACKUP_*`, `OWNSUITE_RESTORE`) are documented in full in
+[Backups & restore](backups.md).
 
 ## Run it (interim manual flow)
 
@@ -118,8 +130,11 @@ curl -s https://auth.assoc.example.org/realms/ownsuite/.well-known/openid-config
   no in-cluster storage is deployed by default — the production default is an external EU
   S3 endpoint ([ADR-003](../architecture/decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3)).
   Garage is wired but off until an app needs it.
-- **No backups yet.** CNPG PITR to S3 and tested restore are Phase 3
-  ([ADR-006](../architecture/decisions.md#adr-006-backups-and-tested-restore)).
+- **Off-site backups, tested restore.** CNPG PITR + an off-site object copy, with a
+  CI-proven restore, are wired in Phase 3 (off by default; enable with `OWNSUITE_BACKUP_ENABLED`)
+  — see [Backups & restore](backups.md),
+  [ADR-006](../architecture/decisions.md#adr-006-backups-and-tested-restore) and
+  [ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design).
 
 ## Tests
 
@@ -133,9 +148,11 @@ make test-platform   # full DoD on a throwaway k3d cluster (heavy)
 
 `make lint-helm` runs on every change under `helmfile/` (`helmfile-ci.yml`).
 `make test-platform` provisions a real K3s with **k3d**, runs `helmfile sync` with the
-self-signed issuer, and asserts cert-manager / CNPG / Valkey / Keycloak are up and that
-**Keycloak answers over HTTPS** — the machine-checked DoD. It is heavy, so it runs nightly
-and on Helmfile changes (`helmfile-e2e.yml`), not on every PR.
+self-signed issuer, asserts cert-manager / CNPG / Valkey / Keycloak / Docs are up (incl. the
+SSO document DoD), then runs a full **backup → destroy → restore** cycle and asserts the
+document, the Keycloak user and the media object survived (Phase 3 — see
+[Backups & restore](backups.md)). It is heavy, so it runs nightly and on Helmfile changes
+(`helmfile-e2e.yml`), not on every PR.
 
 !!! note "HTTPS in CI"
     CI uses the **self-signed** ClusterIssuer: there is no public DNS to satisfy an ACME

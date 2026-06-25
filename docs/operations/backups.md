@@ -27,8 +27,9 @@ Set `OWNSUITE_BACKUP_S3_TARGET`:
 
 The off-site S3 credentials and the rclone encryption passphrase are **derived from
 `OWNSUITE_SECRET_SEED`** by default (so CI and self-controlled targets need no manual sync).
-For a real **external** off-site account, override them with that account's keys — write an
-**untracked** values file and point Helmfile at it via `secretOverrides`:
+For a real **external** off-site account, override them with that account's keys. Put them in
+an **untracked** state-values file and pass it to Helmfile, which overrides the derived
+defaults for those ids:
 
 ```yaml
 # backup-overrides.yaml  (git-ignored — never commit real keys)
@@ -36,6 +37,10 @@ secretOverrides:
   backup-s3-access: "AKIA...your-offsite-key-id"
   backup-s3-secret: "...your-offsite-secret..."
   rclone-crypt:     "...a-long-random-passphrase..."   # optional; keep it safe
+```
+
+```bash
+helmfile -f helmfile/helmfile.yaml.gotmpl --state-values-file backup-overrides.yaml sync
 ```
 
 The encryption passphrase and the seed are the only secrets you must keep: **losing them loses
