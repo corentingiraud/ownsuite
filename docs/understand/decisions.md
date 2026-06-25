@@ -762,3 +762,45 @@ node otherwise. (c) Grist is **template/lint-validated, not yet CI-booted**; a t
 (enable Grist on a beefier/nightly runner and assert a Keycloak user reaches it) is the natural next
 step before it becomes a default app. The public-issuer OIDC choice assumes the in-cluster backend
 can reach `auth.{domain}` (DNS + hairpin), which holds on a normal single-server install.
+
+---
+
+## ADR-025 — Projects: deferred with a documented build path, not a v1 app
+
+**Context.** Phase 5 broadens the suite, and **Projects** (`suitenumerique/projects` — kanban
+boards / task management, originally forked from Planka) is the last broadening candidate after
+Drive ([ADR-022](#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)) and Grist
+([ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)).
+The Phase 5 plan left this item explicitly open — *author a local chart now, or defer*. The
+deciding facts, confirmed from the upstream repository:
+
+- **No official Helm chart.** Projects ships a Docker image (`lasuite/projects`) + a
+  docker-compose; deploying it on K3s means authoring a **local chart**, exactly as Grist did.
+- **Node/Sails.js + React, PostgreSQL, OIDC via Keycloak, optional S3 for attachments** — a stack
+  the existing seams (CNPG, the OIDC client convention, the pluggable S3 bucket) already cover.
+- **Early-to-mid maturity** (v1.2.0, Feb 2026; active but young), the least settled of the
+  candidates.
+
+**Decision.** **Defer Projects to a later phase** — author no chart in v1 — and record the build
+path so it stays a bounded, known effort:
+
+- It is **not** part of the Phase 5 definition of done (Docs + Drive), which is met, and **Grist
+  already delivers the "broaden beyond the DoD" goal** (ADR-024).
+- Shipping Projects now would add a **second** app that is wired but **never booted in the
+  constrained CI e2e** (Grist is the first, off by default). Two unverified-in-CI apps in one
+  phase is more surface than the DoD warrants — the honest move is to stop at one and harden the
+  seam before adding more.
+- **Build path when prioritised:** mirror the Grist local-chart pattern (ADR-024) — a thin local
+  chart (Deployment + Service + Ingress, a PVC only if it stores local state), a dedicated CNPG
+  `projects` database, a `projects` OIDC client appended to `keycloak.clients` (first **verify**
+  Projects' exact `OIDC_*` env names + callback path, and whether it does single-issuer discovery
+  like Grist or a per-endpoint split like the impress apps), optional S3 for attachments on its
+  own bucket, and seed-derived secrets
+  ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)). Pin
+  `lasuite/projects` to the newest tag **verified online** at build time (never from memory). Off
+  by default until CI-booted.
+
+**Consequences.** Phase 5 lands the DoD (Docs + Drive) plus Grist as the broadening app;
+**Projects joins People as documented-and-deferred** — each with a clear, low-cost path onto the
+existing "add an app" seam, none blocking the phase. Revisiting Projects is additive: another
+`keycloak.clients` entry, a database, a bucket (if used), and a values file — no rework.
