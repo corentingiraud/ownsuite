@@ -45,7 +45,12 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
    contrary instruction.
 2. **No Bitnami, no MinIO** — both are deprecated/archived. Use CloudNativePG, Valkey,
    and Garage/external S3 (ADR-003, ADR-004).
-3. **Pin versions** — charts, images, K3s. Never `latest` in production.
+3. **Pin versions, to the latest.** Charts, images, K3s, CLIs — pin an *explicit*
+   version (never the floating `latest` tag in production). When adding or bumping a
+   dependency, use the **newest available release, verified from the upstream source**
+   (Docker Hub tags, GitHub releases, the Helm repo index) — **check it on the internet,
+   never rely on model memory or a guess**. Pins live in
+   `helmfile/versions/versions.yaml` (Renovate-tracked).
 4. **No plaintext secrets** — everything derives from `secretSeed` or an explicit
    override; nothing secret is committed.
 5. **Backups go off-site** — the backup destination must survive loss of the VPS, so it

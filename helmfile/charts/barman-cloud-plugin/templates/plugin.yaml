@@ -1,10 +1,16 @@
-# VENDORED — do not hand-edit. CloudNativePG Barman Cloud Plugin (ADR-006/ADR-017).
-# Source: https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.13.0/manifest.yaml
-# Pinned to v0.13.0 in helmfile/versions/versions.yaml (Renovate-tracked). On a
-# version bump, re-download the release manifest.yaml and replace this file verbatim.
+# VENDORED — mostly verbatim. CloudNativePG Barman Cloud Plugin (ADR-006/ADR-017).
+# Source: https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/<tag>/manifest.yaml
+# The plugin VERSION is the single source of truth in helmfile/versions/versions.yaml
+# (manifestVersions.barmanCloudPlugin, Renovate-tracked) and is injected here via
+# values/barman-cloud-plugin.yaml.gotmpl.
+#
+# On a version bump: re-download the release manifest.yaml and replace this file, then
+# RE-APPLY the two `VENDORED-EDIT` markers below — they replace the hardcoded operator
+# and sidecar image tags with `{{ .Values.barmanCloudPlugin }}`. Everything else is
+# verbatim (no other Go-template braces).
+#
 # Installs into cnpg-system: the ObjectStore CRD, the barman-cloud operator-side
 # Deployment + RBAC, and the cert-manager Issuer/Certificates for plugin TLS.
-# No Go-template braces are present, so Helm renders it unchanged.
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -967,10 +973,9 @@ subjects:
   namespace: cnpg-system
 ---
 apiVersion: v1
-data:
-  SIDECAR_IMAGE: |
-    Z2hjci5pby9jbG91ZG5hdGl2ZS1wZy9wbHVnaW4tYmFybWFuLWNsb3VkLXNpZGVjYXI6dj
-    AuMTMuMA==
+# VENDORED-EDIT: image tag templated from versions.yaml (single source of truth).
+stringData:
+  SIDECAR_IMAGE: {{ printf "ghcr.io/cloudnative-pg/plugin-barman-cloud-sidecar:%s" .Values.barmanCloudPlugin | quote }}
 kind: Secret
 metadata:
   name: plugin-barman-cloud-m5m67kfh8f
@@ -1031,7 +1036,8 @@ spec:
             secretKeyRef:
               key: SIDECAR_IMAGE
               name: plugin-barman-cloud-m5m67kfh8f
-        image: ghcr.io/cloudnative-pg/plugin-barman-cloud:v0.13.0
+        # VENDORED-EDIT: image tag templated from versions.yaml (single source of truth).
+        image: {{ printf "ghcr.io/cloudnative-pg/plugin-barman-cloud:%s" .Values.barmanCloudPlugin | quote }}
         name: barman-cloud
         ports:
         - containerPort: 9090

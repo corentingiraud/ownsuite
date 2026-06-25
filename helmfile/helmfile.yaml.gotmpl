@@ -71,6 +71,8 @@ releases:
     needs:
       - cert-manager/cert-manager
       - cnpg-system/cnpg-operator
+    values:
+      - values/barman-cloud-plugin.yaml.gotmpl
 
   # --- Shared config + derived secrets + Keycloak realm (ADR-005, ADR-012) -
   - name: platform-configuration

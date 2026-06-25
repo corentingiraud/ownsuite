@@ -1,6 +1,7 @@
 ---
-# The plugin is installed from a vendored, pinned upstream manifest
-# (templates/plugin.yaml). It takes no configuration here: backup destinations are
-# expressed as `ObjectStore` CRs (see the postgres chart) and the sidecar image is
-# pinned inside the vendored manifest. This file exists only so `helm lint` has a
-# values file to render against.
+# The plugin is installed from a vendored upstream manifest (templates/plugin.yaml).
+# The only value it needs is the plugin version, which drives the operator and sidecar
+# image tags. It is the single source of truth in helmfile/versions/versions.yaml,
+# injected by values/barman-cloud-plugin.yaml.gotmpl; the empty default keeps
+# standalone `helm lint` working.
+barmanCloudPlugin: ""
