@@ -26,8 +26,11 @@
       "groupName": "ansible collections"
     },
     {
-      "description": "Group Helmfile chart and image bumps into one PR.",
-      "matchFileNames": ["helmfile/versions/versions.yaml"],
+      "description": "Group Helmfile chart + image bumps into one PR. Includes the local charts' values.yaml, whose image tags are lint-only fallbacks (the real pins live in versions.yaml and are injected by the *.gotmpl values) — grouping keeps them in sync and avoids duplicate, competing PRs from the helm-values manager.",
+      "matchFileNames": [
+        "helmfile/versions/versions.yaml",
+        "helmfile/charts/**/values.yaml"
+      ],
       "groupName": "helmfile stack"
     }
   ],
