@@ -29,6 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install helm, helmfile, kubeconform (pinned)
+        # Extract in a clean temp dir: the repo root has a `helmfile/` directory,
+        # which would collide with `tar x helmfile` (the binary).
+        working-directory: ${{ runner.temp }}
         run: |
           curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo install linux-amd64/helm /usr/local/bin/helm
