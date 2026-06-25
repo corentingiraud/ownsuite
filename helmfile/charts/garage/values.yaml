@@ -6,15 +6,19 @@
 # `garage-backup`) can run in the same namespace without colliding (ADR-006/ADR-017).
 name: garage
 
+# Image tags are NOT pinned here. The single source of truth is
+# helmfile/versions/versions.yaml; Helmfile injects the pinned tag via
+# values/garage*.yaml.gotmpl. Empty defaults keep `helm lint` happy when the chart
+# is rendered standalone (it is only ever deployed through Helmfile).
 image:
   repository: dxflrs/garage
-  tag: v2.3.0
+  tag: ""
 
 # Image used by the bootstrap Job to `kubectl exec` the Garage CLI into the pod.
 # Alpine-based (ships a shell); kubectl exec/get are version-stable across skew.
 bootstrapImage:
   repository: alpine/kubectl
-  tag: "1.36.2"
+  tag: ""
 
 # Single node: no replication.
 replicationFactor: 1
