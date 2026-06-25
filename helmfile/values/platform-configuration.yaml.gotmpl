@@ -20,6 +20,12 @@ objectStorage:
   region: {{ .Values.objectStorage.region | quote }}
 garage:
   enabled: {{ .Values.garage.enabled }}
+backup:
+  enabled: {{ .Values.backup.enabled }}
+  secretName: backup-s3-credentials
+  # Whether the off-site store is the in-cluster `garage-backup` (CI). When true,
+  # its internal Garage RPC/admin credentials are derived here too.
+  inCluster: {{ eq .Values.backup.s3.target "in-cluster" }}
 valkey:
   secretName: valkey-credentials
   configSecretName: valkey-extra-config

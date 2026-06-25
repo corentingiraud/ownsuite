@@ -3,16 +3,16 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: garage-bootstrap
+  name: {{ .Values.name }}-bootstrap
   labels:
-    app.kubernetes.io/name: garage
+    app.kubernetes.io/name: {{ .Values.name }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: garage-bootstrap
+  name: {{ .Values.name }}-bootstrap
   labels:
-    app.kubernetes.io/name: garage
+    app.kubernetes.io/name: {{ .Values.name }}
 rules:
   - apiGroups: [""]
     resources: ["pods"]
@@ -24,13 +24,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: garage-bootstrap
+  name: {{ .Values.name }}-bootstrap
   labels:
-    app.kubernetes.io/name: garage
+    app.kubernetes.io/name: {{ .Values.name }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: garage-bootstrap
+  name: {{ .Values.name }}-bootstrap
 subjects:
   - kind: ServiceAccount
-    name: garage-bootstrap
+    name: {{ .Values.name }}-bootstrap

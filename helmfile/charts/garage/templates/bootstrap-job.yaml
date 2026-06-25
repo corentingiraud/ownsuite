@@ -11,9 +11,9 @@ grants the key full access. Each step is guarded by an `info`/`show` check, sinc
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: garage-bootstrap
+  name: {{ .Values.name }}-bootstrap
   labels:
-    app.kubernetes.io/name: garage
+    app.kubernetes.io/name: {{ .Values.name }}
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "5"
@@ -23,9 +23,9 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: garage
+        app.kubernetes.io/name: {{ .Values.name }}
     spec:
-      serviceAccountName: garage-bootstrap
+      serviceAccountName: {{ .Values.name }}-bootstrap
       restartPolicy: OnFailure
       containers:
         - name: bootstrap
@@ -35,12 +35,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.s3Secret }}
-                  key: AWS_S3_ACCESS_KEY_ID
+                  key: {{ .Values.s3SecretKeys.accessKeyId }}
             - name: AWS_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.s3Secret }}
-                  key: AWS_S3_SECRET_ACCESS_KEY
+                  key: {{ .Values.s3SecretKeys.secretAccessKey }}
             - name: BUCKET
               value: {{ .Values.bucket | quote }}
             - name: KEY_NAME
@@ -49,7 +49,7 @@ spec:
             - /bin/sh
             - -ceu
             - |
-              POD=garage-0
+              POD={{ .Values.name }}-0
               g() { kubectl exec "$POD" -c garage -- /garage "$@"; }
 
               echo "Waiting for Garage to answer RPC..."

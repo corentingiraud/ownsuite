@@ -1,0 +1,51 @@
+{{- if .Values.backup.enabled }}
+{{- /*
+Off-site backup destination for the CNPG Barman Cloud Plugin (ADR-006, ADR-017).
+The ObjectStore is the S3 target for WAL archiving + base backups; it is referenced
+by the Cluster's WAL-archiver plugin and by recovery. `serverName` must stay empty
+here (kept only for in-tree API compatibility); the cluster name is used as the
+barman serverName via the plugin. Credentials come from the seed-derived (or
+overridden) backup-s3-credentials Secret. The instance sidecar carries the
+S3-compatible checksum workaround so non-AWS stores (Garage) work, plus a region
+hint for AWS. CRD shipped by the barman-cloud-plugin release.
+*/}}
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ .Values.backup.objectStoreName | quote }}
+spec:
+  configuration:
+    destinationPath: {{ printf "s3://%s/" .Values.backup.bucket | quote }}
+    {{- with .Values.backup.endpoint }}
+    endpointURL: {{ . | quote }}
+    {{- end }}
+    s3Credentials:
+      accessKeyId:
+        name: {{ .Values.backup.credentialsSecret | quote }}
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: {{ .Values.backup.credentialsSecret | quote }}
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+      {{- with .Values.backup.encryption }}
+      encryption: {{ . | quote }}
+      {{- end }}
+  retentionPolicy: {{ .Values.backup.retention | quote }}
+  instanceSidecarConfiguration:
+    resources:
+      {{- toYaml .Values.backup.sidecarResources | nindent 6 }}
+    env:
+      # S3 Data Integrity Protections break some S3-compatible stores (Garage,
+      # MinIO); only compute/verify checksums when required.
+      - name: AWS_REQUEST_CHECKSUM_CALCULATION
+        value: when_required
+      - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+        value: when_required
+      {{- with .Values.backup.region }}
+      - name: AWS_DEFAULT_REGION
+        value: {{ . | quote }}
+      {{- end }}
+{{- end }}

@@ -16,3 +16,37 @@ cluster:
 databases:
   - name: keycloak
     secretName: keycloak-db
+
+# Backups via the CNPG Barman Cloud Plugin (ADR-006, ADR-017). When enabled, the
+# cluster gets a WAL archiver plugin pointed at the `objectStoreName` ObjectStore,
+# plus an optional ScheduledBackup. Off-site by construction (see environment).
+backup:
+  enabled: false
+  objectStoreName: ownsuite-pg-backup
+  # 5-field cron for scheduled base backups; empty disables them (on-demand only).
+  schedule: ""
+  credentialsSecret: backup-s3-credentials
+  # s3://<bucket>/ on the off-site destination; barman shards by serverName beneath.
+  bucket: ownsuite-backups
+  region: eu-west
+  endpoint: ""
+  # Recovery-window retention (PITR). GFS-style retention lives on the object copy.
+  retention: "30d"
+  # S3 server-side encryption (e.g. AES256). Empty by default: Garage/S3-compatible
+  # stores may not support SSE; rely on TLS + provider at-rest there. Set for AWS.
+  encryption: ""
+  # Sidecar (barman) sizing — kept small for a single VPS.
+  sidecarResources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      memory: "256Mi"
+
+# Recovery mode (ADR-006, ADR-017). When enabled the cluster bootstraps from the
+# backup ObjectStore instead of an empty init. `make restore` sets this on a clean
+# cluster. `sourceServerName` is the serverName of the backups to recover (the
+# original cluster name, since the WAL archiver uses the cluster name by default).
+restore:
+  enabled: false
+  sourceServerName: ownsuite-pg

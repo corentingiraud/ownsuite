@@ -1,0 +1,41 @@
+{{- if .Values.schedule }}
+{{- /*
+Scheduled off-site copy of the media bucket (ADR-006). Encrypted client-side via the
+rclone crypt remote. The e2e triggers an immediate run with
+`kubectl create job --from=cronjob/object-backup`.
+*/}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: object-backup
+  labels:
+    app.kubernetes.io/name: object-backup
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: object-backup
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: rclone
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              # sh -ceu "<script>" "$0" "$1": the "object-backup" token is $0, "backup" is $1.
+              command: ["/bin/sh", "-ceu"]
+              args:
+                - |
+                  {{- include "object-backup.script" . | nindent 18 }}
+                - object-backup
+                - backup
+              env:
+                {{- include "object-backup.env" . | nindent 16 }}
+              resources:
+                {{- toYaml .Values.resources | nindent 16 }}
+{{- end }}

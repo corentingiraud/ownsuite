@@ -24,6 +24,38 @@ GARAGE_MODE = os.environ.get("OWNSUITE_OBJECT_STORAGE_MODE", "external") == "gar
 SEED_TEST_USER = os.environ.get("OWNSUITE_KC_SEED_TEST_USER", "false").lower() == "true"
 DOCS_BUCKET = os.environ.get("OWNSUITE_S3_BUCKET", "docs-media-storage")
 
+# Test stage (set by run-e2e.sh): "pre" runs the Phase 1+2 DoD (and creates the
+# survivor document); "post-restore" re-asserts infra health and proves the
+# document + Keycloak user survived the backup -> destroy -> restore cycle (ADR-006).
+E2E_STAGE = os.environ.get("OWNSUITE_E2E_STAGE", "pre")
+PRE_ONLY = pytest.mark.skipif(
+    E2E_STAGE != "pre", reason="runs only pre-destroy (creates the survivor document)"
+)
+POST_RESTORE_ONLY = pytest.mark.skipif(
+    E2E_STAGE != "post-restore", reason="runs only after restore (survival check)"
+)
+
+# Deterministic title of the document created in the Phase 2 DoD; the Phase 3
+# survival check looks for exactly this document after the restore.
+DOC_TITLE = "OwnSuite e2e — persistent document"
+
+
+def docs_user_token():
+    """Mint an access token for the seeded Keycloak user (direct-access grant)."""
+    client_secret = derive_secret("docs-oidc")
+    password = derive_secret("kc-test-user")
+    token_url = f"https://{AUTH_HOST}/realms/{REALM}/protocol/openid-connect/token"
+    out = curl(
+        AUTH_HOST, token_url,
+        "--data-urlencode", "grant_type=password",
+        "--data-urlencode", "client_id=docs",
+        "--data-urlencode", f"client_secret={client_secret}",
+        "--data-urlencode", "username=docs-tester",
+        "--data-urlencode", f"password={password}",
+        "--data-urlencode", "scope=openid email",
+    )
+    return json.loads(out)["access_token"]
+
 
 def derive_secret(secret_id, length=32):
     """Mirror the chart helper: sha256sum("<seed>:<id>") truncated (ADR-012)."""
@@ -188,6 +220,7 @@ def test_docs_reachable_over_https():
     retry(fetch, attempts=40, delay=3)
 
 
+@PRE_ONLY
 @pytest.mark.skipif(
     not (SECRET_SEED and SEED_TEST_USER),
     reason="needs OWNSUITE_SECRET_SEED and a seeded Keycloak test user",
@@ -200,26 +233,10 @@ def test_dod_sso_user_creates_persistent_document():
     with the seeded user (direct-access grant), then create a document through the
     Docs API as that user and read it back — proving SSO client wiring + DB
     persistence. Docs validates the bearer token against Keycloak's userinfo
-    endpoint and just-in-time provisions the user (ADR-005, ADR-016).
+    endpoint and just-in-time provisions the user (ADR-005, ADR-016). This document
+    is also the survivor checked by the Phase 3 backup/restore test.
     """
-    client_secret = derive_secret("docs-oidc")
-    password = derive_secret("kc-test-user")
-    token_url = f"https://{AUTH_HOST}/realms/{REALM}/protocol/openid-connect/token"
-    title = "OwnSuite e2e — persistent document"
-
-    def get_token():
-        out = curl(
-            AUTH_HOST, token_url,
-            "--data-urlencode", "grant_type=password",
-            "--data-urlencode", "client_id=docs",
-            "--data-urlencode", f"client_secret={client_secret}",
-            "--data-urlencode", "username=docs-tester",
-            "--data-urlencode", f"password={password}",
-            "--data-urlencode", "scope=openid email",
-        )
-        return json.loads(out)["access_token"]
-
-    token = retry(get_token)
+    token = retry(docs_user_token)
     auth_header = f"Authorization: Bearer {token}"
     docs_api = f"https://{DOCS_HOST}/api/v1.0/documents/"
 
@@ -228,7 +245,7 @@ def test_dod_sso_user_creates_persistent_document():
             DOCS_HOST, docs_api,
             "-X", "POST", "-H", auth_header,
             "-H", "Content-Type: application/json",
-            "--data", json.dumps({"title": title}),
+            "--data", json.dumps({"title": DOC_TITLE}),
         )
         doc = json.loads(out)
         assert doc.get("id"), f"no document id returned: {doc}"
@@ -239,7 +256,39 @@ def test_dod_sso_user_creates_persistent_document():
     def read_back():
         out = curl(DOCS_HOST, f"{docs_api}{doc_id}/", "-H", auth_header)
         doc = json.loads(out)
-        assert doc["title"] == title, doc
+        assert doc["title"] == DOC_TITLE, doc
         return doc
 
     retry(read_back)
+
+
+# --- Phase 3: backups & tested restore (ADR-006, ADR-017) -------------------
+
+
+@POST_RESTORE_ONLY
+@pytest.mark.skipif(
+    not (SECRET_SEED and SEED_TEST_USER),
+    reason="needs OWNSUITE_SECRET_SEED and a seeded Keycloak test user",
+)
+def test_restore_preserves_document_and_user():
+    """The Phase 3 definition of done: after backup -> destroy -> restore, the
+    Keycloak user still authenticates (realm + users recovered via CNPG PITR of the
+    `keycloak` database) and the document created before the destroy is still there
+    (the `docs` database recovered too). No document is created here — presence of
+    the pre-destroy document is the proof of a real restore.
+
+    The Keycloak user keeps its stable subject (the restored user row's id), so the
+    Docs JIT-provisioned account maps back to the same owner and lists its document.
+    """
+    token = retry(docs_user_token)  # user survived: realm + credentials recovered
+    auth_header = f"Authorization: Bearer {token}"
+    docs_api = f"https://{DOCS_HOST}/api/v1.0/documents/"
+
+    def find_survivor():
+        out = curl(DOCS_HOST, f"{docs_api}?page_size=100", "-H", auth_header)
+        payload = json.loads(out)
+        items = payload.get("results", payload) if isinstance(payload, dict) else payload
+        titles = [d.get("title") for d in items]
+        assert DOC_TITLE in titles, f"restored document not found; got titles={titles}"
+
+    retry(find_survivor)

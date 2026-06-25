@@ -1,0 +1,12 @@
+apiVersion: v2
+name: barman-cloud-plugin
+description: >-
+  CloudNativePG Barman Cloud Plugin (ADR-006, ADR-017) — the CNPG-I backup/recovery
+  plugin that replaces the deprecated in-tree barmanObjectStore. Vendors the pinned
+  upstream release manifest (see templates/plugin.yaml). Installs into cnpg-system
+  alongside the operator and reuses cert-manager for plugin TLS.
+type: application
+# Chart version is local; the plugin image/manifest version is pinned in
+# helmfile/versions/versions.yaml (barmanCloudPlugin) and vendored verbatim.
+version: 0.1.0
+appVersion: "v0.13.0"

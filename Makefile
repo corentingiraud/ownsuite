@@ -87,3 +87,18 @@ test-full: ## Full bootstrap incl. real K3s (Molecule full scenario)
 .PHONY: test-platform
 test-platform: ## Full Helmfile DoD on a throwaway k3d cluster (heavy)
 	helmfile/tests/run-e2e.sh
+
+# --- Backups & tested restore (ADR-006, ADR-017) -----------------------------
+PG_CLUSTER ?= ownsuite-pg
+WORKLOADS_NS ?= ownsuite
+
+.PHONY: backup
+backup: ## Take an on-demand backup now (CNPG base backup + off-site object copy)
+	printf 'apiVersion: postgresql.cnpg.io/v1\nkind: Backup\nmetadata:\n  generateName: $(PG_CLUSTER)-ondemand-\nspec:\n  cluster:\n    name: $(PG_CLUSTER)\n  method: plugin\n  pluginConfiguration:\n    name: barman-cloud.cloudnative-pg.io\n' \
+		| kubectl -n $(WORKLOADS_NS) create -f -
+	kubectl -n $(WORKLOADS_NS) create job --from=cronjob/object-backup object-backup-manual-$$(date +%s)
+
+.PHONY: restore
+restore: ## Restore a CLEAN cluster from off-site backups (CNPG recovery + object copy)
+	@echo "Restore expects a clean cluster (no prior PVCs) with backups configured."
+	OWNSUITE_RESTORE=true OWNSUITE_BACKUP_ENABLED=true helmfile -f $(HELMFILE) sync

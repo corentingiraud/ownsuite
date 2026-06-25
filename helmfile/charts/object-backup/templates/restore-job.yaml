@@ -1,0 +1,41 @@
+{{- if .Values.restore.enabled }}
+{{- /*
+One-shot restore of the media bucket (ADR-006, ADR-017): copy the encrypted off-site
+copy back into the freshly-recreated primary bucket. Run during `make restore`; the
+object-backup release `needs` the primary (and off-site) store, so by the time this
+Job starts both are up. helm --wait blocks on its completion.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: object-restore
+  labels:
+    app.kubernetes.io/name: object-backup
+  annotations:
+    # Re-run on every restore sync (name is stable), replacing a prior attempt.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: object-backup
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: rclone
+          # sh -ceu "<script>" "$0" "$1": "object-restore" is $0, "restore" is $1.
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["/bin/sh", "-ceu"]
+          args:
+            - |
+              {{- include "object-backup.script" . | nindent 14 }}
+            - object-restore
+            - restore
+          env:
+            {{- include "object-backup.env" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+{{- end }}
