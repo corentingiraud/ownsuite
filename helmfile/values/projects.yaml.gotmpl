@@ -1,0 +1,70 @@
+# Projects (suitenumerique/projects) — Phase 5 broadening (ADR-025). Deployed from
+# the local ./charts/projects chart; OFF by default (gated on apps.projects.enabled
+# at the Helmfile level). Image tag pinned in versions.yaml.
+#
+# Projects is a Sails.js app (a Planka fork), single container on port 1337 serving
+# its built React client. Like Grist it authenticates by single-issuer OIDC discovery
+# (openid-client), so it points at the PUBLIC Keycloak issuer; the backend hairpins to
+# auth.{domain} with the real cert in production. Its file uploads live on a /persist
+# PVC; the database is a dedicated CNPG `projects` database, passed as a single
+# DATABASE_URL connection string (built with the derived password in platform-
+# configuration). No S3, no Redis on a single node. Nothing secret is rendered here.
+{{- $domain := .Values.domain -}}
+{{- $host := printf "projects.%s" $domain -}}
+{{- $realm := .Values.keycloak.realm -}}
+{{- $issuer := printf "https://auth.%s/realms/%s" $domain $realm }}
+
+image:
+  repository: lasuite/projects
+  tag: {{ .Values.imageVersions.projects | quote }}
+
+persistence:
+  size: {{ .Values.apps.projects.storageSize | quote }}
+
+ingress:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.tls.issuer | quote }}
+  tls:
+    enabled: true
+    secretName: projects-tls
+
+env:
+  # Externally visible base URL — Projects builds links + the OIDC callback from it.
+  BASE_URL: {{ printf "https://%s" $host | quote }}
+  TZ: "UTC"
+  # Any authenticated user may create projects (single trusted org).
+  ALLOW_ALL_TO_CREATE_PROJECTS: "true"
+  # --- OIDC (Keycloak) — single public issuer; openid-client discovers endpoints ---
+  OIDC_ISSUER: {{ $issuer | quote }}
+  OIDC_CLIENT_ID: projects
+  OIDC_SCOPES: "openid email profile"
+  # Require SSO — no anonymous access.
+  OIDC_ENFORCED: "true"
+  OIDC_USE_DEFAULT_RESPONSE_MODE: "true"
+  OIDC_CLAIMS_SOURCE: "userinfo"
+  # Our Keycloak realm client signs the userinfo + ID token with RS256
+  # (client attribute user.info.response.signature.alg), so openid-client must be
+  # told to expect signed responses or it cannot parse them.
+  OIDC_USERINFO_SIGNED_RESPONSE_ALG: "RS256"
+  OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG: "RS256"
+  # Claim mapping (Keycloak standard claims); don't sync username/roles from OIDC.
+  OIDC_EMAIL_ATTRIBUTE: "email"
+  OIDC_FULLNAME_ATTRIBUTES: "name"
+  OIDC_USERNAME_ATTRIBUTE: "preferred_username"
+  OIDC_IGNORE_USERNAME: "true"
+  OIDC_IGNORE_ROLES: "true"
+  OIDC_POST_LOGOUT_REDIRECT_URI: {{ printf "https://%s/" $host | quote }}
+
+secretEnv:
+  - name: SECRET_KEY
+    secretName: projects-secrets
+    secretKey: SECRET_KEY
+  - name: DATABASE_URL
+    secretName: projects-secrets
+    secretKey: DATABASE_URL
+  - name: OIDC_CLIENT_SECRET
+    secretName: projects-secrets
+    secretKey: OIDC_CLIENT_SECRET

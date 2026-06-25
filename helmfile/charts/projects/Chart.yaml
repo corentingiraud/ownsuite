@@ -1,0 +1,13 @@
+apiVersion: v2
+name: projects
+description: >-
+  Single-instance Projects (suitenumerique/projects — kanban / task boards, a
+  Sails.js fork of Planka) for OwnSuite (ADR-025). Projects ships no official Helm
+  chart, so this thin local chart runs the one container as a Deployment with a PVC
+  for its file uploads (avatars, project backgrounds, attachments), a Service, and a
+  Traefik Ingress. The database is a CNPG `projects` database (DATABASE_URL) and login
+  is Keycloak OIDC. Off by default; deployed only when apps.projects.enabled.
+type: application
+version: 0.1.0
+# No appVersion: the Projects image version is the single source of truth in
+# helmfile/versions/versions.yaml (imageVersions.projects), not duplicated here.

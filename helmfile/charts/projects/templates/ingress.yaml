@@ -1,0 +1,34 @@
+{{- if .Values.ingress.enabled }}
+{{- /* Plain Traefik ingress to the Projects service. Projects serves its UI, API and
+       its real-time WebSocket on one port — Traefik proxies WebSockets natively
+       (ADR-016), so no special annotation is needed. cert-manager issues projects-tls. */}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: projects
+  labels:
+    app.kubernetes.io/name: projects
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: projects
+                port:
+                  name: http
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+{{- end }}

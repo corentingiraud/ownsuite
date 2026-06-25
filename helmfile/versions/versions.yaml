@@ -44,6 +44,10 @@ imageVersions:
   # "v" prefix (the grist-core GitHub release is tagged v1.7.15).
   # renovate: datasource=docker depName=gristlabs/grist
   grist: "1.7.15"
+  # Projects (suitenumerique) — a single-container Sails.js app (no official Helm
+  # chart), deployed from the local ./charts/projects chart (ADR-025).
+  # renovate: datasource=docker depName=lasuite/projects
+  projects: "1.27.10"
   # Garage object store (ADR-015), deployed from the local ./charts/garage chart.
   # renovate: datasource=docker depName=dxflrs/garage
   garage: "v2.3.0"

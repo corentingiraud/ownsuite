@@ -21,6 +21,13 @@ apps:
     enabled: true
   grist:
     enabled: true
+  projects:
+    enabled: true
+
+# In-cluster PostgreSQL service host, for apps that need a full connection URL
+# (e.g. Projects' DATABASE_URL). Helmfile passes the computed CNPG `-rw` service.
+postgres:
+  host: ownsuite-pg-rw.ownsuite.svc.cluster.local
 
 # Databases whose owner password is derived and exposed as a basic-auth Secret.
 databases:

@@ -56,7 +56,7 @@ in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
 ## Phase 5 — Broaden apps + user provisioning 🚧
 - [x] Add Drive (Helmfile profile; same CNPG + Valkey + S3 + Keycloak seam as Docs — no People dependency) (ADR-022)
 - [x] Add Grist (collaborative spreadsheet, getgrist self-hosted — local chart, public-issuer OIDC, PVC storage; off by default, outside the hard DoD) (ADR-024)
-- [ ] Projects (suitenumerique/projects, kanban) — **deferred** with a documented build path: no upstream Helm chart, early-stage, would be a 2nd app not yet CI-booted; mirror the Grist local-chart pattern when prioritised (ADR-025)
+- [x] Add Projects (suitenumerique/projects, kanban) — local chart (Sails.js, single container), public-issuer OIDC, PVC uploads; off by default, not yet CI-booted (ADR-025)
 - [ ] People deferred / optional — identity stays in Keycloak (ADR-012/020); revisit only if app-level teams need it
 - [x] `suite` CLI: create/disable users, password reset (Keycloak, JIT to all apps) (ADR-023)
 - **DoD:** `suite user add firstname@assoc.org` grants Docs + Drive immediately.

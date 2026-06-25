@@ -1,0 +1,75 @@
+{{- /*
+Projects server (ADR-025). One container, one replica. File uploads (avatars,
+project backgrounds, attachments) live on the `projects-data` PVC, mounted at the
+three fixed paths the app writes to (a Planka heritage) via subPaths of one volume;
+the database is external (CNPG, via DATABASE_URL). `strategy: Recreate` guarantees
+the read-write-once volume is never mounted by two pods during a rollout. All
+credentials arrive by secretKeyRef (secretEnv) — nothing secret is rendered here.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: projects
+  labels:
+    app.kubernetes.io/name: projects
+spec:
+  replicas: {{ .Values.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: projects
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: projects
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: projects
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          env:
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- range .Values.secretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+          readinessProbe:
+            # TCP, not HTTP: the app enforces OIDC on every route, so there is no
+            # unauthenticated 2xx endpoint to probe. Generous startup: the first boot
+            # runs DB migrations before it listens.
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          volumeMounts:
+            - name: data
+              mountPath: /app/public/user-avatars
+              subPath: user-avatars
+            - name: data
+              mountPath: /app/public/project-background-images
+              subPath: project-background-images
+            - name: data
+              mountPath: /app/private/attachments
+              subPath: attachments
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: projects-data

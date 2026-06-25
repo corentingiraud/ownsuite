@@ -262,3 +262,19 @@ releases:
       - cert-manager/issuers
     values:
       - values/grist.yaml.gotmpl
+
+  # --- App: Projects (suitenumerique/projects) — Phase 5 broadening (ADR-025) ---
+  # A single-container Sails.js app from a local chart, OFF by default. Like Grist it
+  # reuses CNPG (its own `projects` database) + Keycloak SSO; its uploads live on a
+  # PVC, so it needs neither Valkey nor S3. OIDC is single-issuer discovery.
+  - name: projects
+    namespace: {{ $ns }}
+    chart: ./charts/projects
+    condition: apps.projects.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/postgres
+      - {{ $ns }}/keycloak
+      - cert-manager/issuers
+    values:
+      - values/projects.yaml.gotmpl

@@ -1,0 +1,49 @@
+---
+# Defaults are overridden by Helmfile (values/projects.yaml.gotmpl). Listed here so
+# `helm lint` / `helm template` can render the chart standalone (ADR-025).
+
+# Image tag is NOT pinned here — the single source of truth is versions.yaml;
+# Helmfile injects the pinned tag. Empty default keeps `helm lint` happy.
+image:
+  repository: lasuite/projects
+  tag: ""
+
+# Single instance: the uploads PVC is read-write-once, never double-mounted.
+replicas: 1
+
+# Container port Projects listens on (BASE_URL embeds it; the Dockerfile EXPOSEs it).
+port: 1337
+
+persistence:
+  size: 5Gi
+  # Empty => cluster default StorageClass (local-path on K3s).
+  storageClass: ""
+
+# Projects' image runs as uid/gid 1000 (node); fsGroup makes the volume writable.
+podSecurityContext:
+  fsGroup: 1000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 768Mi
+
+# Plain environment (Helmfile fills these from the deployment's config).
+env: {}
+
+# Environment sourced from Secrets: list of {name, secretName, secretKey}.
+secretEnv: []
+
+service:
+  port: 80
+
+ingress:
+  enabled: true
+  className: traefik
+  host: projects.localhost
+  annotations: {}
+  tls:
+    enabled: true
+    secretName: projects-tls
