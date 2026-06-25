@@ -93,13 +93,23 @@ class KeycloakAdmin:
                 return user
         return None
 
-    def create_user(self, email):
-        """Create a user (username = email, email-verified) and return its id."""
+    def create_user(self, email, *, first_name=None, last_name=None):
+        """Create a user (username = email, email-verified) and return its id.
+
+        firstName/lastName default to the email's local part. Keycloak's declarative
+        user profile marks both required, and a direct-grant (password) login is
+        refused with "Account is not fully set up" until they are present — so an
+        admin-created user could not log in without them. The admin only supplies an
+        email; --first-name/--last-name override the defaults.
+        """
+        local = email.split("@", 1)[0]
         _, _, headers = self._api("POST", "/users", data={
             "username": email,
             "email": email,
             "enabled": True,
             "emailVerified": True,
+            "firstName": first_name or local,
+            "lastName": last_name or local,
         })
         location = headers.get("location")
         if location:
@@ -110,12 +120,12 @@ class KeycloakAdmin:
             raise SuiteError(f"created {email} but could not resolve its id")
         return user["id"]
 
-    def ensure_user(self, email):
+    def ensure_user(self, email, *, first_name=None, last_name=None):
         """Idempotent create-or-find. Returns (user_id, created)."""
         existing = self.find_user(email)
         if existing:
             return existing["id"], False
-        return self.create_user(email), True
+        return self.create_user(email, first_name=first_name, last_name=last_name), True
 
     def set_enabled(self, user_id, enabled):
         self._api("PUT", f"/users/{user_id}", data={"enabled": enabled})

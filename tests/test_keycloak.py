@@ -72,6 +72,16 @@ def test_add_creates_verified_enabled_user():
     assert rep["email"] == "alice@assoc.org"
     assert rep["username"] == "alice@assoc.org"
     assert rep["enabled"] is True and rep["emailVerified"] is True
+    # Keycloak's user profile requires first/last name, else a direct-grant login is
+    # refused ("Account is not fully set up"); default them to the email local part.
+    assert rep["firstName"] == "alice" and rep["lastName"] == "alice"
+
+
+def test_create_user_honors_explicit_names():
+    fake = FakeKeycloak()
+    admin(fake).create_user("bob@assoc.org", first_name="Bob", last_name="Smith")
+    [rep] = fake.users.values()
+    assert rep["firstName"] == "Bob" and rep["lastName"] == "Smith"
 
 
 def test_ensure_user_is_idempotent():
