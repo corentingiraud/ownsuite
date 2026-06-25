@@ -633,3 +633,53 @@ bucket in the list, a database, and a values file. **Deferred:** the media-**pre
 Traefik setup, not part of the DoD; it is left off with a `ponytail:` marker and enabled once
 proven. External-S3 media keeps the same pre-existing limitation as Docs (the media upstream
 points at the in-cluster Garage), out of Phase 5 scope.
+
+---
+
+## ADR-023 — User provisioning: `suite user`, admin REST over the tunnel, JIT
+
+**Context.** Phase 5's definition of done is `suite user add firstname@assoc.org` → that person
+immediately has Docs **and** Drive. ADR-005 already decided **one Keycloak identity, JIT into
+every app**, and ADR-018 built the `suite` CLI (pure standard library) that prefigured this
+verb. What was left open: *where* user provisioning runs, *how* it reaches Keycloak, and *how
+the admin authenticates* — without exposing the admin API or storing a second secret.
+
+**Decision.** Extend the existing `suite` package with `suite user add|disable|passwd <email>`:
+
+- **JIT only — no per-app calls.** `add` creates **one** Keycloak user (username = email,
+  `emailVerified`, enabled) and sets an initial password. Because every app authenticates
+  through the same realm and provisions its local account from the token on first login
+  ([ADR-005](#adr-005-shared-keycloak-jit-provisioning)), that single create grants access to
+  **all enabled apps** — the CLI never touches Docs/Drive/etc. directly, so a newly added app
+  needs no change here. `disable` deactivates the user (revoking access everywhere at once);
+  `passwd` resets the password. Generated passwords are **temporary** by default (forced reset
+  at first login) and shown once.
+- **Admin REST over the in-cluster service, through the tunnel.** The CLI talks the Keycloak
+  **admin REST API** (stdlib `urllib`, no HTTP-client dependency) to the in-cluster
+  `keycloak-keycloakx-http` service, reached over the existing SSH tunnel
+  ([ADR-014](#adr-014-operator-control-plane-local-workstation-ssh-tunnel)) plus a short-lived
+  `kubectl port-forward`. Admin traffic therefore **stays private** — it never crosses the
+  public `auth.{domain}` endpoint — consistent with ADR-014 (the API is never exposed) and
+  ADR-020 (the upsert Job also talks to the in-cluster service).
+- **Admin password derived from the seed, not read from the cluster.** The admin credential is
+  re-derived locally from `$OWNSUITE_SECRET_SEED` with the same helper id (`keycloak-admin`)
+  the platform used ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)),
+  so the CLI needs only the seed the operator already guards — no new secret, no `kubectl get
+  secret`.
+- **HTTP transport is injectable.** The `KeycloakAdmin` client takes its transport as a
+  parameter, so the create/disable/reset logic is unit-tested against an in-memory fake admin
+  API (no live Keycloak), matching the harness's existing fake-the-boundary style
+  ([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness)). The tunnel/port-forward
+  glue is thin orchestration, exercised by the k3d e2e instead.
+
+**Why not kcadm-exec or the public admin API.** `kubectl exec … kcadm.sh` (as the ADR-020 Job
+does in-cluster) would couple the CLI to pod internals and a shell session file, and is awkward
+to unit-test; the public `auth.{domain}/admin` API would expose admin operations to the
+internet. Admin REST to the in-cluster service keeps clean idempotent semantics *and* a private
+surface.
+
+**Consequences.** A non-profit admin provisions people with one command and no Kubernetes
+knowledge; the verb is app-count-agnostic by construction (JIT). The same path is what the e2e
+drives to prove the DoD (create a user via the CLI → it reaches Docs **and** Drive). `suite
+upgrade` / `suite restore` remain later verbs (ADR-007). Residual: the CLI assumes the realm's
+default (no password policy); a stricter policy would need the generated password to conform.

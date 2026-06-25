@@ -85,6 +85,7 @@ plugins:
           - get-started/bootstrap.md: Step 1 — one-command server bootstrap into a single-node K3s cluster.
           - get-started/install.md: Step 2 — guided installer (suite install), bare server + domain to all-in-HTTPS.
         Operate:
+          - operate/users.md: User provisioning with the `suite user` CLI (one Keycloak identity, JIT to all apps).
           - operate/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
         Understand the stack:
           - understand/overview.md: The stack and its building blocks.
@@ -114,6 +115,7 @@ nav:
       - 1. Prepare the server: get-started/bootstrap.md
       - 2. Install: get-started/install.md
   - Operate:
+      - Users: operate/users.md
       - Backups & restore: operate/backups.md
   - Understand the stack:
       - Architecture: understand/overview.md
