@@ -17,4 +17,4 @@ chartVersions:
 
 imageVersions:
   # renovate: datasource=docker depName=quay.io/keycloak/keycloak
-  keycloak: "26.6.2"
+  keycloak: "26.6.3"
