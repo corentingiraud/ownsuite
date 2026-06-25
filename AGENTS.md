@@ -27,7 +27,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `docs/` | MkDocs (Material) documentation — the spec. Pure Markdown. |
 | `mkdocs.yml` | Docs site config (theme, nav, llms.txt plugin). |
 | `requirements-docs.txt` | Docs toolchain (MkDocs Material + plugins). |
-| `Makefile` | Operator/dev entrypoints: `bootstrap`, `install`, `check`, `lint`, `test`, `test-full`, `test-platform`, `test-install`. |
+| `Makefile` | Operator/dev entrypoints: `bootstrap`, `install`, `check`, `lint`, `test`, `test-full`, `test-platform` (installer-provisioned full DoD). |
 | `ansible/` | Server bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles (Phase 0). |
 | `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, Garage, the Docs and Drive apps, Grist (local chart, off by default), and the off-site backups (rclone object copy, `garage-backup`); local charts, values, versions, k3d e2e. |
 | `suite/` | Phase 4 guided installer (`suite install`, ADR-018): config + seed, DNS records, propagation gate, SSH tunnel, ACME (staging→prod), HTTPS verify. Pure standard library; lint with `ruff` (`ruff.toml`). |

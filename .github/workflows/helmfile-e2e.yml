@@ -61,7 +61,7 @@ jobs:
           sudo install k3d /usr/local/bin/k3d
           curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
           sudo install kubectl /usr/local/bin/kubectl
-      - name: Helmfile e2e (sync + Keycloak HTTPS DoD)
+      # One installer-provisioned cluster proves both the `suite install` path
+      # (ADR-018) and the full platform/restore DoD — no second from-scratch build.
+      - name: Full e2e (suite install -> Docs/Drive DoD -> backup/restore)
         run: make test-platform
-      - name: Installer e2e (suite install -> self-signed HTTPS, ADR-018)
-        run: make test-install

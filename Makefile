@@ -93,12 +93,8 @@ test-full: ## Full bootstrap incl. real K3s (Molecule full scenario)
 	molecule test -s full
 
 .PHONY: test-platform
-test-platform: ## Full Helmfile DoD on a throwaway k3d cluster (heavy)
+test-platform: ## Full DoD on a throwaway k3d cluster — installer-provisioned (heavy)
 	helmfile/tests/run-e2e.sh
-
-.PHONY: test-install
-test-install: ## Installer-driven e2e to self-signed HTTPS on k3d (heavy)
-	helmfile/tests/run-install-e2e.sh
 
 # --- Backups & tested restore (ADR-006, ADR-017) -----------------------------
 PG_CLUSTER ?= ownsuite-pg
