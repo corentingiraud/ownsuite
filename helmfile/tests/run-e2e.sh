@@ -55,11 +55,20 @@ cleanup() {
     kubectl -n "$NS" get events --sort-by=.lastTimestamp 2>/dev/null | tail -50 || true
     echo "--- CNPG cluster + backups ---"
     kubectl -n "$NS" get cluster,backup,objectstore,scheduledbackup 2>/dev/null || true
+    kubectl -n "$NS" get cluster ownsuite-pg -o jsonpath='{.status.phase}{"\n"}{.status.conditions}{"\n"}' 2>/dev/null || true
+    echo "--- barman-cloud plugin logs (cnpg-system) ---"
+    kubectl -n cnpg-system logs -l app=barman-cloud --tail=60 2>&1 | tail -60 || true
+    echo "--- CNPG recovery/job pod logs (ownsuite) ---"
+    for p in $(kubectl -n "$NS" get pods --no-headers 2>/dev/null \
+      | awk '$1 ~ /-recovery|-full-recovery|object-restore/ {print $1}'); do
+      echo "### $p ###"
+      kubectl -n "$NS" logs "$p" --all-containers --tail=120 2>&1 | tail -120 || true
+    done
     echo "--- logs of non-Ready pods (ownsuite) ---"
     for p in $(kubectl -n "$NS" get pods \
       -o jsonpath='{range .items[?(@.status.containerStatuses[0].ready==false)]}{.metadata.name}{"\n"}{end}' 2>/dev/null); do
       echo "### $p ###"
-      kubectl -n "$NS" logs "$p" --all-containers --tail=60 2>&1 | tail -60 || true
+      kubectl -n "$NS" logs "$p" --all-containers --tail=80 2>&1 | tail -80 || true
     done
   fi
   if [ "${OWNSUITE_E2E_KEEP:-0}" != "1" ]; then
@@ -87,7 +96,9 @@ sync_with_watchdog() {
     if kubectl get pods -A --no-headers 2>/dev/null | awk '
         $4 ~ /ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerError|RunContainerError|CreateContainerConfigError/ {bad=1; print "  ! "$0}
         $4 == "CrashLoopBackOff" && ($5+0) >= 3 {bad=1; print "  ! "$0}
-        END {exit bad ? 0 : 1}'; then
+        # Several pods stuck in Error usually means a Job (e.g. CNPG recovery) is
+        # failing and retrying — surface it instead of waiting for the helm timeout.
+        $4 == "Error" {err++} END {if (err+0 >= 4) {print "  ! "err" pods in Error state"; bad=1}; exit bad ? 0 : 1}'; then
       echo "==> FAIL-FAST: unrecoverable pod state during sync (see above)"
       kill "$pid" 2>/dev/null || true
       cat "$log"

@@ -393,7 +393,10 @@ credentials, the depth of Keycloak backup, and how to prove the cycle hermetical
   it via `spec.plugins` (`isWALArchiver`) for continuous WAL archiving + base backups; a
   `ScheduledBackup` (`method: plugin`) anchors the recovery window. Recovery is a fresh
   `Cluster` with `bootstrap.recovery` + an `externalClusters` plugin entry pointing at the same
-  store — restoring the **whole instance**, hence both the `keycloak` and `docs` databases.
+  store — restoring the **whole instance**, hence both the `keycloak` and `docs` databases. The
+  restored cluster *reads* the original `serverName` but *archives* under a distinct one
+  (`<cluster>-restored`): CNPG runs `barman-cloud-check-wal-archive` first and refuses a
+  destination that already holds an archive, so reusing the source `serverName` would block it.
 - **Objects (media) → `rclone`** (pinned image), an S3→S3 `sync` CronJob from the primary
   bucket to the off-site store, **client-side encrypted** through an rclone `crypt` remote. A
   one-shot Job syncs back during restore. Chosen over `restic` because the source is already an

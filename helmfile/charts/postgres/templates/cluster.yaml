@@ -17,13 +17,21 @@ spec:
     {{- end }}
   {{- if .Values.backup.enabled }}
   # WAL archiver + base-backup plugin (ADR-006, ADR-017). serverName defaults to the
-  # cluster name, so backups live under s3://<bucket>/<clusterName>/. After a recovery
-  # the timeline ID bumps, so resuming archiving to the same store does not collide.
+  # cluster name, so backups live under s3://<bucket>/<clusterName>/.
+  #
+  # On restore the archiver MUST target a DISTINCT serverName: CNPG runs
+  # `barman-cloud-check-wal-archive` before archiving and refuses a destination that
+  # already holds an archive (it guards against two clusters sharing one archive). The
+  # restored cluster therefore writes a fresh series under `<cluster>-restored` while
+  # recovery reads the original (see externalClusters below).
   plugins:
     - name: barman-cloud.cloudnative-pg.io
       isWALArchiver: true
       parameters:
         barmanObjectName: {{ .Values.backup.objectStoreName | quote }}
+        {{- if .Values.restore.enabled }}
+        serverName: {{ .Values.restore.targetServerName | quote }}
+        {{- end }}
   {{- end }}
   {{- if .Values.restore.enabled }}
   # Recovery bootstrap (ADR-006, ADR-017): rebuild a clean cluster from the off-site

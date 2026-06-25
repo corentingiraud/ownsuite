@@ -29,3 +29,4 @@ backup:
 restore:
   enabled: {{ .Values.restore.enabled }}
   sourceServerName: {{ .Values.postgres.clusterName | quote }}
+  targetServerName: {{ env "OWNSUITE_RESTORE_SERVER_NAME" | default (printf "%s-restored" .Values.postgres.clusterName) | quote }}

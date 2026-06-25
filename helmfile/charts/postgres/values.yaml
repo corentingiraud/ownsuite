@@ -49,4 +49,8 @@ backup:
 # original cluster name, since the WAL archiver uses the cluster name by default).
 restore:
   enabled: false
+  # serverName of the backups to recover FROM (the original cluster name).
   sourceServerName: ownsuite-pg
+  # serverName the restored cluster archives TO — must differ from sourceServerName
+  # (CNPG refuses to archive into a destination that already holds a WAL archive).
+  targetServerName: ownsuite-pg-restored
