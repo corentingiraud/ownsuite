@@ -62,9 +62,10 @@ in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
 - **DoD:** `suite user add firstname@assoc.org` grants Docs + Drive immediately.
 
 ## Phase 6 — (Optional) Mailbox ⬜
-- [ ] Mail server (Stalwart) federated to the same Keycloak
-- [ ] MX/SPF/DKIM/DMARC in the DNS flow; outbound relay option
-- **DoD:** `suite user add` also creates the mailbox; outbound mail reaches the inbox.
+- [ ] Mailbox: **suitenumerique/messages** — La Suite's own mail app (Postfix MTA-in + Django MDA + Postgres/Redis/OpenSearch + integrated webmail, no IMAP), federated to the same Keycloak via OIDC (ADR-021)
+- [ ] Outbound via `MTA_OUT_MODE=relay` through a reputable EU SMTP relay (Infomaniak) — never direct from the VPS IP
+- [ ] MX/SPF/DKIM/DMARC in the DNS flow; rDNS/PTR at the host; provisioning wired into the `suite` CLI
+- **DoD:** `suite user add` also creates the mailbox; outbound mail reaches the inbox (not spam).
 
 ## Phase 7 — Production hardening & packaging ⬜
 - [ ] Resource limits, health checks, light monitoring
@@ -76,4 +77,4 @@ in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
 
 ## Out of scope (v1)
 - **Meet (video)** — LiveKit/coturn, painful on a single server. Deferred.
-- **Mailbox** — not part of La Suite numérique; optional add-on (Phase 6).
+- **Mailbox** — now a La Suite app (suitenumerique/messages), but a heavy/advanced add-on; optional, deferred to Phase 6.
