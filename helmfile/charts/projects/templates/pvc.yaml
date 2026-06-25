@@ -1,0 +1,19 @@
+{{- /* Durable home for Projects' file uploads (avatars, backgrounds, attachments),
+       one volume with a subPath per kind. Single-instance, so ReadWriteOnce. NOT
+       off-site-backed yet — see ADR-025 (same gap as Grist's PVC / Drive's bucket);
+       object-backup copies a single bucket today. */}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: projects-data
+  labels:
+    app.kubernetes.io/name: projects
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}

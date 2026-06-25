@@ -49,6 +49,13 @@ keycloak:
       # Grist's /oauth2/callback) and the profile+email scopes Grist maps to its user.
       directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
     {{- end }}
+    {{- if eq (env "OWNSUITE_APP_PROJECTS" | default "false") "true" }}
+    - clientId: projects
+      # Only present when Projects is enabled (ADR-025, off by default). The shared
+      # client template emits redirectUris https://projects.{domain}/* (covering the
+      # OIDC callback) and the profile+email scopes Projects maps to its user.
+      directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
+    {{- end }}
   # Optional realm user seeded for the e2e SSO check (CI only). Its password is
   # derived from the seed (id "kc-test-user") — never committed in plaintext.
   seedTestUser:
@@ -75,6 +82,12 @@ apps:
     # Formula sandbox flavor — `unsandboxed` boots reliably on stock K3s for a single
     # trusted org; set `gvisor` on a node configured for it (ADR-024).
     sandbox: {{ env "OWNSUITE_GRIST_SANDBOX" | default "unsandboxed" | quote }}
+  # Projects (suitenumerique/projects, kanban) — OFF by default (ADR-025): outside the
+  # DoD and not yet CI-booted. Fully wired; enable with OWNSUITE_APP_PROJECTS=true.
+  projects:
+    enabled: {{ env "OWNSUITE_APP_PROJECTS" | default "false" }}
+    # Capacity of the PVC holding Projects' uploads (avatars/backgrounds/attachments).
+    storageSize: {{ env "OWNSUITE_PROJECTS_STORAGE" | default "5Gi" | quote }}
 
 # Contact address used for app admin / superuser accounts.
 adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}
@@ -98,6 +111,11 @@ databases:
   # Grist's home database (orgs/users/ACLs). Only provisioned when Grist is enabled.
   - name: grist
     secretName: grist-db
+  {{- end }}
+  {{- if eq (env "OWNSUITE_APP_PROJECTS" | default "false") "true" }}
+  # Projects' database. Only provisioned when Projects is enabled.
+  - name: projects
+    secretName: projects-db
   {{- end }}
 
 # TLS issuance (ADR-013, ADR-019). Accepted `OWNSUITE_TLS_ISSUER` values:

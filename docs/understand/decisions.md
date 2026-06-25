@@ -765,42 +765,56 @@ can reach `auth.{domain}` (DNS + hairpin), which holds on a normal single-server
 
 ---
 
-## ADR-025 — Projects: deferred with a documented build path, not a v1 app
+## ADR-025 — Projects integration: local chart, public-issuer OIDC, PVC storage, off by default
 
-**Context.** Phase 5 broadens the suite, and **Projects** (`suitenumerique/projects` — kanban
-boards / task management, originally forked from Planka) is the last broadening candidate after
-Drive ([ADR-022](#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)) and Grist
+**Context.** Phase 5 broadens the suite beyond the DoD apps, and **Projects**
+(`suitenumerique/projects` — kanban boards / task management, a Sails.js fork of Planka) is the
+last broadening candidate after Drive
+([ADR-022](#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)) and Grist
 ([ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)).
-The Phase 5 plan left this item explicitly open — *author a local chart now, or defer*. The
-deciding facts, confirmed from the upstream repository:
+It was first scoped as *defer* (was the seam ready for a second never-CI-booted app?); that call
+was **reversed** — Projects is **built**, on the same terms as Grist. Like Grist it is **not** a
+`suitenumerique`/impress app: a single-container Node app with **no official Helm chart** (a Docker
+image `lasuite/projects` + a docker-compose), so it needs its own small chart. The integration was
+scoped against the upstream `server/.env.sample` + `Dockerfile`:
 
-- **No official Helm chart.** Projects ships a Docker image (`lasuite/projects`) + a
-  docker-compose; deploying it on K3s means authoring a **local chart**, exactly as Grist did.
-- **Node/Sails.js + React, PostgreSQL, OIDC via Keycloak, optional S3 for attachments** — a stack
-  the existing seams (CNPG, the OIDC client convention, the pluggable S3 bucket) already cover.
-- **Early-to-mid maturity** (v1.2.0, Feb 2026; active but young), the least settled of the
-  candidates.
+- **Single container, port 1337**, Node 22, serving its built React client from `public/`. **No
+  Redis.** Files (avatars, project backgrounds, attachments) are written to three local paths
+  (Planka heritage); the database is PostgreSQL via a single `DATABASE_URL`.
+- **OIDC by single-issuer discovery** (openid-client), exactly like Grist — one `OIDC_ISSUER`, no
+  per-endpoint split.
 
-**Decision.** **Defer Projects to a later phase** — author no chart in v1 — and record the build
-path so it stays a bounded, known effort:
+**Decision.** Add Projects as a Helmfile release backed by a **small local chart**
+(`helmfile/charts/projects`), reusing the shared seams and mirroring the Grist choices (ADR-024):
 
-- It is **not** part of the Phase 5 definition of done (Docs + Drive), which is met, and **Grist
-  already delivers the "broaden beyond the DoD" goal** (ADR-024).
-- Shipping Projects now would add a **second** app that is wired but **never booted in the
-  constrained CI e2e** (Grist is the first, off by default). Two unverified-in-CI apps in one
-  phase is more surface than the DoD warrants — the honest move is to stop at one and harden the
-  seam before adding more.
-- **Build path when prioritised:** mirror the Grist local-chart pattern (ADR-024) — a thin local
-  chart (Deployment + Service + Ingress, a PVC only if it stores local state), a dedicated CNPG
-  `projects` database, a `projects` OIDC client appended to `keycloak.clients` (first **verify**
-  Projects' exact `OIDC_*` env names + callback path, and whether it does single-issuer discovery
-  like Grist or a per-endpoint split like the impress apps), optional S3 for attachments on its
-  own bucket, and seed-derived secrets
-  ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)). Pin
-  `lasuite/projects` to the newest tag **verified online** at build time (never from memory). Off
-  by default until CI-booted.
+- **Local chart.** One `Deployment` (single replica, `strategy: Recreate`), one `Service`, one
+  `Ingress`, and one `PersistentVolumeClaim` whose three subPaths back the upload directories
+  (`/app/public/user-avatars`, `/app/public/project-background-images`, `/app/private/attachments`).
+  The pinned image (`lasuite/projects`, versions.yaml) is injected by Helmfile.
+- **OIDC via the public issuer, no Keycloak change.** `OIDC_ISSUER` is the public realm URL
+  `https://auth.{domain}/realms/{realm}`; the backend hairpins with the real cert in production.
+  The `projects` OIDC client is one more `keycloak.clients` entry — the existing templates already
+  emit `redirectUris: https://projects.{domain}/*` (covering the callback) and the `profile`+`email`
+  scopes. **One wrinkle vs Grist:** our realm client signs the **userinfo** response RS256
+  (`user.info.response.signature.alg`) and Projects reads claims from userinfo
+  (`OIDC_CLAIMS_SOURCE=userinfo`), so `OIDC_USERINFO_SIGNED_RESPONSE_ALG=RS256` is set or
+  openid-client cannot parse the signed response.
+- **`DATABASE_URL` built in one place.** Projects wants a single connection string, not separate
+  vars, so the URL (embedding the seed-derived `projects-db` password) is assembled in
+  `platform-configuration` (`projects-secrets`) from the CNPG `-rw` host — keeping the password out
+  of the rendered values. `SECRET_KEY` and the OIDC client secret are seed-derived too
+  ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)).
+- **PVC for uploads, no S3.** Same reasoning as Grist: a single node doesn't need S3, and the
+  off-site copy is single-bucket today, so S3 wouldn't close the backup gap.
+- **Off by default, fully gated.** Every Projects piece (release, OIDC client, `projects`
+  database, secrets) is gated on `apps.projects.enabled`, default **false**
+  (`OWNSUITE_APP_PROJECTS`): outside the hard DoD and not yet CI-booted. Gated off, the e2e
+  renders/deploys identically; validated by `helm lint` + kubeconform.
 
-**Consequences.** Phase 5 lands the DoD (Docs + Drive) plus Grist as the broadening app;
-**Projects joins People as documented-and-deferred** — each with a clear, low-cost path onto the
-existing "add an app" seam, none blocking the phase. Revisiting Projects is additive: another
-`keycloak.clients` entry, a database, a bucket (if used), and a values file — no rework.
+**Consequences.** A non-profit gets Projects over HTTPS with real SSO by flipping one flag,
+reusing Keycloak + CNPG with no new infrastructure. **Honest limits, with upgrade paths:** the
+uploads PVC is **not** off-site-backed (the same gap as Grist's PVC / Drive's bucket), and Projects
+is **template/lint-validated, not yet CI-booted** — its OIDC env was wired from the upstream sample
++ our RS256 Keycloak, so the first real deployment should confirm login end to end. People remains
+the only documented-and-deferred item; the "add an app" seam now hosts Docs, Drive, Grist and
+Projects without forking.

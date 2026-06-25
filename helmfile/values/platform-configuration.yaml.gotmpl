@@ -9,6 +9,10 @@ apps:
     enabled: {{ .Values.apps.drive.enabled }}
   grist:
     enabled: {{ .Values.apps.grist.enabled }}
+  projects:
+    enabled: {{ .Values.apps.projects.enabled }}
+postgres:
+  host: {{ printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName .Values.workloadsNamespace | quote }}
 databases:
 {{ .Values.databases | toYaml | indent 2 }}
 keycloak:

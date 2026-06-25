@@ -136,10 +136,11 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
   default** (outside the hard DoD, not yet CI-booted)
   ([ADR-024](../understand/decisions.md#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)).
   See [Grist application](../understand/grist.md).
-- **Projects** (suitenumerique/projects, kanban) is **deferred** with a documented build path — no
-  upstream Helm chart, early-stage, and it would be a second app not yet booted in CI; when
-  prioritised it mirrors the Grist local-chart pattern
-  ([ADR-025](../understand/decisions.md#adr-025-projects-deferred-with-a-documented-build-path-not-a-v1-app)).
+- **Projects** ✅ (suitenumerique/projects, kanban) — a Sails.js single-container app via a thin
+  **local chart**, **public-issuer OIDC** (with a signed-userinfo RS256 wrinkle) and **PVC**
+  uploads; ships **off by default** (outside the DoD, not yet CI-booted)
+  ([ADR-025](../understand/decisions.md#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)).
+  See [Projects application](../understand/projects.md).
 - **People deferred / optional** — identity lives in Keycloak
   ([ADR-012](../understand/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)/[ADR-020](../understand/decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert));
   revisit only if app-level teams need it.

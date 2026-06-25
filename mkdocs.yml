@@ -93,6 +93,7 @@ plugins:
           - understand/docs.md: Docs application (SSO, S3 storage, real-time collaboration) wired to the foundation.
           - understand/drive.md: Drive application (file manager) wired to the same foundation; per-app DB/bucket/OIDC client.
           - understand/grist.md: Grist application (spreadsheets-as-database) — local chart, public-issuer OIDC, PVC storage; off by default.
+          - understand/projects.md: Projects application (kanban / task boards) — local chart, public-issuer OIDC, PVC uploads; off by default.
           - understand/decisions.md: Architecture Decision Records (ADR) and their rationale.
         Project:
           - project/roadmap.md: Project phases and definition of done.
@@ -124,6 +125,7 @@ nav:
       - Docs application: understand/docs.md
       - Drive application: understand/drive.md
       - Grist application: understand/grist.md
+      - Projects application: understand/projects.md
       - Decisions (ADR): understand/decisions.md
   - Project:
       - Roadmap: project/roadmap.md
