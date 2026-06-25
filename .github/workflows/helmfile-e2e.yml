@@ -36,6 +36,10 @@ env:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    # Safety net: the full backup->restore cycle runs ~20-25 min; cap well above that
+    # so a wedged API/sync (e.g. a starved node) fails in bounded time, never the
+    # GitHub default of 6h.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6

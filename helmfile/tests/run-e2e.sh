@@ -100,7 +100,10 @@ sync_with_watchdog() {
   while kill -0 "$pid" 2>/dev/null; do
     sleep 15
     local summary
-    summary="$(kubectl get pods -A --no-headers 2>/dev/null \
+    # --request-timeout bounds the call: if the API server is wedged (e.g. the node
+    # is starved), kubectl returns empty fast instead of blocking for minutes, so the
+    # empty-summary fail-fast below can actually trigger.
+    summary="$(kubectl get pods -A --no-headers --request-timeout=10s 2>/dev/null \
       | awk '{c[$4]++} END{for(k in c) printf "%s=%d ", k, c[k]}')"
     echo "[watch $(date -u +%H:%M:%S)] pods: $summary"
     # kube-system pods appear within ~1 min of a healthy k3d cluster. A prolonged
@@ -115,7 +118,7 @@ sync_with_watchdog() {
       cat "$log"
       exit 1
     fi
-    if kubectl get pods -A --no-headers 2>/dev/null | awk '
+    if kubectl get pods -A --no-headers --request-timeout=10s 2>/dev/null | awk '
         $4 ~ /ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerError|RunContainerError|CreateContainerConfigError/ {bad=1; print "  ! "$0}
         $4 == "CrashLoopBackOff" && ($5+0) >= 3 {bad=1; print "  ! "$0}
         # Several pods stuck in Error usually means a Job (e.g. CNPG recovery) is
@@ -276,6 +279,11 @@ echo "    primary state destroyed; off-site garage-backup retained:"
 kubectl -n "$NS" get statefulset,cluster 2>/dev/null || true
 
 echo "==> RESTORING from off-site backups (make restore)"
+# Phase 3 proves the Docs document + Keycloak user survive (the restore DoD). Drive's
+# restore-survival is NOT part of any DoD and would only make recovery heavier on the
+# CI runner, so keep it OUT of the restore: it was destroyed above and stays disabled
+# here. Drive's own DoD (JIT into Docs+Drive) is fully proven in the pre stage.
+export OWNSUITE_APP_DRIVE=false
 OWNSUITE_RESTORE=true sync_with_watchdog "RESTORE: CNPG recovery + object copy"
 wait_for_certs
 

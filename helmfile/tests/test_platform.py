@@ -318,8 +318,11 @@ def test_restore_preserves_document_and_user():
 
 
 # --- Phase 5: Drive + CLI-driven user provisioning (ADR-022, ADR-023) -------
+# Drive is deployed only in the pre stage; the Phase 3 restore deliberately keeps it
+# out (its restore-survival is not part of any DoD), so these are PRE_ONLY.
 
 
+@PRE_ONLY
 def test_drive_database_applied():
     applied = kubectl(
         "-n", NAMESPACE, "get", "database", "drive", "-o", "jsonpath={.status.applied}"
@@ -327,6 +330,7 @@ def test_drive_database_applied():
     assert applied == "true", f"Database drive not applied ({applied!r})"
 
 
+@PRE_ONLY
 def test_drive_pods_ready():
     """Drive's backend and frontend reach Ready (it has no y-provider, unlike Docs)."""
     for component in ("backend", "frontend"):
@@ -338,6 +342,7 @@ def test_drive_pods_ready():
         assert "True" in out, f"Drive {component} pod not Ready ({out!r})"
 
 
+@PRE_ONLY
 def test_drive_reachable_over_https():
     """Drive answers over HTTPS through Traefik (its API config endpoint)."""
     def fetch():
