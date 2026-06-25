@@ -14,7 +14,7 @@ image:
 # Alpine-based (ships a shell); kubectl exec/get are version-stable across skew.
 bootstrapImage:
   repository: alpine/kubectl
-  tag: "1.34.1"
+  tag: "1.36.2"
 
 # Single node: no replication.
 replicationFactor: 1
