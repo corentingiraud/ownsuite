@@ -22,6 +22,7 @@ deploys, in dependency order:
 | 8 | `garage-backup` | Off-site object store for backups (only when `backup.s3.target=in-cluster`) | [ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
 | 9 | `object-backup` | rclone off-site media copy CronJob (+ restore Job, when `backup.enabled`) | [ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
 | 10 | `keycloak` | SSO over HTTPS — the Phase 1 DoD | [ADR-011](../architecture/decisions.md#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator) |
+| 11 | `keycloak-config` | Idempotent `kcadm` OIDC-client upsert — realm convergence on every sync | [ADR-020](../architecture/decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert) |
 
 After the shared infrastructure, **apps** are deployed as further releases (each
 gated on `apps.<name>.enabled`). The first is **Docs** — see
@@ -68,7 +69,7 @@ sensible defaults), e.g.:
 | Variable | Default | Purpose |
 |---|---|---|
 | `OWNSUITE_DOMAIN` | `ownsuite.localhost` | Base domain; each app is `<name>.{domain}` |
-| `OWNSUITE_TLS_ISSUER` | `selfsigned` | `letsencrypt-http01` in production |
+| `OWNSUITE_TLS_ISSUER` | `selfsigned` | `letsencrypt-staging` / `letsencrypt-http01` for production — `make install` drives staging→prod |
 | `OWNSUITE_ACME_EMAIL` | `admin@example.org` | ACME registration email |
 | `OWNSUITE_ADMIN_EMAIL` | `admin@example.org` | Contact for app admin / superuser accounts |
 | `OWNSUITE_OBJECT_STORAGE_MODE` | `external` | `external` (managed S3) or `garage` (in-cluster) |

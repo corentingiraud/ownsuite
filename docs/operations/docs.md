@@ -63,14 +63,15 @@ make sync                                # brings up the infra + Docs
 
 When it finishes, Docs answers at `https://docs.{domain}`; log in with a Keycloak user.
 
-## Adding the OIDC client to an existing Keycloak
+## Adding or changing an OIDC client (existing realm)
 
-Keycloak imports a realm only on its **first** boot (`--import-realm`). On a fresh install
-(and in CI) the `docs` client is created automatically. On an **already-running** install,
-adding `{clientId: docs}` to `keycloak.clients` updates the ConfigMap but Keycloak will not
-re-import it; create the client out-of-band (Keycloak admin console / `kcadm`, or a one-shot
-upsert Job). The Phase 4 installer / Phase 5 `suite` CLI will own this upgrade step
-([ADR-016](../architecture/decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)).
+Keycloak imports a realm only on its **first** boot (`--import-realm`), so on a fresh
+install (and in CI) the `docs` client is created by the import. On an **already-running**
+install the `keycloak-config` release keeps clients in sync: an idempotent `kcadm` **upsert
+Job** runs on every `sync` and creates-or-updates each `keycloak.clients` entry (redirect
+URIs, web origins, secret) against the live realm — so adding or changing a client just
+works, with no manual admin-console step
+([ADR-020](../architecture/decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)).
 
 ## Tests
 
