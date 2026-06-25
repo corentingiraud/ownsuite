@@ -1,0 +1,4 @@
+# Traefik middlewares for Drive media serving (ADR-016, ADR-022). Released after
+# Keycloak so the K3s Traefik CRDs exist before these CRs.
+backendService: drive-backend
+bucket: {{ .Values.objectStorage.driveBucket | quote }}

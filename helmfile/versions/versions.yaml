@@ -18,6 +18,10 @@ chartVersions:
   # "latest", so the impress image tags below are pinned independently.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/docs depName=docs
   docs: "5.3.0"
+  # Drive (suitenumerique / drive) — official chart. Like docs, its appVersion is
+  # "latest", so the drive image tags below are pinned independently.
+  # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/drive depName=drive
+  drive: "0.19.0"
 
 imageVersions:
   # renovate: datasource=docker depName=quay.io/keycloak/keycloak
@@ -29,6 +33,12 @@ imageVersions:
   docsFrontend: "v5.3.0"
   # renovate: datasource=docker depName=lasuite/impress-y-provider
   docsYProvider: "v5.3.0"
+  # Drive images — keep these two in lockstep with the drive chart version above.
+  # Drive is a file manager (no realtime y-provider, unlike Docs).
+  # renovate: datasource=docker depName=lasuite/drive-backend
+  driveBackend: "v0.19.0"
+  # renovate: datasource=docker depName=lasuite/drive-frontend
+  driveFrontend: "v0.19.0"
   # Garage object store (ADR-015), deployed from the local ./charts/garage chart.
   # renovate: datasource=docker depName=dxflrs/garage
   garage: "v2.3.0"

@@ -11,9 +11,11 @@ secretOverrides: {}
 
 domain: ownsuite.localhost
 
-# Per-app toggles (gates app-specific secrets like docs-secrets).
+# Per-app toggles (gates app-specific secrets like docs-secrets / drive-secrets).
 apps:
   docs:
+    enabled: true
+  drive:
     enabled: true
 
 # Databases whose owner password is derived and exposed as a basic-auth Secret.
@@ -22,6 +24,8 @@ databases:
     secretName: keycloak-db
   - name: docs
     secretName: docs-db
+  - name: drive
+    secretName: drive-db
 
 keycloak:
   realm: ownsuite
@@ -29,6 +33,8 @@ keycloak:
   # One OIDC client per app. Each entry: {clientId, directAccessGrants?}.
   clients:
     - clientId: docs
+      directAccessGrants: false
+    - clientId: drive
       directAccessGrants: false
   # Optional realm user seeded for the e2e SSO check (CI only).
   seedTestUser:

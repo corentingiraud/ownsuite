@@ -1,0 +1,35 @@
+{{- /*
+Traefik middlewares for Drive authenticated media serving (ADR-016, ADR-022).
+The upstream drive chart ships nginx-specific auth-url/rewrite annotations on its
+media ingress; on Traefik (K3s-bundled) the equivalent is a forwardAuth middleware
+to the backend media-auth endpoint plus a path rewrite to the bucket (path-style
+S3). Sibling of docs-ingress — only the media-auth path ("items", not "documents")
+and the target bucket differ. The Drive media ingress references these by name
+(see values/drive.yaml.gotmpl).
+*/}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: drive-media-auth
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: drive
+spec:
+  forwardAuth:
+    address: {{ printf "http://%s.%s.svc.cluster.local/api/v1.0/items/media-auth/" .Values.backendService .Release.Namespace | quote }}
+    authResponseHeaders:
+      - Authorization
+      - X-Amz-Date
+      - X-Amz-Content-SHA256
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: drive-media-rewrite
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: drive
+spec:
+  replacePathRegex:
+    regex: "^/media/(.*)"
+    replacement: {{ printf "/%s/$1" .Values.bucket | quote }}

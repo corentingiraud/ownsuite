@@ -578,3 +578,58 @@ relay carries SPF/DKIM alignment; messages signs DKIM for the domain and SPF `in
   in-app. Not suitable for bulk/newsletters — that's a separate product.
 - Supersedes ADR-008's "Stalwart recommended" note; ADR-008's "optional add-on" and "relay
   outbound" decisions carry over unchanged.
+
+---
+
+## ADR-022 — Drive integration: reuse the Docs seam, per-app buckets
+
+**Context.** Phase 5 broadens the suite, and **Drive** (`suitenumerique` / drive) is the
+DoD-critical second app: `suite user add` must grant Docs **and** Drive immediately. Drive
+is a `suitenumerique` sibling of Docs — same Django/Next.js shape, same official Helm chart
+pattern, the same mozilla-django-oidc login — so the question is not *how to integrate a new
+kind of app* but *what, if anything, the existing Docs seam
+([ADR-016](#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)) must
+grow* to host a second one. Drive needs no People/teams service (sharing is per-item), so it
+takes on no new dependency.
+
+**Decision.** Add Drive as a Helmfile release that **mirrors Docs almost verbatim**, and make
+the few shared pieces multi-app instead of forking them:
+
+- **Same foundation, per-app instances.** Drive reuses CNPG (its own `drive` database +
+  owner role), Valkey, the pluggable S3 seam, and Keycloak SSO. Each app gets its **own**
+  database, its **own** S3 bucket (`drive-media-storage`), and its **own** OIDC client
+  (`drive`) — derived from the same seed
+  ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)) by the
+  same `<id>` convention the realm import and the app already share. Adding `drive` to
+  `keycloak.clients` is all the realm + the idempotent upsert Job
+  ([ADR-020](#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)) need.
+- **Distinct Valkey databases.** Docs and Drive share the one in-cluster Valkey, so Drive
+  uses Redis **db 2** (cache) and **db 3** (Celery broker); Docs keeps 0/1. A separate broker
+  db keeps the two apps' Celery queues from cross-consuming each other's tasks — the one real
+  trap of co-tenanting a broker.
+- **Garage creates a list of buckets.** The Garage bootstrap Job
+  ([ADR-015](#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key)) is
+  generalised from one bucket to a **list** (the enabled apps' buckets); the single
+  seed-derived S3 key owns them all. In `external` S3 mode the operator pre-creates the Drive
+  bucket alongside the Docs one, exactly as before.
+- **Traefik media glue, sibling chart.** Drive's authenticated media serving is the Docs
+  pattern with two cosmetic differences: the media-auth endpoint is `/api/v1.0/items/`
+  (Drive calls them *items*, not *documents*) and the rewrite targets the Drive bucket. A
+  `drive-ingress` chart carries those two Middleware CRs, mirroring `docs-ingress`. Drive's
+  upstream chart already routes `/api` + `/external_api` to the backend on the main ingress,
+  so no extra API ingress is needed.
+- **No realtime collaboration.** Drive is a file manager, not a collaborative editor, so it
+  ships **no y-provider** — its values are the Docs wiring minus the collaboration server and
+  its websocket/api ingresses.
+- **Individually enable-able.** Each app is gated on its own `apps.<name>.enabled` flag
+  (`OWNSUITE_APP_DOCS` / `OWNSUITE_APP_DRIVE`); both default on (the DoD wants both), either
+  can be turned off.
+
+**Consequences.** Drive comes up over HTTPS with real SSO and per-app isolated state, proven
+at the API level by the same kind of token→create→read-back e2e as Docs (Phase 5 DoD). The
+seam now hosts N apps without forking: a future app is another `keycloak.clients` entry, a
+bucket in the list, a database, and a values file. **Deferred:** the media-**preview**
+(thumbnail) ingress — a visual nicety whose upstream rewrite path needs validating against our
+Traefik setup, not part of the DoD; it is left off with a `ponytail:` marker and enabled once
+proven. External-S3 media keeps the same pre-existing limitation as Docs (the media upstream
+points at the in-cluster Garage), out of Phase 5 scope.

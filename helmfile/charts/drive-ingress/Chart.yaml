@@ -1,0 +1,9 @@
+apiVersion: v2
+name: drive-ingress
+description: >-
+  Traefik middlewares for Drive authenticated media serving (ADR-016, ADR-022): a
+  forwardAuth to the backend media-auth endpoint plus a path rewrite to the S3
+  bucket. Sibling of docs-ingress; kept in a dedicated release ordered after
+  Keycloak so the Traefik CRDs (installed with K3s) are present before these CRs.
+type: application
+version: 0.1.0

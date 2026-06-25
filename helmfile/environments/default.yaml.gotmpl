@@ -38,6 +38,10 @@ keycloak:
       # so the e2e can mint a token for the SSO definition-of-done without a
       # browser (see helmfile/tests). Keep it off in production.
       directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
+    - clientId: drive
+      # Same as docs: direct-access grant only in CI, so the DoD e2e can mint a
+      # token for the `drive` client and prove JIT access without a browser.
+      directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
   # Optional realm user seeded for the e2e SSO check (CI only). Its password is
   # derived from the seed (id "kc-test-user") — never committed in plaintext.
   seedTestUser:
@@ -46,9 +50,13 @@ keycloak:
     email: {{ env "OWNSUITE_KC_TEST_EMAIL" | default "docs-tester@example.org" | quote }}
 
 # Per-app toggles. Each app is a Helmfile release gated on its flag (ADR-001).
+# Docs and Drive are both core to the Phase 5 DoD (a user gets both immediately);
+# each can still be turned off independently. Grist/Projects arrive later.
 apps:
   docs:
-    enabled: true
+    enabled: {{ env "OWNSUITE_APP_DOCS" | default "true" }}
+  drive:
+    enabled: {{ env "OWNSUITE_APP_DRIVE" | default "true" }}
 
 # Contact address used for app admin / superuser accounts.
 adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}
@@ -66,6 +74,8 @@ databases:
     secretName: keycloak-db
   - name: docs
     secretName: docs-db
+  - name: drive
+    secretName: drive-db
 
 # TLS issuance (ADR-013, ADR-019). Accepted `OWNSUITE_TLS_ISSUER` values:
 #   selfsigned          works anywhere (CI/dev, no public DNS)
@@ -92,6 +102,10 @@ objectStorage:
   # Bucket holding Docs media/attachments. Created by Garage in `garage` mode;
   # expected to pre-exist on the external S3 in `external` mode.
   bucket: {{ env "OWNSUITE_S3_BUCKET" | default "docs-media-storage" | quote }}
+  # Bucket holding Drive's files (one bucket per app — keeps each app's objects
+  # isolated under the shared S3 key). Created by Garage in `garage` mode; must
+  # pre-exist on the external S3 in `external` mode, alongside the Docs bucket.
+  driveBucket: {{ env "OWNSUITE_DRIVE_S3_BUCKET" | default "drive-media-storage" | quote }}
 
 # In-cluster Garage object store (ADR-015), deployed only in `garage` mode. Its
 # S3 access key/secret are the seed-derived s3-access/s3-secret credentials,

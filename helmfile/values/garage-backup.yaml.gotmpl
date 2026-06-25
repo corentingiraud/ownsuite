@@ -26,7 +26,8 @@ storage:
   meta: {{ .Values.backup.garage.metaStorage | quote }}
   data: {{ .Values.backup.garage.dataStorage | quote }}
 
-bucket: {{ .Values.backup.s3.bucket | quote }}
+buckets:
+  - {{ .Values.backup.s3.bucket | quote }}
 keyName: backup
 
 credentialsSecret: garage-backup-credentials

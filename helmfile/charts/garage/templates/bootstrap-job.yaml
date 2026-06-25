@@ -41,8 +41,8 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.s3Secret }}
                   key: {{ .Values.s3SecretKeys.secretAccessKey }}
-            - name: BUCKET
-              value: {{ .Values.bucket | quote }}
+            - name: BUCKETS
+              value: {{ .Values.buckets | join " " | quote }}
             - name: KEY_NAME
               value: {{ .Values.keyName | quote }}
           command:
@@ -86,14 +86,15 @@ spec:
                 g key import "$AWS_S3_ACCESS_KEY_ID" "$AWS_S3_SECRET_ACCESS_KEY" -n "$KEY_NAME" --yes
               fi
 
-              if g bucket info "$BUCKET" >/dev/null 2>&1; then
-                echo "Bucket $BUCKET already exists, skipping create."
-              else
-                echo "Creating bucket $BUCKET..."
-                g bucket create "$BUCKET"
-              fi
-
-              echo "Granting key access to $BUCKET (idempotent)..."
-              g bucket allow --read --write --owner "$BUCKET" --key "$AWS_S3_ACCESS_KEY_ID"
+              for BUCKET in $BUCKETS; do
+                if g bucket info "$BUCKET" >/dev/null 2>&1; then
+                  echo "Bucket $BUCKET already exists, skipping create."
+                else
+                  echo "Creating bucket $BUCKET..."
+                  g bucket create "$BUCKET"
+                fi
+                echo "Granting key access to $BUCKET (idempotent)..."
+                g bucket allow --read --write --owner "$BUCKET" --key "$AWS_S3_ACCESS_KEY_ID"
+              done
 
               echo "Garage bootstrap complete."

@@ -5,6 +5,8 @@ secretOverrides:
 apps:
   docs:
     enabled: {{ .Values.apps.docs.enabled }}
+  drive:
+    enabled: {{ .Values.apps.drive.enabled }}
 databases:
 {{ .Values.databases | toYaml | indent 2 }}
 keycloak:

@@ -17,7 +17,17 @@ storage:
   meta: {{ .Values.garage.metaStorage | quote }}
   data: {{ .Values.garage.dataStorage | quote }}
 
-bucket: {{ .Values.objectStorage.bucket | quote }}
+# One bucket per enabled app that stores objects on the primary store. The shared
+# seed-derived S3 key (s3-credentials) owns them all; the bootstrap Job creates and
+# grants each (see charts/garage). External S3 mode deploys no Garage, so the
+# operator pre-creates these buckets on their provider instead (ADR-003).
+buckets:
+  {{- if .Values.apps.docs.enabled }}
+  - {{ .Values.objectStorage.bucket | quote }}
+  {{- end }}
+  {{- if .Values.apps.drive.enabled }}
+  - {{ .Values.objectStorage.driveBucket | quote }}
+  {{- end }}
 keyName: docs
 
 credentialsSecret: garage-credentials

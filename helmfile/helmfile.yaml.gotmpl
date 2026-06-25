@@ -23,6 +23,8 @@ repositories:
     url: https://groundhog2k.github.io/helm-charts
   - name: suitenumerique
     url: https://suitenumerique.github.io/docs
+  - name: suitenumerique-drive
+    url: https://suitenumerique.github.io/drive
 
 helmDefaults:
   wait: true
@@ -211,3 +213,35 @@ releases:
       {{- end }}
     values:
       - values/docs.yaml.gotmpl
+
+  # --- Drive ingress glue: Traefik middlewares for authenticated media (ADR-016,
+  #     ADR-022). Sibling of docs-ingress; ordered after Keycloak so the K3s Traefik
+  #     CRDs are present before these CRs.
+  - name: drive-ingress
+    namespace: {{ $ns }}
+    chart: ./charts/drive-ingress
+    condition: apps.drive.enabled
+    needs:
+      - {{ $ns }}/keycloak
+    values:
+      - values/drive-ingress.yaml.gotmpl
+
+  # --- App: Drive (suitenumerique / drive) — Phase 5 broadening (ADR-022) -----
+  # Reuses the Docs seam (CNPG + Valkey + S3 + Keycloak SSO); no People dependency.
+  - name: drive
+    namespace: {{ $ns }}
+    chart: suitenumerique-drive/drive
+    version: {{ .Values.chartVersions.drive | quote }}
+    condition: apps.drive.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/postgres
+      - {{ $ns }}/valkey
+      - {{ $ns }}/keycloak
+      - {{ $ns }}/drive-ingress
+      - cert-manager/issuers
+      {{- if .Values.garage.enabled }}
+      - {{ $ns }}/garage
+      {{- end }}
+    values:
+      - values/drive.yaml.gotmpl

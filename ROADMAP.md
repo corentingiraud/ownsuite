@@ -53,8 +53,8 @@ in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
 - [x] k3d e2e: installer drives config→sync→certs Ready→HTTPS (self-signed); real ACME proven off-CI
 - **DoD:** from a bare server + domain, the org follows the screen and everything serves HTTPS.
 
-## Phase 5 — Broaden apps + user provisioning ⬜
-- [ ] Add Drive (Helmfile profile; same CNPG + Valkey + S3 + Keycloak seam as Docs — no People dependency)
+## Phase 5 — Broaden apps + user provisioning 🚧
+- [x] Add Drive (Helmfile profile; same CNPG + Valkey + S3 + Keycloak seam as Docs — no People dependency) (ADR-022)
 - [ ] Add Grist (collaborative spreadsheet, getgrist self-hosted — Node stack, not suitenumerique Django/React; OIDC wiring differs from the impress apps)
 - [ ] Add Projects (suitenumerique/projects — kanban/task boards; Node/Sails.js + React, OIDC via Keycloak; docker-compose only, no Helm yet)
 - [ ] People deferred / optional — identity stays in Keycloak (ADR-012/020); revisit only if app-level teams need it
