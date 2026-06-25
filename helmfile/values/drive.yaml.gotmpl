@@ -37,6 +37,19 @@ image:
 backend:
   # One replica is right-sized for a single-server non-profit (the chart defaults to 3).
   replicas: 1
+  # Probes tuned for a constrained single node: the backend runs DB migrations on first
+  # boot, so liveness gets a long initialDelay (never restart it mid-migration) + a
+  # tolerant timeout. Readiness still gates Ready, so the rollout isn't slowed. Fixes a
+  # flaky e2e where liveness killed the slow-starting backend (the chart's startupProbe
+  # can't extend its failureThreshold, so we lengthen liveness instead).
+  probes:
+    liveness:
+      path: /__lbheartbeat__
+      initialDelaySeconds: 120
+      timeoutSeconds: 5
+    readiness:
+      path: /__heartbeat__
+      timeoutSeconds: 5
   resources:
     requests:
       cpu: "100m"
