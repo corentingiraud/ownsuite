@@ -39,6 +39,11 @@ imageVersions:
   driveBackend: "v0.19.0"
   # renovate: datasource=docker depName=lasuite/drive-frontend
   driveFrontend: "v0.19.0"
+  # Grist (getgrist) — a single-container app (no official Helm chart), deployed
+  # from the local ./charts/grist chart (ADR-024). One image; the Docker tag has no
+  # "v" prefix (the grist-core GitHub release is tagged v1.7.15).
+  # renovate: datasource=docker depName=gristlabs/grist
+  grist: "1.7.15"
   # Garage object store (ADR-015), deployed from the local ./charts/garage chart.
   # renovate: datasource=docker depName=dxflrs/garage
   garage: "v2.3.0"

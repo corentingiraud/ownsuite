@@ -1,0 +1,12 @@
+apiVersion: v2
+name: grist
+description: >-
+  Single-instance Grist (getgrist) for OwnSuite (ADR-024). Grist ships no official
+  Helm chart, so this thin local chart runs the one container as a Deployment with a
+  /persist PVC for its document SQLite files, a Service, and a Traefik Ingress. The
+  home database is a CNPG `grist` database (TYPEORM_*) and login is Keycloak OIDC.
+  Off by default; deployed only when apps.grist.enabled.
+type: application
+version: 0.1.0
+# No appVersion: the Grist image version is the single source of truth in
+# helmfile/versions/versions.yaml (imageVersions.grist), not duplicated here.

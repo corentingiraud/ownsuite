@@ -130,10 +130,15 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
   seam as Docs (per-app database, bucket and OIDC client), with **no People dependency**
   ([ADR-022](../understand/decisions.md#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)).
   See [Drive application](../understand/drive.md).
-- **Grist** (collaborative spreadsheet, getgrist self-hosted) and **Projects**
-  (suitenumerique/projects, kanban) broaden the suite *after* the DoD; they are Node stacks,
-  not the impress Django/React shape, so their OIDC wiring differs — each gets its own ADR
-  before coding.
+- **Grist** ✅ (collaborative spreadsheet, getgrist self-hosted) broadens the suite *after* the
+  DoD. It is a Node app, not the impress Django/React shape, so it gets a thin **local chart**,
+  **single public-issuer OIDC** discovery, and **PVC** document storage — and ships **off by
+  default** (outside the hard DoD, not yet CI-booted)
+  ([ADR-024](../understand/decisions.md#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)).
+  See [Grist application](../understand/grist.md).
+- **Projects** (suitenumerique/projects, kanban) is next — a Node/Sails.js + React app with
+  docker-compose only (no upstream Helm chart); its own ADR decides local chart vs defer before
+  coding.
 - **People deferred / optional** — identity lives in Keycloak
   ([ADR-012](../understand/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)/[ADR-020](../understand/decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert));
   revisit only if app-level teams need it.

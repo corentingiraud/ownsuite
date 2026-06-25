@@ -7,6 +7,8 @@ apps:
     enabled: {{ .Values.apps.docs.enabled }}
   drive:
     enabled: {{ .Values.apps.drive.enabled }}
+  grist:
+    enabled: {{ .Values.apps.grist.enabled }}
 databases:
 {{ .Values.databases | toYaml | indent 2 }}
 keycloak:

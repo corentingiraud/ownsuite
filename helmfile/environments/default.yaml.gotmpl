@@ -42,6 +42,13 @@ keycloak:
       # Same as docs: direct-access grant only in CI, so the DoD e2e can mint a
       # token for the `drive` client and prove JIT access without a browser.
       directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
+    {{- if eq (env "OWNSUITE_APP_GRIST" | default "false") "true" }}
+    - clientId: grist
+      # Only present when Grist is enabled (ADR-024, off by default). The shared
+      # client template already emits redirectUris https://grist.{domain}/* (covering
+      # Grist's /oauth2/callback) and the profile+email scopes Grist maps to its user.
+      directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
+    {{- end }}
   # Optional realm user seeded for the e2e SSO check (CI only). Its password is
   # derived from the seed (id "kc-test-user") — never committed in plaintext.
   seedTestUser:
@@ -57,6 +64,17 @@ apps:
     enabled: {{ env "OWNSUITE_APP_DOCS" | default "true" }}
   drive:
     enabled: {{ env "OWNSUITE_APP_DRIVE" | default "true" }}
+  # Grist (getgrist) — OFF by default (ADR-024): outside the Phase 5 DoD and not yet
+  # booted in the constrained CI e2e. Fully wired; enable with OWNSUITE_APP_GRIST=true.
+  grist:
+    enabled: {{ env "OWNSUITE_APP_GRIST" | default "false" }}
+    # Capacity of the /persist PVC holding Grist's document SQLite files.
+    storageSize: {{ env "OWNSUITE_GRIST_STORAGE" | default "5Gi" | quote }}
+    # Single-tenant team site name (GRIST_SINGLE_ORG).
+    org: {{ env "OWNSUITE_GRIST_ORG" | default "ownsuite" | quote }}
+    # Formula sandbox flavor — `unsandboxed` boots reliably on stock K3s for a single
+    # trusted org; set `gvisor` on a node configured for it (ADR-024).
+    sandbox: {{ env "OWNSUITE_GRIST_SANDBOX" | default "unsandboxed" | quote }}
 
 # Contact address used for app admin / superuser accounts.
 adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}
@@ -76,6 +94,11 @@ databases:
     secretName: docs-db
   - name: drive
     secretName: drive-db
+  {{- if eq (env "OWNSUITE_APP_GRIST" | default "false") "true" }}
+  # Grist's home database (orgs/users/ACLs). Only provisioned when Grist is enabled.
+  - name: grist
+    secretName: grist-db
+  {{- end }}
 
 # TLS issuance (ADR-013, ADR-019). Accepted `OWNSUITE_TLS_ISSUER` values:
 #   selfsigned          works anywhere (CI/dev, no public DNS)

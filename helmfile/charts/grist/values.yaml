@@ -1,0 +1,53 @@
+---
+# Defaults are overridden by Helmfile (values/grist.yaml.gotmpl). Listed here so
+# `helm lint` / `helm template` can render the chart standalone (ADR-024).
+
+# Image tag is NOT pinned here. The single source of truth is
+# helmfile/versions/versions.yaml; Helmfile injects the pinned tag. The empty
+# default keeps `helm lint` happy when the chart is rendered standalone.
+image:
+  repository: gristlabs/grist
+  tag: ""
+
+# Single instance: a /persist read-write-once volume must never be double-mounted.
+replicas: 1
+
+# Container port Grist listens on (its default).
+port: 8484
+
+# Health endpoint used for the readiness probe (Grist serves a 200 on /status).
+probePath: /status
+
+persistence:
+  size: 5Gi
+  # Empty => cluster default StorageClass (local-path on K3s).
+  storageClass: ""
+
+# Grist's image runs as uid/gid 1000; fsGroup makes the mounted volume writable.
+podSecurityContext:
+  fsGroup: 1000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# Plain environment (Helmfile fills these from the deployment's config).
+env: {}
+
+# Environment sourced from Secrets: list of {name, secretName, secretKey}.
+secretEnv: []
+
+service:
+  port: 80
+
+ingress:
+  enabled: true
+  className: traefik
+  host: grist.localhost
+  annotations: {}
+  tls:
+    enabled: true
+    secretName: grist-tls
