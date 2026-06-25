@@ -24,6 +24,10 @@ on:
       - ".github/workflows/bootstrap-e2e.yml"
   workflow_dispatch:
 
+# Least privilege: full bootstrap only reads the repo (Molecule in Docker).
+permissions:
+  contents: read
+
 jobs:
   full-bootstrap:
     runs-on: ubuntu-latest

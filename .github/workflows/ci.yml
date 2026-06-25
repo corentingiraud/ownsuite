@@ -28,6 +28,10 @@ on:
       - ".github/workflows/ci.yml"
   workflow_dispatch:
 
+# Least privilege: these jobs only read the repo (lint + tests, no cluster).
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
