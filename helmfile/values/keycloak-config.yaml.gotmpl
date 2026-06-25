@@ -1,0 +1,17 @@
+# Keycloak realm convergence (ADR-016, ADR-020). Reconciles the OIDC clients on
+# the already-imported realm via kcadm. The client list mirrors keycloak.clients
+# (environment); the per-client secrets come from the keycloak-oidc-clients Secret
+# (platform-configuration), referenced by the Job — no re-derivation here.
+realm: {{ .Values.keycloak.realm | quote }}
+domain: {{ .Values.domain | quote }}
+keycloakServiceUrl: {{ printf "http://keycloak-keycloakx-http.%s.svc.cluster.local" .Values.workloadsNamespace | quote }}
+image:
+  repository: quay.io/keycloak/keycloak
+  tag: {{ .Values.imageVersions.keycloak | quote }}
+adminSecretName: keycloak-admin
+oidcClientsSecretName: keycloak-oidc-clients
+clients:
+{{- range .Values.keycloak.clients }}
+  - clientId: {{ .clientId | quote }}
+    directAccessGrants: {{ .directAccessGrants | default false }}
+{{- end }}

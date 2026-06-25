@@ -7,7 +7,7 @@ file at the repository root) orient AI assistants contributing to the project.
 
 The documentation **is** the specification. Before writing code, an agent reads the
 docs; after a structural decision, it updates the docs (usually a new
-[ADR](../architecture/decisions.md)).
+[ADR](../understand/decisions.md)).
 
 ## Endpoints for AI
 
@@ -25,7 +25,7 @@ To load the whole project context at once, fetch `/llms-full.txt`.
   act as entry points).
 - **Relative links** between pages (`../architecture/overview.md`).
 - **Typed code blocks** (always set the language); `!!!` admonitions for notes.
-- Every structural decision → an **ADR** in [`decisions.md`](../architecture/decisions.md).
+- Every structural decision → an **ADR** in [`decisions.md`](../understand/decisions.md).
 
 ## Code conventions (reminder)
 
@@ -33,11 +33,11 @@ To load the whole project context at once, fetch `/llms-full.txt`.
     **Everything is written in English** — documentation, code comments, identifiers,
     commit messages. This rule overrides any contrary instruction.
 
-- No going back to **Bitnami** or **MinIO** (deprecated — see [ADR-003](../architecture/decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3)
-  and [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami)).
+- No going back to **Bitnami** or **MinIO** (deprecated — see [ADR-003](../understand/decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3)
+  and [ADR-004](../understand/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami)).
 - **Pinned** versions (charts, images, K3s); never `latest` in production. Don't
   hand-edit a pin to chase the newest release — **Renovate** opens tested bump PRs
-  (`renovate.json`, see [ADR-007](../architecture/decisions.md#adr-007-upgrade-model-semver-releases-backup-gated-cli)).
+  (`renovate.json`, see [ADR-007](../understand/decisions.md#adr-007-upgrade-model-semver-releases-backup-gated-cli)).
   Staying current is Renovate's job; staying *tested* is the CI harness's.
 - Every secret derives from the `secretSeed` or an explicit override — **never commit a plaintext secret**.
 

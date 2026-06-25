@@ -2,9 +2,14 @@
 # Overridden by Helmfile (values/issuers.yaml.gotmpl).
 acmeEmail: admin@example.org
 ingressClassName: traefik
-# Create the Let's Encrypt issuer only when it is the selected issuer; keeps
-# CI/dev (self-signed) from registering an ACME account against real Let's Encrypt.
+# Create the production Let's Encrypt issuer only when it is the selected issuer;
+# keeps CI/dev (self-signed) from registering an ACME account against real Let's
+# Encrypt.
 letsencryptEnabled: false
-# ACME directory for the production HTTP-01 issuer. Pinned to the production
-# endpoint; swap to the staging URL when debugging rate limits.
+# Create the Let's Encrypt STAGING issuer only when it is selected (ADR-019). The
+# Phase 4 installer issues against staging first, then promotes to production.
+letsencryptStagingEnabled: false
+# ACME directories. Defaults are the public Let's Encrypt production and staging
+# endpoints; override only to point at a different ACME CA.
 acmeServer: https://acme-v02.api.letsencrypt.org/directory
+acmeStagingServer: https://acme-staging-v02.api.letsencrypt.org/directory

@@ -1,7 +1,7 @@
 """Testinfra verification for the full bootstrap: K3s is up and the node Ready.
 
 This is the machine-checked form of the Phase 0 definition of done:
-"`make bootstrap` turns a bare Debian VPS into a ready single-node K3s cluster."
+"`make bootstrap` turns a bare Debian server into a ready single-node K3s cluster."
 """
 
 testinfra_hosts = ["all"]

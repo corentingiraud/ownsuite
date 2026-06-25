@@ -1,12 +1,12 @@
 # Roadmap (high level)
 
-> Self-host La Suite numérique, production-ready, on a single VPS, for a non-profit.
+> Self-host La Suite numérique, production-ready, on a single server, for a non-profit.
 > The org arrives with a domain name; we hand them the DNS records to set; everything
 > works. The admin then creates users in a single step.
 
 ## Product vision (the global "definition of done")
 
-1. A volunteer rents a VPS + a domain name.
+1. A volunteer rents a server + a domain name.
 2. They run an installer and answer ~5 questions (domain, admin email, which apps).
 3. The installer prints **the exact list of DNS records** to set at the registrar.
 4. Once DNS has propagated: every app responds over HTTPS, with **shared SSO**.
@@ -19,7 +19,7 @@
 
 ## Architecture decisions (locked)
 
-The full rationale lives in the [Architecture Decision Records](architecture/decisions.md).
+The full rationale lives in the [Architecture Decision Records](../understand/decisions.md).
 
 | Topic | Choice |
 |---|---|
@@ -32,7 +32,7 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 | Host provisioning | **Ansible** |
 | Upgrade model | **Semver releases + backup-gated `suite` CLI + Renovate** |
 
-**Out of scope for v1:** Meet (LiveKit/coturn — UDP, CPU, painful on a single VPS).
+**Out of scope for v1:** Meet (LiveKit/coturn — UDP, CPU, painful on a single server).
 **Advanced add-on, not in the core:** the mailbox (see Phase 6 — this is NOT part of La Suite).
 
 ---
@@ -64,11 +64,11 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 ### Phase 0 — Scoping & technical foundation
 
 - Lock the stack (above), pick the name/license (AGPL-3.0 suggested), init the repo.
-- Reproducible VPS bootstrap with **Ansible**: K3s (pinned), ufw, fail2ban, swap, sysctl,
-  SSH hardening, unattended security upgrades. See [VPS bootstrap](operations/bootstrap.md).
+- Reproducible server bootstrap with **Ansible**: K3s (pinned), ufw, fail2ban, swap, sysctl,
+  SSH hardening, unattended security upgrades. See [server bootstrap](../get-started/bootstrap.md).
 - A **layered, evolving CI test harness** (lint → Molecule/Testinfra on Debian 12/13 →
-  nightly real-K3s bootstrap) — the seed of the install/upgrade/restore pipeline ([ADR-010](architecture/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)).
-- **Done:** `make bootstrap` turns a bare Debian VPS into a ready K3s cluster.
+  nightly real-K3s bootstrap) — the seed of the install/upgrade/restore pipeline ([ADR-010](../understand/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)).
+- **Done:** `make bootstrap` turns a bare Debian server into a ready K3s cluster.
 
 ### Phase 1 — Reusable infrastructure foundation (no Bitnami/MinIO)
 
@@ -82,10 +82,10 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 > Go deep on **one** app before broadening.
 
 - Build the real object store the foundation only stubbed: single-node **Garage**
-  in-cluster with a seed-derived key + bucket bootstrap ([ADR-015](architecture/decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key)); external EU S3 stays the production default.
+  in-cluster with a seed-derived key + bucket bootstrap ([ADR-015](../understand/decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key)); external EU S3 stays the production default.
 - Deploy **Docs** (`suitenumerique`/impress) wired to CNPG + Valkey + S3 + Keycloak SSO,
   in the shared `ownsuite` namespace, over **Traefik** with the OIDC external/internal
-  endpoint split ([ADR-016](architecture/decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)). See [Docs application](operations/docs.md).
+  endpoint split ([ADR-016](../understand/decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)). See [Docs application](../understand/docs.md).
 - Validate SSO login, file upload (S3), real-time collaboration; the k3d e2e proves the
   DoD at the API level (a Keycloak token creates and reads back a document).
 - **Done:** a Keycloak user logs into Docs and creates a persistent document.
@@ -93,12 +93,12 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 ### Phase 3 — Backups & Restore (the "production-ready" pillar)
 
 - Postgres: CNPG **Barman Cloud Plugin** — WAL archiving + base backups to **off-site** S3,
-  PITR, recovery-window retention ([ADR-017](architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
+  PITR, recovery-window retention ([ADR-017](../understand/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
 - Objects: **`rclone`** S3→S3 copy off-site, client-side encrypted (both garage and external modes).
 - Keycloak: covered by **PITR of its database** (realm + users) — refines ADR-006's "scheduled
   export"; a `kc.sh` export stays a later portability add-on.
 - Off-site by design: a distinct destination (a different account in prod; a second in-cluster
-  Garage in CI) with seed-derived-or-overridden credentials. See [Backups & restore](operations/backups.md).
+  Garage in CI) with seed-derived-or-overridden credentials. See [Backups & restore](../operate/backups.md).
 - **Tested restore procedure**: `make restore` rebuilds a clean instance; the k3d e2e runs a full
   **backup → destroy → restore** cycle.
 - **Done:** we destroy an instance and fully restore it from backups — the Phase-2 document and
@@ -106,10 +106,23 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 
 ### Phase 4 — "Domain → DNS → it works" experience
 
-- Interactive installer (domain, admin email, app selection).
-- **Generate the exact list of DNS records** (wildcard A/AAAA `*.assoc.org`, CAA; +MX/TXT if mail).
-- Wait for / validate propagation + issue the certificates.
-- **Done:** from a bare VPS + domain, the org follows the screen and everything serves HTTPS.
+- **Guided installer `suite install`** ([ADR-018](../understand/decisions.md#adr-018-phase-4-guided-installer-suite-install)):
+  one idempotent command captures config + the seed (shown once, never written to the repo), runs
+  the bootstrap, opens the SSH tunnel and drives `helmfile sync` — orchestrating the existing
+  layers in pure standard library, adding nothing to the server.
+- **Generate the exact DNS records** (wildcard A `*.{domain}` + apex, AAAA when the server has public
+  IPv6, CAA authorising Let's Encrypt; MX/TXT deferred with mail), then a **propagation gate** that
+  blocks ACME until public resolvers agree — so a typo never burns the production rate limits.
+- **Certificates staging → production**: an additive `letsencrypt-staging` ClusterIssuer issues
+  first, then the installer promotes to production and verifies HTTPS per host
+  ([ADR-019](../understand/decisions.md#adr-019-phase-4-tls-staging-first-issuance-dns-01-deferred)).
+  A wildcard *A record* is not a wildcard *certificate* — certs stay per-host; the DNS-01 issuer
+  stays deferred (the seam is additive).
+- **Keycloak OIDC clients reconciled** on an already-imported realm via an idempotent kcadm Job
+  ([ADR-020](../understand/decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)).
+- The k3d e2e drives the stack through the installer to self-signed HTTPS; real Let's Encrypt is
+  validated off-CI (staging then production). See [Guided install](../get-started/install.md).
+- **Done:** from a bare server + domain, the org follows the screen and everything serves HTTPS.
 
 ### Phase 5 — Broaden apps + user provisioning
 
@@ -121,7 +134,7 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 ### Phase 6 — (Advanced / optional) Mailbox
 
 > ⚠️ **La Suite numérique provides NO mail server.** This is an add-on, and the
-> hardest part to make reliable on a VPS.
+> hardest part to make reliable on a server.
 
 - A mail stack federated to the same Keycloak: **Stalwart** (modern, OIDC) recommended;
   Mailcow/Mailu as alternatives.
@@ -135,7 +148,7 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 
 - Resource limits, health checks, light monitoring (Uptime Kuma / metrics).
 - Upgrade strategy (pinned image tags, DB migrations, Helm rollback).
-- "Non-profit admin" docs (non-K8s-expert), troubleshooting guide, VPS sizing.
+- "Non-profit admin" docs (non-K8s-expert), troubleshooting guide, server sizing.
 - **Done:** a third-party org installs and operates it without maintainer intervention.
 
 ---

@@ -6,12 +6,12 @@ companion to the docs site. Keep it short; deep detail lives in `docs/`.
 ## What this project is
 
 **OwnSuite** — an open-source, production-ready way to self-host
-[La Suite numérique](https://github.com/suitenumerique) on a **single VPS** for a
+[La Suite numérique](https://github.com/suitenumerique) on a **single server** for a
 **non-profit**: single-node K3s + Helmfile, shared Keycloak SSO, CloudNativePG,
 pluggable S3 storage, and backups with tested restore.
 
-The product vision and phases are in [`docs/roadmap.md`](docs/roadmap.md). The binding
-design decisions are in [`docs/architecture/decisions.md`](docs/architecture/decisions.md)
+The product vision and phases are in [`docs/project/roadmap.md`](docs/project/roadmap.md). The binding
+design decisions are in [`docs/understand/decisions.md`](docs/understand/decisions.md)
 (ADR). **Read those before making changes.**
 
 ## Source of truth
@@ -27,9 +27,11 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `docs/` | MkDocs (Material) documentation — the spec. Pure Markdown. |
 | `mkdocs.yml` | Docs site config (theme, nav, llms.txt plugin). |
 | `requirements-docs.txt` | Docs toolchain (MkDocs Material + plugins). |
-| `Makefile` | Operator/dev entrypoints: `bootstrap`, `check`, `lint`, `test`, `test-full`. |
-| `ansible/` | VPS bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles (Phase 0). |
+| `Makefile` | Operator/dev entrypoints: `bootstrap`, `install`, `check`, `lint`, `test`, `test-full`, `test-platform`, `test-install`. |
+| `ansible/` | Server bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles (Phase 0). |
 | `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, Garage, the Docs app, and the off-site backups (rclone object copy, `garage-backup`); local charts, values, versions, k3d e2e. |
+| `suite/` | Phase 4 guided installer (`suite install`, ADR-018): config + seed, DNS records, propagation gate, SSH tunnel, ACME (staging→prod), HTTPS verify. Pure standard library; lint with `ruff` (`ruff.toml`). |
+| `tests/` | Unit tests for the `suite` installer (pytest; mocked resolvers, no cluster). |
 | `molecule/` | `default` (fast, host-prep roles) and `full` (real K3s) test scenarios + Testinfra. |
 | `requirements-dev.txt` | Dev/CI toolchain (Ansible, ansible-lint, yamllint, Molecule, Testinfra). |
 | `.github/workflows/docs.yml` | Builds & deploys the docs to GitHub Pages. |
@@ -53,7 +55,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
    `helmfile/versions/versions.yaml` (Renovate-tracked).
 4. **No plaintext secrets** — everything derives from `secretSeed` or an explicit
    override; nothing secret is committed.
-5. **Backups go off-site** — the backup destination must survive loss of the VPS, so it
+5. **Backups go off-site** — the backup destination must survive loss of the server, so it
    is **never** the in-cluster store you are backing up (ADR-006, ADR-017).
 
 ## Build the docs
@@ -64,21 +66,23 @@ pip install -r requirements-docs.txt
 mkdocs serve   # http://127.0.0.1:8000
 ```
 
-## Bootstrap & test the VPS layer
+## Bootstrap & test the server layer
 
 ```bash
 make deps        # Ansible + collections + test tooling (requirements-dev.txt)
 make check       # dry-run the bootstrap against your inventory
-make bootstrap   # provision a Debian VPS into a ready single-node K3s cluster
+make bootstrap   # provision a Debian server into a ready single-node K3s cluster
 make lint test   # static checks + Molecule container tests (Docker required)
 ```
 
-The testing approach (layered, evolving) is [ADR-010](docs/architecture/decisions.md);
-the operator guide is [docs/operations/bootstrap.md](docs/operations/bootstrap.md).
+The testing approach (layered, evolving) is [ADR-010](docs/understand/decisions.md);
+the operator guide is [docs/get-started/bootstrap.md](docs/get-started/bootstrap.md).
 
 ## Deploy & test the shared infrastructure (Phase 1)
 
 ```bash
+make install         # Phase 4: guided bare server + domain -> HTTPS (wraps the steps below)
+
 export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required; never committed
 make sync            # helmfile sync — cert-manager, CNPG, Valkey, Keycloak (HTTPS)
 make diff            # preview pending changes
@@ -90,5 +94,5 @@ make restore         # rebuild a CLEAN cluster from off-site backups (ADR-006, A
 
 All credentials derive from `$OWNSUITE_SECRET_SEED` (ADR-012); versions are pinned in
 `helmfile/versions/versions.yaml` (Renovate-tracked). See
-[docs/operations/platform.md](docs/operations/platform.md) and
-[docs/operations/backups.md](docs/operations/backups.md).
+[docs/understand/platform.md](docs/understand/platform.md) and
+[docs/operate/backups.md](docs/operate/backups.md).

@@ -6,8 +6,11 @@ on:
     paths:
       - "ansible/**"
       - "molecule/**"
+      - "suite/**"
+      - "tests/**"
       - "Makefile"
       - "requirements-dev.txt"
+      - "ruff.toml"
       - ".yamllint"
       - ".ansible-lint"
       - ".github/workflows/ci.yml"
@@ -15,8 +18,11 @@ on:
     paths:
       - "ansible/**"
       - "molecule/**"
+      - "suite/**"
+      - "tests/**"
       - "Makefile"
       - "requirements-dev.txt"
+      - "ruff.toml"
       - ".yamllint"
       - ".ansible-lint"
       - ".github/workflows/ci.yml"
@@ -36,6 +42,9 @@ jobs:
       - run: ansible-galaxy collection install -r ansible/requirements.yml
       # Helm/Helmfile static checks run in helmfile-ci.yml (separate paths).
       - run: make lint-ansible
+      # `suite` installer (Phase 4): lint + fast unit tests (no cluster).
+      - run: make lint-py
+      - run: python -m pytest tests -q
 
   molecule:
     needs: lint

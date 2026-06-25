@@ -1,0 +1,18 @@
+---
+# Overridden by Helmfile (values/keycloak-config.yaml.gotmpl). Defaults below keep
+# `helm lint`/`helm template` of this chart standalone working (no clients => the
+# Job is a no-op).
+realm: ownsuite
+domain: ownsuite.localhost
+# In-cluster Keycloak HTTP endpoint (codecentric/keycloakx => <release>-keycloakx-http).
+keycloakServiceUrl: http://keycloak-keycloakx-http.ownsuite.svc.cluster.local
+# Keycloak image — ships kcadm.sh. Pinned in versions.yaml, passed via Helmfile.
+image:
+  repository: quay.io/keycloak/keycloak
+  tag: ""
+# Bootstrap admin credentials (master realm) and the per-client OIDC secrets,
+# both emitted by platform-configuration (ADR-012).
+adminSecretName: keycloak-admin
+oidcClientsSecretName: keycloak-oidc-clients
+# One entry per app: {clientId, directAccessGrants?}. Mirrors keycloak.clients.
+clients: []

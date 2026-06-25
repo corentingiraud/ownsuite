@@ -1,7 +1,7 @@
 # OwnSuite
 
 > Self-host **[La Suite numérique](https://github.com/suitenumerique)**,
-> *production-ready*, on a **single VPS**, for a **non-profit**.
+> *production-ready*, on a **single server**, for a **non-profit**.
 
 The goal: a volunteer shows up with a domain name and some technical know-how, and
 walks away with a full collaborative suite (documents, files, directory…) served over
@@ -9,8 +9,8 @@ walks away with a full collaborative suite (documents, files, directory…) serv
 
 ## The promise, in 6 steps
 
-1. Rent a VPS and a domain name.
-2. Run the installer, answer ~5 questions (domain, admin email, which apps).
+1. Get a server — a cloud VM, a dedicated host, or a home server — and a domain name.
+2. Run the **[guided installer](get-started/install.md)**, answer ~5 questions (domain, admin email, apps).
 3. The installer prints **the exact list of DNS records** to add at the registrar.
 4. DNS propagates → every app responds over HTTPS, with **shared SSO**.
 5. The admin creates `firstname@assoc.org` **once** → instant access to Docs, Drive, etc.
@@ -27,17 +27,30 @@ cache, storage and — above all — **one SSO** across every app, plus everythi
 production needs: **backups, tested restore, controlled upgrades**.
 
 !!! info "Status"
-    Early-stage project. The design is documented here; code follows the
-    [roadmap](roadmap.md). See also the [architecture decisions](architecture/decisions.md).
+    Phases 0–4 are built and proven in CI — bootstrap, shared infrastructure, the Docs
+    app, off-site backups with a tested restore, and the guided installer. Broader apps
+    and hardening are on the [roadmap](project/roadmap.md); the rationale is in the
+    [architecture decisions](understand/decisions.md).
 
 ## Where to start
 
+**Installing it?** Follow the two steps in order:
+
 <div class="grid cards" markdown>
 
-- :material-sitemap: **[Architecture](architecture/overview.md)** — the stack, block by block.
-- :material-scale-balance: **[Decisions (ADR)](architecture/decisions.md)** — the choices and their rationale.
-- :material-map: **[Roadmap](roadmap.md)** — the phases to *production-ready*.
-- :material-robot: **[For AI agents](contributing/for-ai-agents.md)** — conventions for assisted development.
+- :material-server: **[1. Prepare the server](get-started/bootstrap.md)** — one command turns a bare Debian server into a ready K3s cluster.
+- :material-rocket-launch: **[2. Install](get-started/install.md)** — the guided installer takes you from there to every app on HTTPS, by following the screen.
+
+</div>
+
+**Curious how it works, or contributing?**
+
+<div class="grid cards" markdown>
+
+- :material-sitemap: **[Understand the stack](understand/overview.md)** — the architecture, block by block.
+- :material-backup-restore: **[Backups & restore](operate/backups.md)** — off-site, encrypted, with a tested restore.
+- :material-scale-balance: **[Decisions (ADR)](understand/decisions.md)** — the choices and their rationale.
+- :material-map: **[Roadmap](project/roadmap.md)** — the phases to *production-ready*.
 
 </div>
 
@@ -49,4 +62,4 @@ This documentation is **pure Markdown** and automatically publishes:
 - **`/llms-full.txt`** — the entire content concatenated into a single file.
 
 Any AI tool can fetch these files to load the full project context. See
-[For AI agents](contributing/for-ai-agents.md).
+[For AI agents](project/for-ai-agents.md).

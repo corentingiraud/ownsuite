@@ -1,0 +1,10 @@
+# Ruff config for the `suite` installer package and its tests (Phase 4).
+target-version = "py310"
+line-length = 100
+
+[lint]
+# pycodestyle errors, pyflakes, isort, bugbear, pyupgrade. Bandit (S) is omitted
+# on purpose: the installer's whole job is to shell out to ssh/helmfile/kubectl
+# (list-argv, never shell=True) and open https URLs it builds itself, which S
+# flags wholesale — the safe patterns are enforced in the code, not by noqa noise.
+select = ["E", "F", "I", "B", "UP"]

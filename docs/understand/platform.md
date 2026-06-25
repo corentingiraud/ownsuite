@@ -7,26 +7,27 @@ Phase 0 with one command, and reach **Keycloak over HTTPS**.
 > reachable over HTTPS.
 
 This is orchestrated with **Helmfile** (see
-[ADR-001](../architecture/decisions.md#adr-001-k3s-helmfile-not-compose-or-raw-helm)). It
+[ADR-001](decisions.md#adr-001-k3s-helmfile-not-compose-or-raw-helm)). It
 deploys, in dependency order:
 
 | Order | Release | What | ADR |
 |---|---|---|---|
-| 1 | `cert-manager` + `issuers` | TLS certificates (Let's Encrypt / self-signed ClusterIssuers) | [ADR-013](../architecture/decisions.md#adr-013-tls-issuance-cert-manager-http-01-per-subdomain-wildcard-dns-01-deferred) |
-| 2 | `cnpg-operator` | CloudNativePG operator (Postgres CRDs) | [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
-| 3 | `barman-cloud-plugin` | CNPG backup/recovery plugin (only when `backup.enabled`) | [ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
-| 4 | `platform-configuration` | All derived secrets + the Keycloak realm ConfigMap | [ADR-012](../architecture/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating) |
-| 5 | `postgres` | One CNPG `Cluster` + one `Database` per app (+ backup `ObjectStore`/`ScheduledBackup` when enabled) | [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
-| 6 | `valkey` | Cache / broker | [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
-| 7 | `garage` | In-cluster object store + bucket bootstrap (only in `garage` mode) | [ADR-015](../architecture/decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key) |
-| 8 | `garage-backup` | Off-site object store for backups (only when `backup.s3.target=in-cluster`) | [ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
-| 9 | `object-backup` | rclone off-site media copy CronJob (+ restore Job, when `backup.enabled`) | [ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
-| 10 | `keycloak` | SSO over HTTPS — the Phase 1 DoD | [ADR-011](../architecture/decisions.md#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator) |
+| 1 | `cert-manager` + `issuers` | TLS certificates (Let's Encrypt / self-signed ClusterIssuers) | [ADR-013](decisions.md#adr-013-tls-issuance-cert-manager-http-01-per-subdomain-wildcard-dns-01-deferred) |
+| 2 | `cnpg-operator` | CloudNativePG operator (Postgres CRDs) | [ADR-004](decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
+| 3 | `barman-cloud-plugin` | CNPG backup/recovery plugin (only when `backup.enabled`) | [ADR-017](decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
+| 4 | `platform-configuration` | All derived secrets + the Keycloak realm ConfigMap | [ADR-012](decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating) |
+| 5 | `postgres` | One CNPG `Cluster` + one `Database` per app (+ backup `ObjectStore`/`ScheduledBackup` when enabled) | [ADR-004](decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
+| 6 | `valkey` | Cache / broker | [ADR-004](decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
+| 7 | `garage` | In-cluster object store + bucket bootstrap (only in `garage` mode) | [ADR-015](decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key) |
+| 8 | `garage-backup` | Off-site object store for backups (only when `backup.s3.target=in-cluster`) | [ADR-017](decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
+| 9 | `object-backup` | rclone off-site media copy CronJob (+ restore Job, when `backup.enabled`) | [ADR-017](decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
+| 10 | `keycloak` | SSO over HTTPS — the Phase 1 DoD | [ADR-011](decisions.md#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator) |
+| 11 | `keycloak-config` | Idempotent `kcadm` OIDC-client upsert — realm convergence on every sync | [ADR-020](decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert) |
 
 After the shared infrastructure, **apps** are deployed as further releases (each
 gated on `apps.<name>.enabled`). The first is **Docs** — see
-[Docs application](docs.md) and [ADR-016](../architecture/decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split).
-Backups (off-site, with a tested restore) are covered in [Backups & restore](backups.md).
+[Docs application](docs.md) and [ADR-016](decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split).
+Backups (off-site, with a tested restore) are covered in [Backups & restore](../operate/backups.md).
 
 ## Layout
 
@@ -49,7 +50,7 @@ helmfile/
 ## Secrets — one seed, nothing committed
 
 Every credential is **derived** from a single `secretSeed`
-([ADR-012](../architecture/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)):
+([ADR-012](decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)):
 `deriveSecret = sha256sum("<seed>:<id>")` truncated. The seed is read from the environment
 at sync time and never written to the repo or the cluster.
 
@@ -68,7 +69,7 @@ sensible defaults), e.g.:
 | Variable | Default | Purpose |
 |---|---|---|
 | `OWNSUITE_DOMAIN` | `ownsuite.localhost` | Base domain; each app is `<name>.{domain}` |
-| `OWNSUITE_TLS_ISSUER` | `selfsigned` | `letsencrypt-http01` in production |
+| `OWNSUITE_TLS_ISSUER` | `selfsigned` | `letsencrypt-staging` / `letsencrypt-http01` for production — `make install` drives staging→prod |
 | `OWNSUITE_ACME_EMAIL` | `admin@example.org` | ACME registration email |
 | `OWNSUITE_ADMIN_EMAIL` | `admin@example.org` | Contact for app admin / superuser accounts |
 | `OWNSUITE_OBJECT_STORAGE_MODE` | `external` | `external` (managed S3) or `garage` (in-cluster) |
@@ -77,24 +78,26 @@ sensible defaults), e.g.:
 | `OWNSUITE_GARAGE_META_STORAGE` | `1Gi` | Garage metadata volume size (`garage` mode) |
 | `OWNSUITE_GARAGE_DATA_STORAGE` | `10Gi` | Garage data volume size (`garage` mode) |
 | `OWNSUITE_PG_STORAGE` | `10Gi` | Postgres volume size |
-| `OWNSUITE_BACKUP_ENABLED` | `false` | Enable off-site backups (see [Backups & restore](backups.md)) |
+| `OWNSUITE_BACKUP_ENABLED` | `false` | Enable off-site backups (see [Backups & restore](../operate/backups.md)) |
 | `OWNSUITE_BACKUP_S3_TARGET` | `in-cluster` | `external` (prod) or `in-cluster` (CI) off-site destination |
 
 The backup/restore knobs (`OWNSUITE_BACKUP_*`, `OWNSUITE_RESTORE`) are documented in full in
-[Backups & restore](backups.md).
+[Backups & restore](../operate/backups.md).
 
-## Run it (interim manual flow)
+## Run it (manual fallback)
 
-!!! note "This becomes the `suite` CLI"
-    Everything below is the Phase 1 manual path, documented lightly. The Phase 4
-    installer and the `suite` CLI (Phase 5) will wrap these steps — config prompts
-    and the SSH tunnel — so an admin won't run them by hand.
+!!! tip "Prefer the guided installer"
+    [`make install`](../get-started/install.md) now wraps every step below — config prompts, the SSH
+    tunnel, the DNS records, propagation, and staging→production certificates
+    ([ADR-018](decisions.md#adr-018-phase-4-guided-installer-suite-install)).
+    The manual flow stays here as a fallback and to show what the installer does; the
+    Phase 5 `suite` CLI will grow upgrades/restore on top.
 
 Everything runs from **your workstation** (clone the repo locally once; nothing to
-install on the VPS beyond the bootstrap — [ADR-014](../architecture/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).
+install on the server beyond the bootstrap — [ADR-014](decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).
 
 ```bash
-# 1. Provision the VPS (Ansible, remote over SSH) — fetches ./kubeconfig
+# 1. Provision the server (Ansible, remote over SSH) — fetches ./kubeconfig
 make bootstrap
 
 # 2. Configure (copy the example, edit, load into the shell)
@@ -102,7 +105,7 @@ cp .env.example .env && $EDITOR .env
 set -a && source .env && set +a
 
 # 3. Open an SSH tunnel to the K8s API — keep it running in another terminal
-make tunnel            # ssh -N -L 6443:127.0.0.1:6443 $OWNSUITE_VPS_SSH
+make tunnel            # ssh -N -L 6443:127.0.0.1:6443 $OWNSUITE_SERVER_SSH
 
 # 4. Deploy the shared infrastructure
 make diff              # preview
@@ -128,18 +131,18 @@ curl -s https://auth.assoc.example.org/realms/ownsuite/.well-known/openid-config
   Phase 1 provisions only the `keycloak` database.
 - **Pluggable object storage.** S3 credentials are always derived (the seam is ready), but
   no in-cluster storage is deployed by default — the production default is an external EU
-  S3 endpoint ([ADR-003](../architecture/decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3)).
+  S3 endpoint ([ADR-003](decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3)).
   Garage is wired but off until an app needs it.
 - **Off-site backups, tested restore.** CNPG PITR + an off-site object copy, with a
   CI-proven restore, are wired in Phase 3 (off by default; enable with `OWNSUITE_BACKUP_ENABLED`)
-  — see [Backups & restore](backups.md),
-  [ADR-006](../architecture/decisions.md#adr-006-backups-and-tested-restore) and
-  [ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design).
+  — see [Backups & restore](../operate/backups.md),
+  [ADR-006](decisions.md#adr-006-backups-and-tested-restore) and
+  [ADR-017](decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design).
 
 ## Tests
 
 The Helmfile stack has its own layered checks
-([ADR-010](../architecture/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)):
+([ADR-010](decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)):
 
 ```bash
 make lint-helm       # helm lint + helmfile template + kubeconform (CRD-aware)
@@ -151,7 +154,7 @@ make test-platform   # full DoD on a throwaway k3d cluster (heavy)
 self-signed issuer, asserts cert-manager / CNPG / Valkey / Keycloak / Docs are up (incl. the
 SSO document DoD), then runs a full **backup → destroy → restore** cycle and asserts the
 document, the Keycloak user and the media object survived (Phase 3 — see
-[Backups & restore](backups.md)). It is heavy, so it runs nightly and on Helmfile changes
+[Backups & restore](../operate/backups.md)). It is heavy, so it runs nightly and on Helmfile changes
 (`helmfile-e2e.yml`), not on every PR.
 
 !!! note "HTTPS in CI"

@@ -1,6 +1,6 @@
 site_name: OwnSuite
 site_description: >-
-  Self-host La Suite numérique, production-ready, on a single VPS, for a
+  Self-host La Suite numérique, production-ready, on a single server, for a
   non-profit — K3s, Helmfile, shared SSO, backups included.
 # site_url is REQUIRED by the llmstxt plugin and by navigation.instant.
 site_url: https://corentingiraud.github.io/ownsuite/
@@ -74,36 +74,51 @@ plugins:
   - llmstxt:
       markdown_description: >-
         OwnSuite: an open-source, production-ready deployment of La
-        Suite numérique on a single VPS for a non-profit (K3s + Helmfile, shared
+        Suite numérique on a single server for a non-profit (K3s + Helmfile, shared
         Keycloak SSO, CloudNativePG, pluggable S3 storage, backups and tested
         restore).
       full_output: llms-full.txt
       sections:
         Overview:
           - index.md: Project overview and product vision.
-        Architecture:
-          - architecture/overview.md: The stack and its building blocks.
-          - architecture/decisions.md: Architecture Decision Records (ADR) and their rationale.
-        Roadmap:
-          - roadmap.md: Project phases and definition of done.
-        Operations:
-          - operations/bootstrap.md: One-command VPS bootstrap into a single-node K3s cluster.
-          - operations/platform.md: Helmfile shared infrastructure (cert-manager, CNPG, Valkey, Keycloak over HTTPS).
-          - operations/docs.md: Docs application (SSO, S3 storage, real-time collaboration) wired to the foundation.
-          - operations/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
-        Contributing:
-          - contributing/for-ai-agents.md: Conventions for AI agents and the documentation.
+        Get started:
+          - get-started/bootstrap.md: Step 1 — one-command server bootstrap into a single-node K3s cluster.
+          - get-started/install.md: Step 2 — guided installer (suite install), bare server + domain to all-in-HTTPS.
+        Operate:
+          - operate/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
+        Understand the stack:
+          - understand/overview.md: The stack and its building blocks.
+          - understand/platform.md: Helmfile shared infrastructure (cert-manager, CNPG, Valkey, Keycloak over HTTPS).
+          - understand/docs.md: Docs application (SSO, S3 storage, real-time collaboration) wired to the foundation.
+          - understand/decisions.md: Architecture Decision Records (ADR) and their rationale.
+        Project:
+          - project/roadmap.md: Project phases and definition of done.
+          - project/for-ai-agents.md: Conventions for AI agents and the documentation.
+  # Keep pre-restructure URLs valid after the task-oriented folder move.
+  - redirects:
+      redirect_maps:
+        architecture/overview.md: understand/overview.md
+        architecture/decisions.md: understand/decisions.md
+        operations/bootstrap.md: get-started/bootstrap.md
+        operations/install.md: get-started/install.md
+        operations/platform.md: understand/platform.md
+        operations/docs.md: understand/docs.md
+        operations/backups.md: operate/backups.md
+        contributing/for-ai-agents.md: project/for-ai-agents.md
+        roadmap.md: project/roadmap.md
 
 nav:
   - Home: index.md
-  - Architecture:
-      - Overview: architecture/overview.md
-      - Decisions (ADR): architecture/decisions.md
-  - Roadmap: roadmap.md
-  - Operations:
-      - VPS bootstrap: operations/bootstrap.md
-      - Shared infrastructure: operations/platform.md
-      - Docs application: operations/docs.md
-      - Backups & restore: operations/backups.md
-  - Contributing:
-      - For AI agents: contributing/for-ai-agents.md
+  - Get started:
+      - 1. Prepare the server: get-started/bootstrap.md
+      - 2. Install: get-started/install.md
+  - Operate:
+      - Backups & restore: operate/backups.md
+  - Understand the stack:
+      - Architecture: understand/overview.md
+      - Shared infrastructure: understand/platform.md
+      - Docs application: understand/docs.md
+      - Decisions (ADR): understand/decisions.md
+  - Project:
+      - Roadmap: project/roadmap.md
+      - For AI agents: project/for-ai-agents.md

@@ -1,0 +1,10 @@
+apiVersion: v2
+name: keycloak-config
+description: >-
+  Keycloak realm convergence (ADR-016, ADR-020): a post-install/post-upgrade
+  kcadm Job that idempotently upserts each OIDC client, so adding or changing a
+  client takes effect on an already-imported realm (`--import-realm` only fires
+  on Keycloak's first boot). Talks to Keycloak over the in-cluster HTTP service,
+  so it needs no Kubernetes API access.
+type: application
+version: 0.1.0

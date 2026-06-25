@@ -1,12 +1,12 @@
 # OwnSuite — Roadmap
 
 Quick status board. Full narrative, rationale and "definition of done" per phase live
-in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
-**[architecture decisions](docs/architecture/decisions.md)**.
+in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
+**[architecture decisions](docs/understand/decisions.md)**.
 
 **Legend:** ✅ done · 🚧 in progress · ⬜ not started
 
-**Current focus:** Phase 3 — backups & tested restore.
+**Current focus:** Phase 5 — broaden apps + user provisioning.
 
 ---
 
@@ -14,9 +14,9 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 - [x] Lock the stack (K3s + Helmfile, CNPG, Valkey, Garage/external S3 — see ADRs)
 - [x] Pick name (**OwnSuite**) and license (**AGPL-3.0**)
 - [x] Initialize repo + documentation site (MkDocs Material + `llms.txt`)
-- [x] VPS bootstrap (Ansible): K3s, firewall, fail2ban, swap, sysctl
+- [x] server bootstrap (Ansible): K3s, firewall, fail2ban, swap, sysctl
 - [x] Layered, evolving CI test harness (lint + Molecule/Testinfra + nightly full bootstrap — ADR-010)
-- **DoD:** `make bootstrap` turns a bare Debian VPS into a ready single-node K3s cluster.
+- **DoD:** `make bootstrap` turns a bare Debian server into a ready single-node K3s cluster.
 
 ## Phase 1 — Reusable infrastructure foundation ✅
 - [x] Traefik + cert-manager + Let's Encrypt / self-signed ClusterIssuers (ADR-013)
@@ -36,7 +36,7 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 - [ ] Full browser-driven SSO + collaboration check (deferred to a targeted job)
 - **DoD:** a Keycloak user logs into Docs and creates a persistent document.
 
-## Phase 3 — Backups & restore (production pillar) 🚧
+## Phase 3 — Backups & restore (production pillar) ✅
 - [x] Postgres PITR to off-site S3 via CNPG Barman Cloud Plugin (recovery-window retention — ADR-017)
 - [x] Object backup off-site with `rclone` (encrypted, both garage and external modes)
 - [x] Keycloak covered by PITR of its database (realm + users) — refines ADR-006's realm export
@@ -44,14 +44,20 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 - [x] Tested restore path: `make restore` + k3d e2e backup→destroy→restore cycle
 - **DoD:** destroy an instance and fully restore it from backups (Docs document + Keycloak user survive, proven by CI).
 
-## Phase 4 — "Domain → DNS → it works" experience ⬜
-- [ ] Interactive installer (domain, admin email, app selection)
-- [ ] Generate the exact DNS records to set (wildcard A/AAAA, CAA)
-- [ ] Propagation check + certificate issuance
-- **DoD:** from a bare VPS + domain, the org follows the screen and everything serves HTTPS.
+## Phase 4 — "Domain → DNS → it works" experience ✅
+- [x] Interactive, idempotent installer `suite install` (config + seed) wrapping bootstrap→sync (ADR-018)
+- [x] Generate the exact DNS records (wildcard A + apex, AAAA when present, CAA) + propagation gate
+- [x] Certificate issuance: additive `letsencrypt-staging` issuer, staging→production (ADR-019)
+- [x] SSH tunnel automation + per-host HTTPS verification
+- [x] Idempotent Keycloak OIDC client upsert on an already-imported realm (ADR-020)
+- [x] k3d e2e: installer drives config→sync→certs Ready→HTTPS (self-signed); real ACME proven off-CI
+- **DoD:** from a bare server + domain, the org follows the screen and everything serves HTTPS.
 
 ## Phase 5 — Broaden apps + user provisioning ⬜
-- [ ] Add Drive, then People (Helmfile profiles)
+- [ ] Add Drive (Helmfile profile; same CNPG + Valkey + S3 + Keycloak seam as Docs — no People dependency)
+- [ ] Add Grist (collaborative spreadsheet, getgrist self-hosted — Node stack, not suitenumerique Django/React; OIDC wiring differs from the impress apps)
+- [ ] Add Projects (suitenumerique/projects — kanban/task boards; Node/Sails.js + React, OIDC via Keycloak; docker-compose only, no Helm yet)
+- [ ] People deferred / optional — identity stays in Keycloak (ADR-012/020); revisit only if app-level teams need it
 - [ ] `suite` CLI: create/disable users, password reset (Keycloak, JIT to all apps)
 - **DoD:** `suite user add firstname@assoc.org` grants Docs + Drive immediately.
 
@@ -63,11 +69,11 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 ## Phase 7 — Production hardening & packaging ⬜
 - [ ] Resource limits, health checks, light monitoring
 - [ ] Upgrade strategy (pinned versions, migrations, Helm rollback, Renovate)
-- [ ] Non-profit-admin docs, troubleshooting, VPS sizing
+- [ ] Non-profit-admin docs, troubleshooting, server sizing
 - **DoD:** a third-party org installs and operates it without maintainer help.
 
 ---
 
 ## Out of scope (v1)
-- **Meet (video)** — LiveKit/coturn, painful on a single VPS. Deferred.
+- **Meet (video)** — LiveKit/coturn, painful on a single server. Deferred.
 - **Mailbox** — not part of La Suite numérique; optional add-on (Phase 6).

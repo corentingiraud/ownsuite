@@ -1,10 +1,10 @@
 # Backups & tested restore
 
 OwnSuite backs up the **three sources of state** and **proves** it can restore them
-([ADR-006](../architecture/decisions.md#adr-006-backups-and-tested-restore),
-[ADR-017](../architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
+([ADR-006](../understand/decisions.md#adr-006-backups-and-tested-restore),
+[ADR-017](../understand/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
 Backups are **off-site by construction**: the destination must survive the loss of the
-VPS, so it is **never** the in-cluster Garage you are backing up.
+Server, so it is **never** the in-cluster Garage you are backing up.
 
 ## What is backed up
 
@@ -97,12 +97,12 @@ This runs a Helmfile sync in restore mode:
 3. **Apps** (Keycloak, Docs) come up against the restored database + bucket.
 
 `make restore` prefigures the backup-gated `suite restore`
-([ADR-007](../architecture/decisions.md#adr-007-upgrade-model-semver-releases-backup-gated-cli)).
+([ADR-007](../understand/decisions.md#adr-007-upgrade-model-semver-releases-backup-gated-cli)).
 
 ## Proven in CI
 
 The k3d e2e (`make test-platform`,
-[ADR-010](../architecture/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness))
+[ADR-010](../understand/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness))
 runs the full cycle every night and on Helmfile changes: it brings the stack up with backups on,
 creates a document and seeds a media object, backs them up, **destroys** the primary state
 (keeping only the off-site store + secrets + operators), runs `make restore`, and asserts the

@@ -125,7 +125,7 @@ releases:
   # --- Off-site backup store: second in-cluster Garage (ADR-006, ADR-017) ---
   # Deployed only when backups target an in-cluster store (CI / hermetic). Distinct
   # name/PVC/bucket from the primary Garage and kept across a primary destroy, so it
-  # stands in for storage that survives the VPS. In prod the off-site is external and
+  # stands in for storage that survives the server. In prod the off-site is external and
   # this release is absent.
   - name: garage-backup
     namespace: {{ $ns }}
@@ -167,6 +167,20 @@ releases:
       - cert-manager/issuers
     values:
       - values/keycloak.yaml.gotmpl
+
+  # --- Keycloak realm convergence: idempotent OIDC client upsert (ADR-016, ADR-020).
+  # `--import-realm` only seeds clients on Keycloak's FIRST boot; this kcadm Job
+  # reconciles them on every sync, so adding/changing a client takes effect on an
+  # already-imported realm. Ordered after Keycloak (admin API must be reachable);
+  # the post-install/post-upgrade hook Job blocks the release via `helm --wait`.
+  - name: keycloak-config
+    namespace: {{ $ns }}
+    chart: ./charts/keycloak-config
+    condition: keycloak.enabled
+    needs:
+      - {{ $ns }}/keycloak
+    values:
+      - values/keycloak-config.yaml.gotmpl
 
   # --- Docs ingress glue: Traefik middlewares for authenticated media (ADR-016).
   # Ordered after Keycloak so the K3s Traefik CRDs are present before these CRs.

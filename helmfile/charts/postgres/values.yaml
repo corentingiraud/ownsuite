@@ -35,7 +35,7 @@ backup:
   # S3 server-side encryption (e.g. AES256). Empty by default: Garage/S3-compatible
   # stores may not support SSE; rely on TLS + provider at-rest there. Set for AWS.
   encryption: ""
-  # Sidecar (barman) sizing — kept small for a single VPS.
+  # Sidecar (barman) sizing — kept small for a single server.
   sidecarResources:
     requests:
       cpu: "50m"
