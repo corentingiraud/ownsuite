@@ -57,8 +57,11 @@ KUBECONFIG=./kubeconfig kubectl get nodes   # the node should be Ready
   service (`10.43.0.0/16`) CIDRs are allowed explicitly — without that, CoreDNS and
   pod-to-pod traffic break. If you change K3s' CIDRs, update
   `firewall_allowed_tcp_ports`/CIDR vars to match.
-- **Fetched kubeconfig** points at `https://127.0.0.1:6443`. For remote use, replace
-  the server host with your VPS address (a later phase automates this).
+- **Fetched kubeconfig** points at `https://127.0.0.1:6443`. You reach the cluster from
+  your workstation through an SSH tunnel (`make tunnel`), so this address is used
+  as-is and the K8s API is never exposed — see
+  [shared infrastructure](platform.md) and
+  [ADR-014](../architecture/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel).
 
 ## Tests
 

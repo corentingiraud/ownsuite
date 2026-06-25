@@ -1,0 +1,41 @@
+{{- /*
+Keycloak realm-import ConfigMap (ADR-005). Keycloak is started with
+`--import-realm` and reads every *.json under /opt/keycloak/data/import, where
+this ConfigMap is mounted. The realm and one OIDC client per enabled app are
+built as data structures and serialized with toPrettyJson, so the client secret
+is derived from the same seed/id the app uses — Keycloak and the app match with
+no manual sync. Phase 1 ships the realm with no clients yet (apps arrive in
+Phase 2 by appending to keycloak.clients).
+*/ -}}
+{{- $clients := list -}}
+{{- range .Values.keycloak.clients }}
+  {{- $secret := include "ownsuite.getSecret" (dict "root" $ "id" (printf "%s-oidc" .clientId)) -}}
+  {{- $client := dict
+      "clientId" .clientId
+      "secret" $secret
+      "enabled" true
+      "protocol" "openid-connect"
+      "publicClient" false
+      "standardFlowEnabled" true
+      "redirectUris" (list (printf "https://%s.%s/*" .clientId $.Values.domain))
+      "webOrigins" (list (printf "https://%s.%s" .clientId $.Values.domain))
+  -}}
+  {{- $clients = append $clients $client -}}
+{{- end }}
+{{- $realm := dict
+    "realm" .Values.keycloak.realm
+    "enabled" true
+    "displayName" "OwnSuite"
+    "sslRequired" "external"
+    "registrationAllowed" false
+    "clients" $clients
+-}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-import
+  labels:
+    app.kubernetes.io/managed-by: platform-configuration
+data:
+  {{ .Values.keycloak.realm }}-realm.json: |
+{{ toPrettyJson $realm | indent 4 }}

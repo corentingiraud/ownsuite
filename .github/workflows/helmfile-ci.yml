@@ -1,0 +1,43 @@
+name: helmfile-ci
+
+# Fast static checks for the Helmfile stack: helm lint on the local charts, a
+# full `helmfile template` render, and kubeconform schema validation (incl. the
+# cert-manager / CloudNativePG CRDs). Runs on every change under helmfile/.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "helmfile/**"
+      - "Makefile"
+      - ".github/workflows/helmfile-ci.yml"
+  pull_request:
+    paths:
+      - "helmfile/**"
+      - "Makefile"
+      - ".github/workflows/helmfile-ci.yml"
+  workflow_dispatch:
+
+env:
+  # Pinned CLI tools (tracked by Renovate via the workflow customManager).
+  HELM_VERSION: "v4.2.2" # renovate: datasource=github-releases depName=helm/helm
+  HELMFILE_VERSION: "v1.6.0" # renovate: datasource=github-releases depName=helmfile/helmfile
+  KUBECONFORM_VERSION: "v0.8.0" # renovate: datasource=github-releases depName=yannh/kubeconform
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install helm, helmfile, kubeconform (pinned)
+        # Extract in a clean temp dir: the repo root has a `helmfile/` directory,
+        # which would collide with `tar x helmfile` (the binary).
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo install linux-amd64/helm /usr/local/bin/helm
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION#v}_linux_amd64.tar.gz" | tar xz helmfile
+          sudo install helmfile /usr/local/bin/helmfile
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar xz kubeconform
+          sudo install kubeconform /usr/local/bin/kubeconform
+      - name: Helm/Helmfile static checks
+        run: make lint-helm

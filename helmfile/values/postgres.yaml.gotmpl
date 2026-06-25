@@ -1,0 +1,7 @@
+cluster:
+  name: {{ .Values.postgres.clusterName | quote }}
+  instances: 1
+  storage:
+    size: {{ .Values.postgres.storageSize | quote }}
+databases:
+{{ .Values.databases | toYaml | indent 2 }}

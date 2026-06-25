@@ -1,0 +1,11 @@
+# cert-manager (ADR-013). Install CRDs with the chart and keep them on uninstall
+# so issued Certificates/Secrets survive a chart removal. Single-node sizing.
+crds:
+  enabled: true
+  keep: true
+
+replicaCount: 1
+webhook:
+  replicaCount: 1
+cainjector:
+  replicaCount: 1

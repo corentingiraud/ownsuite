@@ -1,0 +1,5 @@
+# CloudNativePG operator (ADR-004). Installs the CRDs (Cluster, Database, ...).
+# Single replica is right for a single-node cluster.
+replicaCount: 1
+crds:
+  create: true

@@ -1,0 +1,11 @@
+---
+apiVersion: v2
+name: platform-configuration
+description: >-
+  OwnSuite shared configuration. Derives every credential from a single
+  secretSeed (ADR-012) and emits them as Kubernetes Secrets, plus the Keycloak
+  realm-import ConfigMap (realm + one OIDC client per enabled app).
+type: application
+# Local chart — versioned with the repository, not published.
+version: 0.1.0
+appVersion: "1"

@@ -1,0 +1,99 @@
+# OwnSuite shared infrastructure (Phase 1) — Helmfile orchestration (ADR-001).
+#
+#   export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"
+#   helmfile -f helmfile/helmfile.yaml.gotmpl sync   # or: make sync
+#
+# Release order is enforced with `needs:` — config/secrets and operators come up
+# before the workloads that consume them. Components toggle via `condition:`.
+environments:
+  default:
+    values:
+      - versions/versions.yaml
+      - environments/default.yaml.gotmpl
+---
+{{- $ns := .Values.workloadsNamespace -}}
+repositories:
+  - name: jetstack
+    url: https://charts.jetstack.io
+  - name: cloudnative-pg
+    url: https://cloudnative-pg.github.io/charts
+  - name: codecentric
+    url: https://codecentric.github.io/helm-charts
+  - name: groundhog2k
+    url: https://groundhog2k.github.io/helm-charts
+
+helmDefaults:
+  wait: true
+  # Generous: Keycloak's first boot pulls a large image and runs a DB migration.
+  timeout: 900
+  createNamespace: true
+
+releases:
+  # --- TLS: cert-manager + ClusterIssuers (ADR-013) ------------------------
+  - name: cert-manager
+    namespace: cert-manager
+    chart: jetstack/cert-manager
+    version: {{ .Values.chartVersions.certManager | quote }}
+    condition: certManager.enabled
+    values:
+      - values/cert-manager.yaml.gotmpl
+
+  - name: issuers
+    namespace: cert-manager
+    chart: ./charts/issuers
+    condition: certManager.enabled
+    needs:
+      - cert-manager/cert-manager
+    values:
+      - values/issuers.yaml.gotmpl
+
+  # --- Database: CloudNativePG operator (ADR-004) --------------------------
+  - name: cnpg-operator
+    namespace: cnpg-system
+    chart: cloudnative-pg/cloudnative-pg
+    version: {{ .Values.chartVersions.cnpgOperator | quote }}
+    condition: postgres.enabled
+    values:
+      - values/cnpg-operator.yaml.gotmpl
+
+  # --- Shared config + derived secrets + Keycloak realm (ADR-005, ADR-012) -
+  - name: platform-configuration
+    namespace: {{ $ns }}
+    chart: ./charts/platform-configuration
+    values:
+      - values/platform-configuration.yaml.gotmpl
+
+  # --- PostgreSQL cluster + per-app databases (ADR-004) --------------------
+  - name: postgres
+    namespace: {{ $ns }}
+    chart: ./charts/postgres
+    condition: postgres.enabled
+    needs:
+      - cnpg-system/cnpg-operator
+      - {{ $ns }}/platform-configuration
+    values:
+      - values/postgres.yaml.gotmpl
+
+  # --- Cache / broker (ADR-004) --------------------------------------------
+  - name: valkey
+    namespace: {{ $ns }}
+    chart: groundhog2k/valkey
+    version: {{ .Values.chartVersions.valkey | quote }}
+    condition: valkey.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+    values:
+      - values/valkey.yaml.gotmpl
+
+  # --- SSO: Keycloak over HTTPS (ADR-005, ADR-011) — the Phase 1 DoD -------
+  - name: keycloak
+    namespace: {{ $ns }}
+    chart: codecentric/keycloakx
+    version: {{ .Values.chartVersions.keycloakx | quote }}
+    condition: keycloak.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/postgres
+      - cert-manager/issuers
+    values:
+      - values/keycloak.yaml.gotmpl

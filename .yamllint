@@ -26,3 +26,6 @@ ignore: |
   .venv/
   site/
   .galaxy/
+  # Helm chart templates are Go-templated YAML (not valid standalone YAML).
+  # The Helmfile values/environments are *.gotmpl, which yamllint skips anyway.
+  helmfile/charts/*/templates/

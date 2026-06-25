@@ -1,0 +1,10 @@
+---
+apiVersion: v2
+name: issuers
+description: >-
+  cert-manager ClusterIssuers for OwnSuite (ADR-013): a self-signed issuer for
+  CI/dev and a Let's Encrypt HTTP-01 issuer for production. Keycloak's Ingress
+  selects one via the tls.issuer setting.
+type: application
+version: 0.1.0
+appVersion: "1"

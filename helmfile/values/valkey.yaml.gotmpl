@@ -1,0 +1,9 @@
+# Valkey (ADR-004) — cache / broker, standalone, single-node. Ephemeral storage:
+# a cache needs no persistence in v1. The password is injected via a Secret
+# (requirepass), not a ConfigMap — see platform-configuration. Image tag is
+# pinned by the chart version (versions.yaml).
+fullnameOverride: valkey
+
+# Append `requirepass <derived>` to valkey.conf from a Secret, so the password is
+# never rendered into a ConfigMap or committed.
+extraSecretValkeyConfigs: valkey-extra-config

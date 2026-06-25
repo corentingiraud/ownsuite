@@ -24,6 +24,11 @@
       "description": "Group Ansible collection bumps.",
       "matchManagers": ["ansible-galaxy"],
       "groupName": "ansible collections"
+    },
+    {
+      "description": "Group Helmfile chart and image bumps into one PR.",
+      "matchFileNames": ["helmfile/versions/versions.yaml"],
+      "groupName": "helmfile stack"
     }
   ],
   "customManagers": [
@@ -35,6 +40,33 @@
       "depNameTemplate": "k3s-io/k3s",
       "datasourceTemplate": "github-releases",
       "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
+    },
+    {
+      "description": "Track pinned Helm chart versions in the Helmfile stack.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^helmfile/versions/versions\\.yaml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) registryUrl=(?<registryUrl>\\S+) depName=(?<depName>\\S+)\\s+\\w+:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "{{{datasource}}}"
+    },
+    {
+      "description": "Track pinned image tags in the Helmfile stack.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^helmfile/versions/versions\\.yaml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+\\w+:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "{{{datasource}}}"
+    },
+    {
+      "description": "Track pinned CLI tool versions (helm/helmfile/kubeconform) in CI workflows.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "[A-Z_]+_VERSION:\\s*\"?(?<currentValue>[^\"\\s]+)\"?\\s*#\\s*renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)"
+      ],
+      "datasourceTemplate": "{{{datasource}}}"
     }
   ]
 }

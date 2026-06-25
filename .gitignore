@@ -10,10 +10,11 @@ venv/
 __pycache__/
 *.pyc
 
-# Secrets and local env files (never commit)
+# Secrets and local env files (never commit). The Helmfile stack derives every
+# credential from $OWNSUITE_SECRET_SEED at sync time; nothing secret is stored
+# in the repo. Committed Helmfile env/values are *.gotmpl (no secrets in them).
 *.secret-overrides.yaml
-environments/*.yaml
-!environments/*.example
+/helmfile/environments/secrets.yaml
 .env
 
 # Ansible — real inventory (keep only the example), retries, fetched kubeconfig
@@ -23,6 +24,9 @@ ansible/inventory/hosts.yml
 
 # Molecule ephemeral state
 .molecule/
+
+# pytest cache (Helmfile e2e assertions)
+.pytest_cache/
 
 # OS noise
 .DS_Store

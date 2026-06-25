@@ -1,0 +1,55 @@
+name: helmfile-e2e
+
+# Heavy end-to-end check: stand up a real single-node K3s with k3d, run
+# `helmfile sync`, and assert the shared infra is up with Keycloak reachable over
+# HTTPS — the machine-checked Phase 1 definition of done. Pulls operators and the
+# Keycloak image and waits for a DB migration, so it runs nightly and on changes
+# to the Helmfile stack, not on every PR (cost-aware, like bootstrap-e2e.yml).
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "helmfile/**"
+      - ".github/workflows/helmfile-e2e.yml"
+  pull_request:
+    paths:
+      - "helmfile/**"
+      - ".github/workflows/helmfile-e2e.yml"
+  workflow_dispatch:
+
+env:
+  # Pinned CLI tools (tracked by Renovate via the workflow customManager).
+  HELM_VERSION: "v4.2.2" # renovate: datasource=github-releases depName=helm/helm
+  HELMFILE_VERSION: "v1.6.0" # renovate: datasource=github-releases depName=helmfile/helmfile
+  KUBECONFORM_VERSION: "v0.8.0" # renovate: datasource=github-releases depName=yannh/kubeconform
+  K3D_VERSION: "v5.9.0" # renovate: datasource=github-releases depName=k3d-io/k3d
+  KUBECTL_VERSION: "v1.33.5" # renovate: datasource=github-releases depName=kubernetes/kubernetes
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install pytest==8.3.5
+      - name: Install helm, helmfile, kubeconform, k3d (pinned)
+        # Extract in a clean temp dir: the repo root has a `helmfile/` directory,
+        # which would collide with `tar x helmfile` (the binary).
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo install linux-amd64/helm /usr/local/bin/helm
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION#v}_linux_amd64.tar.gz" | tar xz helmfile
+          sudo install helmfile /usr/local/bin/helmfile
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar xz kubeconform
+          sudo install kubeconform /usr/local/bin/kubeconform
+          curl -fsSL "https://github.com/k3d-io/k3d/releases/download/${K3D_VERSION}/k3d-linux-amd64" -o k3d
+          sudo install k3d /usr/local/bin/k3d
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
+          sudo install kubectl /usr/local/bin/kubectl
+      - name: Helmfile e2e (sync + Keycloak HTTPS DoD)
+        run: make test-platform

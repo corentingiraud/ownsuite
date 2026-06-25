@@ -1,0 +1,18 @@
+secretSeed: {{ .Values.secretSeed | quote }}
+domain: {{ .Values.domain | quote }}
+secretOverrides:
+{{ .Values.secretOverrides | toYaml | indent 2 }}
+databases:
+{{ .Values.databases | toYaml | indent 2 }}
+keycloak:
+  realm: {{ .Values.keycloak.realm | quote }}
+  adminUser: admin
+  clients:
+{{ .Values.keycloak.clients | default list | toYaml | indent 4 }}
+objectStorage:
+  secretName: s3-credentials
+  endpoint: {{ .Values.objectStorage.endpoint | quote }}
+  region: {{ .Values.objectStorage.region | quote }}
+valkey:
+  secretName: valkey-credentials
+  configSecretName: valkey-extra-config
