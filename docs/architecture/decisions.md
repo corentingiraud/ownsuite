@@ -269,3 +269,31 @@ nothing but the port 80 the firewall already opens, so it is the right minimum f
 end-to-end TLS termination with the self-signed issuer (Let's Encrypt cannot be exercised
 without public DNS). DNS-01 wildcard becomes an additive ClusterIssuer in Phase 4 — no
 rework of the issuer-selection seam.
+
+---
+
+## ADR-014 — Operator control plane: local workstation + SSH tunnel
+
+**Context.** The Ansible bootstrap (ADR-002) runs remotely (workstation → VPS over
+SSH). The Phase 1 Helmfile layer needs the Kubernetes API (port 6443), but the
+firewall opens only 22/80/443 and the fetched kubeconfig points at
+`https://127.0.0.1:6443`. We must decide where `helmfile`/`kubectl`/the future `suite`
+CLI run, and how they reach the API.
+
+**Decision.** The **operator's workstation is the single control plane**. The repo is
+cloned locally once; nothing is installed on the VPS beyond what the bootstrap lays
+down. `helmfile`/`kubectl`/the `suite` CLI reach the cluster through an **SSH tunnel**
+to `127.0.0.1:6443` (`make tunnel`). The K8s API is **never exposed** — 6443 stays out
+of the firewall. The bootstrap-fetched kubeconfig is used **unchanged**: its
+`127.0.0.1:6443` server is correct through the tunnel, and the K3s API certificate
+lists `127.0.0.1` in its SANs, so TLS verification holds (no rewriting, no `--insecure`).
+
+**Why not run on the VPS.** It would mean cloning the repo and installing tooling on
+the box, splitting the workflow across two machines. **Why not expose 6443.** It
+enlarges the attack surface for no benefit on a single VPS; a tunnel is free and keeps
+the API private.
+
+**Consequences.** One place to operate from, a minimal VPS, and a private API. The
+tunnel must be open during `sync` (a manual `make tunnel` for now). The Phase 4
+installer / Phase 5 `suite` CLI will open the tunnel automatically, making this
+invisible — they implement this model rather than change it.

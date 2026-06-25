@@ -62,17 +62,35 @@ sensible defaults), e.g.:
 | `OWNSUITE_S3_ENDPOINT` | _(empty)_ | External S3 endpoint URL |
 | `OWNSUITE_PG_STORAGE` | `10Gi` | Postgres volume size |
 
-## Run it
+## Run it (interim manual flow)
+
+!!! note "This becomes the `suite` CLI"
+    Everything below is the Phase 1 manual path, documented lightly. The Phase 4
+    installer and the `suite` CLI (Phase 5) will wrap these steps — config prompts
+    and the SSH tunnel — so an admin won't run them by hand.
+
+Everything runs from **your workstation** (clone the repo locally once; nothing to
+install on the VPS beyond the bootstrap — [ADR-014](../architecture/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).
 
 ```bash
-export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"
-export OWNSUITE_DOMAIN="assoc.example.org"
-export OWNSUITE_TLS_ISSUER="letsencrypt-http01"   # production
-make sync            # helmfile sync — deploy/upgrade everything
-make diff            # preview pending changes before applying
+# 1. Provision the VPS (Ansible, remote over SSH) — fetches ./kubeconfig
+make bootstrap
+
+# 2. Configure (copy the example, edit, load into the shell)
+cp .env.example .env && $EDITOR .env
+set -a && source .env && set +a
+
+# 3. Open an SSH tunnel to the K8s API — keep it running in another terminal
+make tunnel            # ssh -N -L 6443:127.0.0.1:6443 $OWNSUITE_VPS_SSH
+
+# 4. Deploy the shared infrastructure
+make diff              # preview
+make sync              # apply
 ```
 
-When it finishes, Keycloak answers at `https://auth.{domain}`:
+`make sync` uses `./kubeconfig` (server `127.0.0.1:6443`) through the tunnel, so the
+K8s API is never exposed (the firewall keeps only 22/80/443). When it finishes,
+Keycloak answers at `https://auth.{domain}`:
 
 ```bash
 curl -s https://auth.assoc.example.org/realms/ownsuite/.well-known/openid-configuration

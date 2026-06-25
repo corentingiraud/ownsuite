@@ -14,6 +14,15 @@ LINT_SEED := OWNSUITE_SECRET_SEED=lint-only-not-a-secret
 # catalog (cert-manager, CloudNativePG, ...). Missing schemas are skipped.
 KUBECONFORM_SCHEMAS := -schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
+# Everything runs from your workstation (ADR-014). helmfile/kubectl reach the
+# cluster through the kubeconfig fetched by the bootstrap (server 127.0.0.1:6443),
+# via an SSH tunnel to the VPS — the K8s API is never exposed (firewall keeps only
+# 22/80/443). Open the tunnel with `make tunnel` before `make sync`.
+KUBECONFIG ?= ./kubeconfig
+export KUBECONFIG
+# SSH target for the tunnel, e.g. OWNSUITE_VPS_SSH=root@203.0.113.10
+OWNSUITE_VPS_SSH ?=
+
 .DEFAULT_GOAL := help
 
 .PHONY: help
@@ -50,8 +59,13 @@ lint-helm: ## Helm/Helmfile static checks: helm lint + render + kubeconform
 	$(LINT_SEED) helmfile -f $(HELMFILE) template | \
 		kubeconform -strict -ignore-missing-schemas -summary $(KUBECONFORM_SCHEMAS)
 
+.PHONY: tunnel
+tunnel: ## Open an SSH tunnel to the VPS K8s API on :6443 (set OWNSUITE_VPS_SSH=user@host)
+	@test -n "$(OWNSUITE_VPS_SSH)" || { echo "Set OWNSUITE_VPS_SSH=user@host (your VPS)"; exit 1; }
+	ssh -N -L 6443:127.0.0.1:6443 $(OWNSUITE_VPS_SSH)
+
 .PHONY: sync
-sync: ## Deploy/upgrade the shared infrastructure (requires $$OWNSUITE_SECRET_SEED)
+sync: ## Deploy/upgrade the shared infra (needs $$OWNSUITE_SECRET_SEED + an open `make tunnel`)
 	helmfile -f $(HELMFILE) sync
 
 .PHONY: diff
