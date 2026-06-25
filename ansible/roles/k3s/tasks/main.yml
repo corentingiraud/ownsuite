@@ -1,0 +1,85 @@
+---
+# Install a pinned single-node K3s server, wait for the node to be Ready, and
+# fetch the kubeconfig back to the operator.
+
+- name: Check whether K3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Read the installed K3s version
+  ansible.builtin.command: k3s --version
+  register: k3s_installed_version
+  changed_when: false
+  failed_when: false
+  when: k3s_binary.stat.exists
+
+- name: Create the K3s config directory
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the K3s server config
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart k3s
+
+- name: Download the K3s installer
+  ansible.builtin.get_url:
+    url: "{{ k3s_install_script_url }}"
+    dest: /usr/local/bin/k3s-install.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+# Run the installer when K3s is absent or the pinned version differs. The script
+# is idempotent and honours INSTALL_K3S_VERSION; config.yaml drives the rest.
+- name: Install or upgrade K3s to the pinned version
+  ansible.builtin.command: /usr/local/bin/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_EXEC: "server"
+  when: >-
+    not k3s_binary.stat.exists
+    or k3s_version not in (k3s_installed_version.stdout | default(''))
+  changed_when: true
+  notify: Restart k3s
+
+- name: Ensure the K3s service is enabled and started
+  ansible.builtin.systemd_service:
+    name: k3s
+    enabled: true
+    state: started
+
+- name: Flush handlers so any config/version change is applied before waiting
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the kubeconfig to be written
+  ansible.builtin.wait_for:
+    path: /etc/rancher/k3s/k3s.yaml
+    timeout: 120
+
+- name: Wait for the node to reach Ready
+  ansible.builtin.command: >-
+    k3s kubectl wait --for=condition=Ready node --all --timeout=180s
+  register: node_ready
+  changed_when: false
+  retries: 6
+  delay: 10
+  until: node_ready.rc == 0
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Fetch the kubeconfig to the operator's machine
+  ansible.builtin.fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ k3s_kubeconfig_local_path }}"
+    flat: true
+  when: k3s_fetch_kubeconfig | bool

@@ -1,0 +1,47 @@
+---
+# Create and enable a swap file idempotently.
+
+- name: Check whether the swap file already exists
+  ansible.builtin.stat:
+    path: "{{ common_swap_file }}"
+  register: swap_file_stat
+
+- name: Allocate the swap file
+  ansible.builtin.command:
+    cmd: "fallocate -l {{ common_swap_size_mb }}M {{ common_swap_file }}"
+    creates: "{{ common_swap_file }}"
+  when: not swap_file_stat.stat.exists
+
+- name: Secure the swap file permissions
+  ansible.builtin.file:
+    path: "{{ common_swap_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Format the swap file
+  ansible.builtin.command:
+    cmd: "mkswap {{ common_swap_file }}"
+  # Only the first time, i.e. when the file did not exist before this run.
+  when: not swap_file_stat.stat.exists
+  changed_when: true
+
+- name: Read the active swap areas on the target
+  ansible.builtin.slurp:
+    src: /proc/swaps
+  register: proc_swaps
+
+- name: Enable the swap file
+  ansible.builtin.command:
+    cmd: "swapon {{ common_swap_file }}"
+  # /proc/swaps lists active swap areas; only enable when ours is absent.
+  when: common_swap_file not in (proc_swaps.content | b64decode)
+  changed_when: true
+
+- name: Persist the swap file in /etc/fstab
+  ansible.posix.mount:
+    path: none
+    src: "{{ common_swap_file }}"
+    fstype: swap
+    opts: sw
+    state: present

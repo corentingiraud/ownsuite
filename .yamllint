@@ -1,0 +1,28 @@
+---
+# yamllint configuration for the repository.
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    level: warning
+  # Allow `{ key: value }` flow mappings (idiomatic in Ansible loops).
+  braces:
+    max-spaces-inside: 1
+  document-start: disable
+  # Ansible truthy values (yes/no/true/false) are fine.
+  truthy:
+    allowed-values: ["true", "false", "yes", "no"]
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable
+  # Required for compatibility with ansible-lint's yaml rule.
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+
+ignore: |
+  .venv/
+  site/
+  .galaxy/

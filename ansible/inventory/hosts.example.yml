@@ -1,0 +1,16 @@
+---
+# Example inventory. Copy to `hosts.yml` (gitignored) and edit for your VPS:
+#   cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml
+#
+# A single-node K3s "cluster" is one host in the `ownsuite` group.
+ownsuite:
+  hosts:
+    vps:
+      ansible_host: "203.0.113.10"   # your VPS public IP or DNS name
+      ansible_user: "root"           # or a sudo user (set ansible_become: true)
+      # ansible_become: true
+      # ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
+  vars:
+    # Per-deployment overrides go here, e.g.:
+    # common_timezone: "Europe/Paris"
+    # common_swap_size_mb: 4096

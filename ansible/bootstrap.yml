@@ -1,0 +1,23 @@
+---
+# OwnSuite VPS bootstrap.
+# Turns a bare Debian host into a ready single-node K3s cluster.
+# Run with: make bootstrap   (i.e. ansible-playbook -i inventory/hosts.yml bootstrap.yml)
+- name: Bootstrap a single-node K3s VPS
+  hosts: ownsuite
+  become: true
+  gather_facts: true
+  pre_tasks:
+    - name: Assert a supported Debian release
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['os_family'] == "Debian"
+          - ansible_facts['distribution'] == "Debian"
+          - ansible_facts['distribution_major_version'] | int in [12, 13]
+        fail_msg: >-
+          OwnSuite targets Debian 12 (bookworm) or 13 (trixie); found
+          {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}.
+        quiet: true
+  roles:
+    - role: common
+    - role: security
+    - role: k3s

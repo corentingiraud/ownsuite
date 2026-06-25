@@ -1,0 +1,40 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    "schedule:weekly"
+  ],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "packageRules": [
+    {
+      "description": "Group non-major Python dev/docs tooling bumps into one PR.",
+      "matchManagers": ["pip_requirements"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "python tooling (non-major)"
+    },
+    {
+      "description": "Group GitHub Actions bumps.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "Group Ansible collection bumps.",
+      "matchManagers": ["ansible-galaxy"],
+      "groupName": "ansible collections"
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Track the pinned K3s release in group_vars.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^ansible/group_vars/all\\.yml$/"],
+      "matchStrings": ["k3s_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "k3s-io/k3s",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
+    }
+  ]
+}

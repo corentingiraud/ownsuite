@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  role_name: k3s
+  author: OwnSuite
+  description: Install a pinned single-node K3s server and fetch its kubeconfig.
+  license: AGPL-3.0-or-later
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+dependencies: []

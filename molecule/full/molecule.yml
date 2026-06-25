@@ -1,0 +1,65 @@
+---
+# Full DoD scenario: run the entire bootstrap (incl. a real, pinned K3s install)
+# in a privileged systemd container, then assert the node is Ready.
+# Heavy — runs nightly and when the k3s role changes, not on every PR.
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  - name: ownsuite-full-${MOLECULE_DISTRO:-debian12}
+    image: ${MOLECULE_IMAGE:-geerlingguy/docker-debian12-ansible:latest}
+    # Matches `hosts: ownsuite` in ansible/bootstrap.yml.
+    groups:
+      - ownsuite
+    command: /lib/systemd/systemd
+    systemd: true
+    privileged: true
+    cgroupns_mode: host
+    # K3s needs these mounts/capabilities to run containerd inside the container.
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - /lib/modules:/lib/modules:ro
+    tmpfs:
+      - /run
+      - /run/lock
+    pre_build_image: true
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/ansible/roles"
+  inventory:
+    # host_vars (not group_vars) so these outrank the playbook-adjacent
+    # ansible/group_vars/all.yml. Defined for both matrix hostnames; the
+    # non-active one is simply ignored.
+    host_vars:
+      ownsuite-full-debian12: &full_overrides
+        # No swap device in a container; swapon would fail with EINVAL.
+        common_swap_size_mb: 0
+        # Keep the kubeconfig on the box; nothing to fetch it to in CI.
+        k3s_fetch_kubeconfig: false
+        # Test-only: containerd's overlayfs snapshotter can't mount overlay-on-
+        # overlay inside a container (Docker-in-Docker), so use the native
+        # snapshotter here. A real VPS keeps the default overlayfs on real disk.
+        k3s_extra_server_args:
+          - "snapshotter: native"
+      ownsuite-full-debian13: *full_overrides
+  playbooks:
+    converge: ../../ansible/bootstrap.yml
+
+scenario:
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - converge
+    - idempotence
+    - verify
+    - destroy
+
+verifier:
+  name: testinfra

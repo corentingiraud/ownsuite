@@ -16,5 +16,13 @@ environments/*.yaml
 !environments/*.example
 .env
 
+# Ansible — real inventory (keep only the example), retries, fetched kubeconfig
+ansible/inventory/hosts.yml
+*.retry
+/kubeconfig
+
+# Molecule ephemeral state
+.molecule/
+
 # OS noise
 .DS_Store

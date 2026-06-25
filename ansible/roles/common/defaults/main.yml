@@ -1,0 +1,14 @@
+---
+# Defaults for the common role. Override in group_vars/all.yml or the inventory.
+common_swap_size_mb: 2048
+common_swap_file: /swapfile
+common_swappiness: 10
+common_timezone: "Etc/UTC"
+common_base_packages:
+  - curl
+  - ca-certificates
+  - gnupg
+  - apt-transport-https
+  - python3-apt
+# Enable unattended security upgrades (Debian-security only by default).
+common_unattended_upgrades: true

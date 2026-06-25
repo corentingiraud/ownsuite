@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ansible/**"
+      - "molecule/**"
+      - "Makefile"
+      - "requirements-dev.txt"
+      - ".yamllint"
+      - ".ansible-lint"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "ansible/**"
+      - "molecule/**"
+      - "Makefile"
+      - "requirements-dev.txt"
+      - ".yamllint"
+      - ".ansible-lint"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ansible-galaxy collection install -r ansible/requirements.yml
+      - run: make lint
+
+  molecule:
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian12
+            image: "geerlingguy/docker-debian12-ansible:latest"
+          - distro: debian13
+            image: "geerlingguy/docker-debian13-ansible:latest"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Install Ansible collections (app + test harness)
+        run: |
+          ansible-galaxy collection install -r ansible/requirements.yml
+          ansible-galaxy collection install -r molecule/requirements.yml
+      - name: Run Molecule (default scenario, host-prep roles)
+        run: molecule test
+        env:
+          MOLECULE_DISTRO: ${{ matrix.distro }}
+          MOLECULE_IMAGE: ${{ matrix.image }}

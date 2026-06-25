@@ -64,7 +64,10 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 ### Phase 0 — Scoping & technical foundation
 
 - Lock the stack (above), pick the name/license (AGPL-3.0 suggested), init the repo.
-- Reproducible VPS bootstrap (script or Ansible): install K3s, firewall, fail2ban, swap.
+- Reproducible VPS bootstrap with **Ansible**: K3s (pinned), ufw, fail2ban, swap, sysctl,
+  SSH hardening, unattended security upgrades. See [VPS bootstrap](operations/bootstrap.md).
+- A **layered, evolving CI test harness** (lint → Molecule/Testinfra on Debian 12/13 →
+  nightly real-K3s bootstrap) — the seed of the install/upgrade/restore pipeline ([ADR-010](architecture/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)).
 - **Done:** `make bootstrap` turns a bare Debian VPS into a ready K3s cluster.
 
 ### Phase 1 — Reusable infrastructure foundation (no Bitnami/MinIO)

@@ -14,7 +14,8 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 - [x] Lock the stack (K3s + Helmfile, CNPG, Valkey, Garage/external S3 — see ADRs)
 - [x] Pick name (**OwnSuite**) and license (**AGPL-3.0**)
 - [x] Initialize repo + documentation site (MkDocs Material + `llms.txt`)
-- [ ] VPS bootstrap (Ansible): K3s, firewall, fail2ban, swap, sysctl
+- [x] VPS bootstrap (Ansible): K3s, firewall, fail2ban, swap, sysctl
+- [x] Layered, evolving CI test harness (lint + Molecule/Testinfra + nightly full bootstrap — ADR-010)
 - **DoD:** `make bootstrap` turns a bare Debian VPS into a ready single-node K3s cluster.
 
 ## Phase 1 — Reusable infrastructure foundation ⬜
