@@ -1,7 +1,7 @@
 # Guided install (`suite install`)
 
 Phase 4's deliverable: take a **bare VPS + a domain to all-in-HTTPS by following the
-screen**. The installer ([ADR-018](../architecture/decisions.md#adr-018-phase-4-guided-installer-suite-install))
+screen**. The installer ([ADR-018](../understand/decisions.md#adr-018-phase-4-guided-installer-suite-install))
 wraps what used to be a manual sequence (bootstrap → config → tunnel → sync → verify)
 into one idempotent command.
 
@@ -12,7 +12,7 @@ into one idempotent command.
 ## Before you start
 
 This is **step 2**. Everything runs from **your workstation** — nothing is installed on the
-VPS beyond the bootstrap ([ADR-014](../architecture/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).
+VPS beyond the bootstrap ([ADR-014](../understand/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).
 
 1. **Do [step 1 — Prepare the VPS](bootstrap.md) first.** It clones the repo, runs
    `make deps`, sets the inventory, and — importantly — installs your **SSH key before the
@@ -46,7 +46,7 @@ it and re-run `make install` to resume:
 
     !!! danger "Store the seed now"
         The seed is shown once and is **never written to the repo**. Every credential
-        derives from it ([ADR-012](../architecture/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)).
+        derives from it ([ADR-012](../understand/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)).
         Save it in your password manager. To resume later, re-export it:
         `export OWNSUITE_SECRET_SEED=...` before re-running.
 
@@ -64,7 +64,7 @@ it and re-run `make install` to resume:
     The wildcard `A` covers every subdomain (`auth.`, `docs.`, and future apps); `AAAA`
     rows are added when the VPS has public IPv6. (A wildcard *A record* is not a wildcard
     *certificate* — certificates are issued per host; see
-    [ADR-019](../architecture/decisions.md#adr-019-phase-4-tls-staging-first-issuance-dns-01-deferred).)
+    [ADR-019](../understand/decisions.md#adr-019-phase-4-tls-staging-first-issuance-dns-01-deferred).)
 
 5. **Propagation gate.** Polls public resolvers until a majority return your VPS IP,
    **before** triggering ACME (so a typo never burns Let's Encrypt's production rate
@@ -110,7 +110,7 @@ CI cannot exercise Let's Encrypt (no public DNS). Validate real issuance on a VP
 ## Manual fallback
 
 The installer wraps the manual flow; you can still run it by hand — see
-[Shared infrastructure → Run it](platform.md#run-it-manual-fallback).
+[Shared infrastructure → Run it](../understand/platform.md#run-it-manual-fallback).
 
 ## Troubleshooting
 

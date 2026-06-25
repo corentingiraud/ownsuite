@@ -60,7 +60,7 @@ account is created automatically on first login (*JIT provisioning*).
   painful on a single VPS. Deferred.
 - **Mailbox**: **not part of La Suite numérique**. Feasible as an add-on (a mail
   server federated to the same Keycloak), but it's the hardest part to make reliable
-  (deliverability, port 25, rDNS). See the [roadmap](../roadmap.md) (Phase 6).
+  (deliverability, port 25, rDNS). See the [roadmap](../project/roadmap.md) (Phase 6).
 
 The full rationale and the rejected alternatives are in the
 [architecture decisions](decisions.md).

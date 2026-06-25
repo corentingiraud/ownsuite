@@ -12,10 +12,10 @@ tested restore.
 The full design lives in the documentation site (built with MkDocs Material):
 
 - **Overview & vision** — `docs/index.md`
-- **Architecture** — `docs/architecture/overview.md`
-- **Decisions (ADR)** — `docs/architecture/decisions.md`
-- **Roadmap** — `docs/roadmap.md`
-- **For AI agents** — `docs/contributing/for-ai-agents.md`
+- **Architecture** — `docs/understand/overview.md`
+- **Decisions (ADR)** — `docs/understand/decisions.md`
+- **Roadmap** — `docs/project/roadmap.md`
+- **For AI agents** — `docs/project/for-ai-agents.md`
 
 Preview locally:
 

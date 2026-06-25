@@ -1,8 +1,8 @@
 # OwnSuite — Roadmap
 
 Quick status board. Full narrative, rationale and "definition of done" per phase live
-in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
-**[architecture decisions](docs/architecture/decisions.md)**.
+in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
+**[architecture decisions](docs/understand/decisions.md)**.
 
 **Legend:** ✅ done · 🚧 in progress · ⬜ not started
 
@@ -54,7 +54,10 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 - **DoD:** from a bare VPS + domain, the org follows the screen and everything serves HTTPS.
 
 ## Phase 5 — Broaden apps + user provisioning ⬜
-- [ ] Add Drive, then People (Helmfile profiles)
+- [ ] Add Drive (Helmfile profile; same CNPG + Valkey + S3 + Keycloak seam as Docs — no People dependency)
+- [ ] Add Grist (collaborative spreadsheet, getgrist self-hosted — Node stack, not suitenumerique Django/React; OIDC wiring differs from the impress apps)
+- [ ] Add Projects (suitenumerique/projects — kanban/task boards; Node/Sails.js + React, OIDC via Keycloak; docker-compose only, no Helm yet)
+- [ ] People deferred / optional — identity stays in Keycloak (ADR-012/020); revisit only if app-level teams need it
 - [ ] `suite` CLI: create/disable users, password reset (Keycloak, JIT to all apps)
 - **DoD:** `suite user add firstname@assoc.org` grants Docs + Drive immediately.
 

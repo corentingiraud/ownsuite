@@ -82,31 +82,43 @@ plugins:
         Overview:
           - index.md: Project overview and product vision.
         Get started:
-          - operations/bootstrap.md: Step 1 — one-command VPS bootstrap into a single-node K3s cluster.
-          - operations/install.md: Step 2 — guided installer (suite install), bare VPS + domain to all-in-HTTPS.
+          - get-started/bootstrap.md: Step 1 — one-command VPS bootstrap into a single-node K3s cluster.
+          - get-started/install.md: Step 2 — guided installer (suite install), bare VPS + domain to all-in-HTTPS.
         Operate:
-          - operations/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
+          - operate/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
         Understand the stack:
-          - architecture/overview.md: The stack and its building blocks.
-          - operations/platform.md: Helmfile shared infrastructure (cert-manager, CNPG, Valkey, Keycloak over HTTPS).
-          - operations/docs.md: Docs application (SSO, S3 storage, real-time collaboration) wired to the foundation.
-          - architecture/decisions.md: Architecture Decision Records (ADR) and their rationale.
+          - understand/overview.md: The stack and its building blocks.
+          - understand/platform.md: Helmfile shared infrastructure (cert-manager, CNPG, Valkey, Keycloak over HTTPS).
+          - understand/docs.md: Docs application (SSO, S3 storage, real-time collaboration) wired to the foundation.
+          - understand/decisions.md: Architecture Decision Records (ADR) and their rationale.
         Project:
-          - roadmap.md: Project phases and definition of done.
-          - contributing/for-ai-agents.md: Conventions for AI agents and the documentation.
+          - project/roadmap.md: Project phases and definition of done.
+          - project/for-ai-agents.md: Conventions for AI agents and the documentation.
+  # Keep pre-restructure URLs valid after the task-oriented folder move.
+  - redirects:
+      redirect_maps:
+        architecture/overview.md: understand/overview.md
+        architecture/decisions.md: understand/decisions.md
+        operations/bootstrap.md: get-started/bootstrap.md
+        operations/install.md: get-started/install.md
+        operations/platform.md: understand/platform.md
+        operations/docs.md: understand/docs.md
+        operations/backups.md: operate/backups.md
+        contributing/for-ai-agents.md: project/for-ai-agents.md
+        roadmap.md: project/roadmap.md
 
 nav:
   - Home: index.md
   - Get started:
-      - 1. Prepare the VPS: operations/bootstrap.md
-      - 2. Install: operations/install.md
+      - 1. Prepare the VPS: get-started/bootstrap.md
+      - 2. Install: get-started/install.md
   - Operate:
-      - Backups & restore: operations/backups.md
+      - Backups & restore: operate/backups.md
   - Understand the stack:
-      - Architecture: architecture/overview.md
-      - Shared infrastructure: operations/platform.md
-      - Docs application: operations/docs.md
-      - Decisions (ADR): architecture/decisions.md
+      - Architecture: understand/overview.md
+      - Shared infrastructure: understand/platform.md
+      - Docs application: understand/docs.md
+      - Decisions (ADR): understand/decisions.md
   - Project:
-      - Roadmap: roadmap.md
-      - For AI agents: contributing/for-ai-agents.md
+      - Roadmap: project/roadmap.md
+      - For AI agents: project/for-ai-agents.md

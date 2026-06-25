@@ -10,8 +10,8 @@ companion to the docs site. Keep it short; deep detail lives in `docs/`.
 **non-profit**: single-node K3s + Helmfile, shared Keycloak SSO, CloudNativePG,
 pluggable S3 storage, and backups with tested restore.
 
-The product vision and phases are in [`docs/roadmap.md`](docs/roadmap.md). The binding
-design decisions are in [`docs/architecture/decisions.md`](docs/architecture/decisions.md)
+The product vision and phases are in [`docs/project/roadmap.md`](docs/project/roadmap.md). The binding
+design decisions are in [`docs/understand/decisions.md`](docs/understand/decisions.md)
 (ADR). **Read those before making changes.**
 
 ## Source of truth
@@ -75,8 +75,8 @@ make bootstrap   # provision a Debian VPS into a ready single-node K3s cluster
 make lint test   # static checks + Molecule container tests (Docker required)
 ```
 
-The testing approach (layered, evolving) is [ADR-010](docs/architecture/decisions.md);
-the operator guide is [docs/operations/bootstrap.md](docs/operations/bootstrap.md).
+The testing approach (layered, evolving) is [ADR-010](docs/understand/decisions.md);
+the operator guide is [docs/get-started/bootstrap.md](docs/get-started/bootstrap.md).
 
 ## Deploy & test the shared infrastructure (Phase 1)
 
@@ -94,5 +94,5 @@ make restore         # rebuild a CLEAN cluster from off-site backups (ADR-006, A
 
 All credentials derive from `$OWNSUITE_SECRET_SEED` (ADR-012); versions are pinned in
 `helmfile/versions/versions.yaml` (Renovate-tracked). See
-[docs/operations/platform.md](docs/operations/platform.md) and
-[docs/operations/backups.md](docs/operations/backups.md).
+[docs/understand/platform.md](docs/understand/platform.md) and
+[docs/operate/backups.md](docs/operate/backups.md).

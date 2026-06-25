@@ -7,7 +7,7 @@ cluster with one command.
 > single-node K3s cluster.
 
 This is implemented with **Ansible** (see
-[ADR-002](../architecture/decisions.md#adr-002-ansible-for-the-host-not-nix)). The
+[ADR-002](../understand/decisions.md#adr-002-ansible-for-the-host-not-nix)). The
 playbook applies three roles in order: `common` → `security` → `k3s`.
 
 ## What it does
@@ -48,7 +48,7 @@ staging→production certificates — so a bare VPS + a domain reaches HTTPS in 
     The K3s release and all collection versions are pinned in
     `ansible/group_vars/all.yml` and `ansible/requirements.yml`. Bumping a version is
     always an explicit, reviewable diff — never `latest` (see
-    [AGENTS conventions](../contributing/for-ai-agents.md)).
+    [AGENTS conventions](../project/for-ai-agents.md)).
 
 ## Caveats
 
@@ -65,13 +65,13 @@ staging→production certificates — so a bare VPS + a domain reaches HTTPS in 
 - **Fetched kubeconfig** points at `https://127.0.0.1:6443`. You reach the cluster from
   your workstation through an SSH tunnel (`make tunnel`), so this address is used
   as-is and the K8s API is never exposed — see
-  [shared infrastructure](platform.md) and
-  [ADR-014](../architecture/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel).
+  [shared infrastructure](../understand/platform.md) and
+  [ADR-014](../understand/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel).
 
 ## Tests
 
 The bootstrap is covered by an evolving, layered test harness
-([ADR-010](../architecture/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)):
+([ADR-010](../understand/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)):
 
 ```bash
 make lint        # yamllint + ansible-lint + syntax-check

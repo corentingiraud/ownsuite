@@ -443,7 +443,7 @@ ADR-006/ADR-010 promise; `make restore` prefigures the backup-gated `suite resto
 **Consequences.** Credible, *proven* disaster recovery from off-site backups with one seed and
 one command. Cost: a heavier nightly e2e, a small barman sidecar next to PostgreSQL, an rclone
 CronJob, and (in CI) a second Garage — all kept on modest `requests`/`limits` so Keycloak and
-Docs are not starved on a single VPS. Operator guide: [Backups & restore](../operations/backups.md).
+Docs are not starved on a single VPS. Operator guide: [Backups & restore](../operate/backups.md).
 
 ---
 
@@ -451,7 +451,7 @@ Docs are not starved on a single VPS. Operator guide: [Backups & restore](../ope
 
 **Context.** Phases 0–3 leave a working stack driven by a **manual sequence** (`make bootstrap`
 → edit/source `.env` → `make tunnel` → `make sync` → curl-check HTTPS — see
-[platform.md](../operations/platform.md)). The Phase 4 promise is "bare VPS + a domain →
+[platform.md](platform.md)). The Phase 4 promise is "bare VPS + a domain →
 all-in-HTTPS by following the screen". We must decide the installer's form and language, how it
 reaches the cluster, and how it handles the single secret.
 

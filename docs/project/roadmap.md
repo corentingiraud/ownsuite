@@ -19,7 +19,7 @@
 
 ## Architecture decisions (locked)
 
-The full rationale lives in the [Architecture Decision Records](architecture/decisions.md).
+The full rationale lives in the [Architecture Decision Records](../understand/decisions.md).
 
 | Topic | Choice |
 |---|---|
@@ -65,9 +65,9 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 
 - Lock the stack (above), pick the name/license (AGPL-3.0 suggested), init the repo.
 - Reproducible VPS bootstrap with **Ansible**: K3s (pinned), ufw, fail2ban, swap, sysctl,
-  SSH hardening, unattended security upgrades. See [VPS bootstrap](operations/bootstrap.md).
+  SSH hardening, unattended security upgrades. See [VPS bootstrap](../get-started/bootstrap.md).
 - A **layered, evolving CI test harness** (lint → Molecule/Testinfra on Debian 12/13 →
-  nightly real-K3s bootstrap) — the seed of the install/upgrade/restore pipeline ([ADR-010](architecture/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)).
+  nightly real-K3s bootstrap) — the seed of the install/upgrade/restore pipeline ([ADR-010](../understand/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)).
 - **Done:** `make bootstrap` turns a bare Debian VPS into a ready K3s cluster.
 
 ### Phase 1 — Reusable infrastructure foundation (no Bitnami/MinIO)
@@ -82,10 +82,10 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 > Go deep on **one** app before broadening.
 
 - Build the real object store the foundation only stubbed: single-node **Garage**
-  in-cluster with a seed-derived key + bucket bootstrap ([ADR-015](architecture/decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key)); external EU S3 stays the production default.
+  in-cluster with a seed-derived key + bucket bootstrap ([ADR-015](../understand/decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key)); external EU S3 stays the production default.
 - Deploy **Docs** (`suitenumerique`/impress) wired to CNPG + Valkey + S3 + Keycloak SSO,
   in the shared `ownsuite` namespace, over **Traefik** with the OIDC external/internal
-  endpoint split ([ADR-016](architecture/decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)). See [Docs application](operations/docs.md).
+  endpoint split ([ADR-016](../understand/decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)). See [Docs application](../understand/docs.md).
 - Validate SSO login, file upload (S3), real-time collaboration; the k3d e2e proves the
   DoD at the API level (a Keycloak token creates and reads back a document).
 - **Done:** a Keycloak user logs into Docs and creates a persistent document.
@@ -93,12 +93,12 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 ### Phase 3 — Backups & Restore (the "production-ready" pillar)
 
 - Postgres: CNPG **Barman Cloud Plugin** — WAL archiving + base backups to **off-site** S3,
-  PITR, recovery-window retention ([ADR-017](architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
+  PITR, recovery-window retention ([ADR-017](../understand/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
 - Objects: **`rclone`** S3→S3 copy off-site, client-side encrypted (both garage and external modes).
 - Keycloak: covered by **PITR of its database** (realm + users) — refines ADR-006's "scheduled
   export"; a `kc.sh` export stays a later portability add-on.
 - Off-site by design: a distinct destination (a different account in prod; a second in-cluster
-  Garage in CI) with seed-derived-or-overridden credentials. See [Backups & restore](operations/backups.md).
+  Garage in CI) with seed-derived-or-overridden credentials. See [Backups & restore](../operate/backups.md).
 - **Tested restore procedure**: `make restore` rebuilds a clean instance; the k3d e2e runs a full
   **backup → destroy → restore** cycle.
 - **Done:** we destroy an instance and fully restore it from backups — the Phase-2 document and
@@ -106,7 +106,7 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 
 ### Phase 4 — "Domain → DNS → it works" experience
 
-- **Guided installer `suite install`** ([ADR-018](architecture/decisions.md#adr-018-phase-4-guided-installer-suite-install)):
+- **Guided installer `suite install`** ([ADR-018](../understand/decisions.md#adr-018-phase-4-guided-installer-suite-install)):
   one idempotent command captures config + the seed (shown once, never written to the repo), runs
   the bootstrap, opens the SSH tunnel and drives `helmfile sync` — orchestrating the existing
   layers in pure standard library, adding nothing to the VPS.
@@ -115,13 +115,13 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
   blocks ACME until public resolvers agree — so a typo never burns the production rate limits.
 - **Certificates staging → production**: an additive `letsencrypt-staging` ClusterIssuer issues
   first, then the installer promotes to production and verifies HTTPS per host
-  ([ADR-019](architecture/decisions.md#adr-019-phase-4-tls-staging-first-issuance-dns-01-deferred)).
+  ([ADR-019](../understand/decisions.md#adr-019-phase-4-tls-staging-first-issuance-dns-01-deferred)).
   A wildcard *A record* is not a wildcard *certificate* — certs stay per-host; the DNS-01 issuer
   stays deferred (the seam is additive).
 - **Keycloak OIDC clients reconciled** on an already-imported realm via an idempotent kcadm Job
-  ([ADR-020](architecture/decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)).
+  ([ADR-020](../understand/decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)).
 - The k3d e2e drives the stack through the installer to self-signed HTTPS; real Let's Encrypt is
-  validated off-CI (staging then production). See [Guided install](operations/install.md).
+  validated off-CI (staging then production). See [Guided install](../get-started/install.md).
 - **Done:** from a bare VPS + domain, the org follows the screen and everything serves HTTPS.
 
 ### Phase 5 — Broaden apps + user provisioning
