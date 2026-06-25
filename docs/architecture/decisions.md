@@ -183,11 +183,89 @@ real-cluster check (layer 3) is reserved for what actually affects the cluster. 
 is still machine-verified, just not on every PR.
 
 **How it evolves.** Phase 1 adds a scenario asserting `helmfile sync` brings the shared
-infra up; Phase 3 adds the install → upgrade → **restore** replay ADR-006 mandates —
-both plug into the same Molecule/Testinfra/matrix harness rather than introducing a new
-one.
+infra up; Phase 3 adds the install → upgrade → **restore** replay ADR-006 mandates. The
+Phase 1 Helmfile layer runs on **k3d** (purpose-built for in-cluster Helm e2e) with the
+same pytest-style assertions, kept in a dedicated, cost-aware workflow
+(`helmfile-e2e.yml`) — the layered philosophy holds; only the substrate fits the tool.
 
 **Consequences.** Robust feedback proportional to risk, and a test foundation that the
 later phases inherit instead of reinventing. Cost: Molecule/Testinfra are Python dev
 dependencies, and the nightly full run consumes CI minutes (bounded to the two Debian
 targets).
+
+---
+
+## ADR-011 — Keycloak via the `codecentric/keycloakx` chart (not the Operator)
+
+**Context.** ADR-005 mandates a self-hosted Keycloak (1 realm, 1 OIDC client per app).
+Bitnami is banned (ADR-004). Three credible install methods remain: the
+`codecentric/keycloakx` Helm chart, the official **Keycloak Operator** (Quarkus, with
+`Keycloak`/`KeycloakRealmImport` CRs), or a hand-rolled local chart. The deciding
+criterion is long-term **upgradeability** on a single VPS (ADR-007).
+
+**Decision.** Use **`codecentric/keycloakx`** — the chart `lasuite-platform` already
+relies on, with realm import via `--import-realm` from a ConfigMap that
+`platform-configuration` generates.
+
+**Why not the Operator.** What makes a Keycloak upgrade risky — the Liquibase DB schema
+migration on first boot — is identical for every method; safety comes from the
+backup-gated upgrade flow (ADR-006/007), not the installer. Given that, the chart is the
+*better* fit for our constraints: the Keycloak version is just an image tag we control,
+**decoupled** from the chart and tracked by Renovate, so a security patch is a one-line
+bump (`helmfile apply` = `helm upgrade`, `helm rollback` for the objects). The Operator
+instead couples the operator and Keycloak versions, ships an OLM auto-update footgun that
+fights our "everything pinned, explicit diffs" rule, runs an always-on controller for a
+single instance, and offers a Job-based realm import with no advantage over `--import-realm`
+for our seed-derived realm.
+
+**Consequences.** Minimal moving parts, upgrades that slot straight into Renovate + CI +
+the future `suite` CLI. Residual risk: dependence on a third-party chart — mitigated
+because the Keycloak image is independently pinned and the thin chart can be vendored
+locally if its maintenance ever lapses.
+
+---
+
+## ADR-012 — Secrets derived from a single `secretSeed` via Helm templating
+
+**Context.** Every credential (Postgres roles, Keycloak admin/DB, Valkey, S3, per-app
+OIDC client secrets) must exist without committing any plaintext (hard rule), on a target
+that is a **single VPS** run by non-experts. Options range from a secrets manager
+(Vault/External Secrets) or SOPS to in-template derivation.
+
+**Decision.** Derive **everything from one `secretSeed`** with a Helm template helper —
+`deriveSecret = sha256sum("<seed>:<id>")` truncated, with an optional `secretOverrides`
+map. The seed is supplied at sync time via `requiredEnv "OWNSUITE_SECRET_SEED"` and is
+**never** written to the repo or stored in the cluster. Derivation lives in exactly one
+place (the `platform-configuration` chart, which emits Kubernetes Secrets); consumers
+reference those by `secretKeyRef`/`existingSecret` rather than re-deriving.
+
+**Why not SOPS / External Secrets.** Both add an operational component (a KMS, an
+operator, key rotation) that a volunteer must run and recover during a restore — overkill
+for one node. Deterministic derivation means Keycloak and an app compute the *same* secret
+for the same id with zero sync, and disaster recovery needs only the seed.
+
+**Consequences.** No secret material in git, a single high-value secret to protect
+(`$OWNSUITE_SECRET_SEED`), and reproducible credentials across rebuilds. Trade-off:
+rotating one derived secret means changing the seed (rotates all) or adding an explicit
+override; SOPS/External Secrets remain a possible later evolution if requirements grow.
+
+---
+
+## ADR-013 — TLS issuance: cert-manager HTTP-01 per-subdomain (wildcard DNS-01 deferred)
+
+**Context.** Phase 1's definition of done is **Keycloak reachable over HTTPS**. Traefik is
+bundled with K3s; cert-manager handles certificates. ACME offers HTTP-01 (per host, needs
+port 80 + public DNS) or DNS-01 (wildcards, needs a DNS-provider API credential).
+
+**Decision.** Use cert-manager with a **`letsencrypt-http01`** ClusterIssuer per subdomain
+through the Traefik ingress for production, and a **`selfsigned`** ClusterIssuer for CI/dev
+(no public DNS). The Keycloak ingress selects the issuer via `tls.issuer`.
+
+**Why not DNS-01 wildcard now.** A `*.{domain}` certificate needs a chosen DNS provider and
+an API credential — exactly the "domain → DNS" experience **Phase 4** owns. HTTP-01 needs
+nothing but the port 80 the firewall already opens, so it is the right minimum for Phase 1.
+
+**Consequences.** HTTPS works on a bare VPS with no DNS-provider integration, and CI proves
+end-to-end TLS termination with the self-signed issuer (Let's Encrypt cannot be exercised
+without public DNS). DNS-01 wildcard becomes an additive ClusterIssuer in Phase 4 — no
+rework of the issuer-selection seam.

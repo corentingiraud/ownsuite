@@ -1,0 +1,30 @@
+---
+# Self-signed issuer — always available. Used in CI/dev where there is no public
+# DNS to satisfy an ACME challenge; still proves end-to-end TLS termination.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}
+{{- if .Values.letsencryptEnabled }}
+---
+# Production issuer — Let's Encrypt via HTTP-01 through the Traefik ingress
+# (ADR-013). Requires public DNS pointing at the node and port 80 reachable.
+# Created only when selected (tls.issuer), so CI/dev never registers an ACME
+# account against the real Let's Encrypt servers.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-http01
+spec:
+  acme:
+    server: {{ .Values.acmeServer | quote }}
+    email: {{ .Values.acmeEmail | quote }}
+    privateKeySecretRef:
+      name: letsencrypt-http01-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: {{ .Values.ingressClassName | quote }}
+{{- end }}

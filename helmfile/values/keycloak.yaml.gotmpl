@@ -1,0 +1,90 @@
+# Keycloak via codecentric/keycloakx (ADR-011). External CNPG database, realm
+# imported from the platform-configuration ConfigMap, exposed over HTTPS through
+# Traefik with a cert-manager certificate. Image tag pinned in versions.yaml.
+replicas: 1
+
+image:
+  repository: quay.io/keycloak/keycloak
+  tag: {{ .Values.imageVersions.keycloak | quote }}
+
+# Start Keycloak and import the realm mounted at /opt/keycloak/data/import.
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+  - "--import-realm"
+
+# Serve at the root path (modern Keycloak). The realm discovery document is then
+# at https://auth.<domain>/realms/<realm>/.well-known/openid-configuration.
+http:
+  relativePath: "/"
+
+# Traefik terminates TLS and forwards X-Forwarded-* headers.
+proxy:
+  enabled: true
+  mode: xforwarded
+  http:
+    enabled: true
+
+# Wait for Postgres to accept connections before starting (covers the gap
+# between the CNPG Cluster being applied and actually being ready).
+dbchecker:
+  enabled: true
+
+# An explicit memory limit is required: the Keycloak image sizes its JVM heap as
+# a percentage of the *container limit*; without one it targets a fraction of the
+# whole node and gets OOMKilled. ~1.5Gi covers the start-time build + boot.
+resources:
+  requests:
+    cpu: "250m"
+    memory: "1Gi"
+  limits:
+    memory: "1536Mi"
+
+database:
+  vendor: postgres
+  hostname: {{ printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName .Values.workloadsNamespace | quote }}
+  port: 5432
+  database: keycloak
+  username: keycloak
+  existingSecret: keycloak-db
+  existingSecretKey: password
+
+extraEnv: |
+  - name: KC_BOOTSTRAP_ADMIN_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin
+        key: username
+  - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin
+        key: password
+  - name: KC_HOSTNAME
+    value: "https://auth.{{ .Values.domain }}"
+
+extraVolumes: |
+  - name: realm-import
+    configMap:
+      name: keycloak-realm-import
+
+extraVolumeMounts: |
+  - name: realm-import
+    mountPath: /opt/keycloak/data/import
+    readOnly: true
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  servicePort: http
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.tls.issuer | quote }}
+  rules:
+    - host: "auth.{{ .Values.domain }}"
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - "auth.{{ .Values.domain }}"
+      secretName: keycloak-tls

@@ -29,11 +29,14 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `requirements-docs.txt` | Docs toolchain (MkDocs Material + plugins). |
 | `Makefile` | Operator/dev entrypoints: `bootstrap`, `check`, `lint`, `test`, `test-full`. |
 | `ansible/` | VPS bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles (Phase 0). |
+| `helmfile/` | Phase 1 shared infrastructure (Helmfile): cert-manager, CNPG, Valkey, Keycloak; local charts, values, versions, k3d e2e. |
 | `molecule/` | `default` (fast, host-prep roles) and `full` (real K3s) test scenarios + Testinfra. |
 | `requirements-dev.txt` | Dev/CI toolchain (Ansible, ansible-lint, yamllint, Molecule, Testinfra). |
 | `.github/workflows/docs.yml` | Builds & deploys the docs to GitHub Pages. |
-| `.github/workflows/ci.yml` | Lint + Molecule (Debian 12/13) on every PR. |
+| `.github/workflows/ci.yml` | Ansible lint + Molecule (Debian 12/13) on every PR. |
 | `.github/workflows/bootstrap-e2e.yml` | Full real-K3s bootstrap, nightly + on K3s changes. |
+| `.github/workflows/helmfile-ci.yml` | Helm/Helmfile lint + kubeconform on every `helmfile/` change. |
+| `.github/workflows/helmfile-e2e.yml` | Full `helmfile sync` on real K3s (k3d), nightly + on Helmfile changes. |
 
 ## Hard rules
 
@@ -65,3 +68,17 @@ make lint test   # static checks + Molecule container tests (Docker required)
 
 The testing approach (layered, evolving) is [ADR-010](docs/architecture/decisions.md);
 the operator guide is [docs/operations/bootstrap.md](docs/operations/bootstrap.md).
+
+## Deploy & test the shared infrastructure (Phase 1)
+
+```bash
+export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required; never committed
+make sync            # helmfile sync — cert-manager, CNPG, Valkey, Keycloak (HTTPS)
+make diff            # preview pending changes
+make lint-helm       # helm lint + helmfile template + kubeconform
+make test-platform   # full DoD on a throwaway k3d cluster (heavy)
+```
+
+All credentials derive from `$OWNSUITE_SECRET_SEED` (ADR-012); versions are pinned in
+`helmfile/versions/versions.yaml` (Renovate-tracked). See
+[docs/operations/platform.md](docs/operations/platform.md).

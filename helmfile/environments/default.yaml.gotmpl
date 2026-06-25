@@ -1,0 +1,61 @@
+# OwnSuite Helmfile environment — single environment for v1 (ADR-001).
+#
+# Everything here is committed-safe: the ONLY secret input is the seed
+# `$OWNSUITE_SECRET_SEED`, read from the environment at sync time and NEVER
+# written to the repo or stored in the cluster. Every credential is derived
+# from it (ADR-012). Other knobs are plain configuration, overridable per
+# deployment through the `OWNSUITE_*` environment variables shown below.
+
+# Kubernetes namespace that holds all OwnSuite workloads + their secrets.
+# Operators (cert-manager, CNPG) get their own namespaces. One workloads
+# namespace is enough for v1 (no app namespaces / reflector yet — Phase 2).
+workloadsNamespace: ownsuite
+
+# Base domain. Each component is exposed at <name>.{domain} (e.g. auth.{domain}).
+domain: {{ env "OWNSUITE_DOMAIN" | default "ownsuite.localhost" | quote }}
+
+# Single seed -> all derived secrets. Required:
+#   export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"
+secretSeed: {{ requiredEnv "OWNSUITE_SECRET_SEED" | quote }}
+
+# Optional explicit overrides for individual derived secrets, keyed by id
+# (e.g. {"keycloak-db": "..."}). Empty by default; provide via an untracked
+# values file only if you ever need to pin a specific credential.
+secretOverrides: {}
+
+# Component toggles (ADR-001 enable/disable conditions).
+certManager:
+  enabled: true
+valkey:
+  enabled: true
+keycloak:
+  enabled: true
+  realm: ownsuite
+  # One OIDC client per app (added in Phase 2). Each entry: {clientId: docs}.
+  clients: []
+
+postgres:
+  enabled: true
+  clusterName: ownsuite-pg
+  storageSize: {{ env "OWNSUITE_PG_STORAGE" | default "10Gi" | quote }}
+
+# Databases provisioned on the CNPG cluster (one per app — ADR-004). The same
+# list drives both the derived owner secret (platform-configuration) and the
+# CNPG managed role + Database CR (postgres chart), so they always match.
+databases:
+  - name: keycloak
+    secretName: keycloak-db
+
+# TLS issuance (ADR-013). `selfsigned` works anywhere (CI/dev, no public DNS);
+# `letsencrypt-http01` is the production issuer (needs public DNS + port 80).
+tls:
+  issuer: {{ env "OWNSUITE_TLS_ISSUER" | default "selfsigned" | quote }}
+  acmeEmail: {{ env "OWNSUITE_ACME_EMAIL" | default "admin@example.org" | quote }}
+
+# Pluggable object storage (ADR-003). `external` = config-only (managed EU S3),
+# `garage` = self-hosted (wired but not deployed in Phase 1). Credentials are
+# always derived from the seed so the seam is ready before any app consumes it.
+objectStorage:
+  mode: {{ env "OWNSUITE_OBJECT_STORAGE_MODE" | default "external" | quote }}
+  endpoint: {{ env "OWNSUITE_S3_ENDPOINT" | default "" | quote }}
+  region: {{ env "OWNSUITE_S3_REGION" | default "eu-west" | quote }}

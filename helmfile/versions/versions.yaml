@@ -1,0 +1,20 @@
+---
+# Pinned Helm chart versions and image tags for the OwnSuite shared infrastructure.
+# Never use `latest` (AGENTS.md). Each pin is tracked by Renovate via the
+# customManagers in renovate.json — the `# renovate:` comment above a value tells
+# Renovate which datasource/registry/package to query. A bump is always an
+# explicit, reviewable diff gated by CI (ADR-007).
+
+chartVersions:
+  # renovate: datasource=helm registryUrl=https://charts.jetstack.io depName=cert-manager
+  certManager: "v1.20.2"
+  # renovate: datasource=helm registryUrl=https://cloudnative-pg.github.io/charts depName=cloudnative-pg
+  cnpgOperator: "0.28.3"
+  # renovate: datasource=helm registryUrl=https://codecentric.github.io/helm-charts depName=keycloakx
+  keycloakx: "7.2.0"
+  # renovate: datasource=helm registryUrl=https://groundhog2k.github.io/helm-charts depName=valkey
+  valkey: "2.3.0"
+
+imageVersions:
+  # renovate: datasource=docker depName=quay.io/keycloak/keycloak
+  keycloak: "26.6.2"

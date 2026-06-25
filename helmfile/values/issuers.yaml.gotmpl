@@ -1,0 +1,3 @@
+acmeEmail: {{ .Values.tls.acmeEmail | quote }}
+ingressClassName: traefik
+letsencryptEnabled: {{ eq .Values.tls.issuer "letsencrypt-http01" }}

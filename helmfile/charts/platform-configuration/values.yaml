@@ -1,0 +1,35 @@
+---
+# Defaults are overridden by Helmfile (values/platform-configuration.yaml.gotmpl),
+# which feeds them from the environment. Listed here for `helm lint`/`helm template`
+# to render the chart standalone.
+
+# Single seed for deterministic secret derivation (ADR-012). Empty default keeps
+# `helm lint` working; the real seed comes from $OWNSUITE_SECRET_SEED at sync time.
+secretSeed: ""
+# Explicit overrides, keyed by secret id.
+secretOverrides: {}
+
+domain: ownsuite.localhost
+
+# Databases whose owner password is derived and exposed as a basic-auth Secret.
+databases:
+  - name: keycloak
+    secretName: keycloak-db
+
+keycloak:
+  realm: ownsuite
+  adminUser: admin
+  # One OIDC client per app, e.g. {clientId: docs}. None in Phase 1.
+  clients: []
+
+# Object storage credentials are always derived (the pluggable seam, ADR-003).
+objectStorage:
+  secretName: s3-credentials
+  endpoint: ""
+  region: eu-west
+
+valkey:
+  secretName: valkey-credentials
+  # Secret consumed by the Valkey chart (extraSecretValkeyConfigs) to inject
+  # `requirepass` without ever putting the password in a ConfigMap or the repo.
+  configSecretName: valkey-extra-config

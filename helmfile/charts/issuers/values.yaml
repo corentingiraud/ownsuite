@@ -1,0 +1,10 @@
+---
+# Overridden by Helmfile (values/issuers.yaml.gotmpl).
+acmeEmail: admin@example.org
+ingressClassName: traefik
+# Create the Let's Encrypt issuer only when it is the selected issuer; keeps
+# CI/dev (self-signed) from registering an ACME account against real Let's Encrypt.
+letsencryptEnabled: false
+# ACME directory for the production HTTP-01 issuer. Pinned to the production
+# endpoint; swap to the staging URL when debugging rate limits.
+acmeServer: https://acme-v02.api.letsencrypt.org/directory

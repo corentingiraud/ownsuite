@@ -1,0 +1,18 @@
+---
+# Overridden by Helmfile (values/postgres.yaml.gotmpl).
+cluster:
+  name: ownsuite-pg
+  instances: 1
+  # Empty -> the CNPG operator's default (pinned per operator release) is used.
+  imageName: ""
+  storage:
+    size: 10Gi
+    # Empty -> the cluster's default StorageClass (e.g. local-path on K3s).
+    storageClass: ""
+
+# One entry per database/app. `name` is both the database and its owner role;
+# `secretName` is the basic-auth Secret (from platform-configuration) holding the
+# owner password.
+databases:
+  - name: keycloak
+    secretName: keycloak-db

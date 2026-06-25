@@ -1,0 +1,14 @@
+{{- /* One declarative Database CR per app (ADR-004, 1 db/app). The owner role is
+       created via the Cluster's managed.roles above. */ -}}
+{{- range .Values.databases }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: {{ .name }}
+spec:
+  name: {{ .name }}
+  owner: {{ .name }}
+  cluster:
+    name: {{ $.Values.cluster.name }}
+{{- end }}
