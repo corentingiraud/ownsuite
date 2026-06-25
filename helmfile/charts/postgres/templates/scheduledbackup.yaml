@@ -1,0 +1,23 @@
+{{- if and .Values.backup.enabled .Values.backup.schedule }}
+{{- /*
+Scheduled base backups via the Barman Cloud Plugin (ADR-006). WAL archiving is
+continuous (handled by the cluster's WAL-archiver plugin); this takes periodic full
+backups so the recovery window is anchored. `method: plugin` routes through the
+plugin rather than the deprecated in-tree path. The e2e takes on-demand Backup CRs
+instead, so a schedule is not required for the tests.
+*/}}
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ printf "%s-scheduled" .Values.cluster.name | quote }}
+spec:
+  # CNPG uses a 6-field cron (seconds first); the env schedule is a 5-field cron,
+  # prefixed with "0 " for the seconds field.
+  schedule: {{ printf "0 %s" .Values.backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: {{ .Values.cluster.name | quote }}
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+{{- end }}

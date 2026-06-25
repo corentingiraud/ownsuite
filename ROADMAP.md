@@ -6,7 +6,7 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 
 **Legend:** ✅ done · 🚧 in progress · ⬜ not started
 
-**Current focus:** Phase 2 — vertical slice: Docs end to end.
+**Current focus:** Phase 3 — backups & tested restore.
 
 ---
 
@@ -27,7 +27,7 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 - [x] k3d e2e proving the DoD in CI (`helmfile-e2e.yml`)
 - **DoD:** `helmfile sync` brings up all shared infra; Keycloak reachable over HTTPS.
 
-## Phase 2 — Vertical slice: Docs end to end 🚧
+## Phase 2 — Vertical slice: Docs end to end ✅
 - [x] In-cluster object storage: single-node Garage + bucket bootstrap (ADR-015), external S3 still default
 - [x] Docs (suitenumerique/impress) wired to CNPG + Valkey + S3 + Keycloak SSO (ADR-016)
 - [x] Traefik ingress for Docs (websockets + authenticated media via middlewares); OIDC external/internal split
@@ -36,12 +36,13 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 - [ ] Full browser-driven SSO + collaboration check (deferred to a targeted job)
 - **DoD:** a Keycloak user logs into Docs and creates a persistent document.
 
-## Phase 3 — Backups & restore (production pillar) ⬜
-- [ ] Postgres PITR to S3 (GFS retention)
-- [ ] Object backup off-site (replication or restic/rclone)
-- [ ] Scheduled Keycloak realm export
-- [ ] Tested restore path
-- **DoD:** destroy an instance and fully restore it from backups.
+## Phase 3 — Backups & restore (production pillar) 🚧
+- [x] Postgres PITR to off-site S3 via CNPG Barman Cloud Plugin (recovery-window retention — ADR-017)
+- [x] Object backup off-site with `rclone` (encrypted, both garage and external modes)
+- [x] Keycloak covered by PITR of its database (realm + users) — refines ADR-006's realm export
+- [x] Off-site by design (distinct destination; seed-derived or overridden creds)
+- [x] Tested restore path: `make restore` + k3d e2e backup→destroy→restore cycle
+- **DoD:** destroy an instance and fully restore it from backups (Docs document + Keycloak user survive, proven by CI).
 
 ## Phase 4 — "Domain → DNS → it works" experience ⬜
 - [ ] Interactive installer (domain, admin email, app selection)

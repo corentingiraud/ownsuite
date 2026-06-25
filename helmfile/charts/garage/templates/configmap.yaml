@@ -8,9 +8,9 @@ replication_factor = 1 and rpc_public_addr points at the node itself.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: garage-config
+  name: {{ .Values.name }}-config
   labels:
-    app.kubernetes.io/name: garage
+    app.kubernetes.io/name: {{ .Values.name }}
     app.kubernetes.io/managed-by: helm
 data:
   garage.toml: |

@@ -1,3 +1,14 @@
+{{- $ns := .Values.workloadsNamespace -}}
+{{- /* Off-site backup endpoint: the in-cluster `garage-backup` service in CI, or the
+       external backup S3 endpoint in prod. NEVER the primary store (ADR-006 #4).
+       For the in-cluster Garage, the SigV4 region must match Garage's configured
+       region ("garage"), so override the region in that case. */ -}}
+{{- $backupEndpoint := .Values.backup.s3.endpoint -}}
+{{- $backupRegion := .Values.backup.s3.region -}}
+{{- if eq .Values.backup.s3.target "in-cluster" -}}
+{{-   $backupEndpoint = printf "http://garage-backup.%s.svc.cluster.local:3900" $ns -}}
+{{-   $backupRegion = "garage" -}}
+{{- end -}}
 cluster:
   name: {{ .Values.postgres.clusterName | quote }}
   instances: 1
@@ -5,3 +16,17 @@ cluster:
     size: {{ .Values.postgres.storageSize | quote }}
 databases:
 {{ .Values.databases | toYaml | indent 2 }}
+backup:
+  enabled: {{ .Values.backup.enabled }}
+  objectStoreName: {{ printf "%s-backup" .Values.postgres.clusterName | quote }}
+  schedule: {{ .Values.backup.schedule | quote }}
+  credentialsSecret: backup-s3-credentials
+  bucket: {{ .Values.backup.s3.bucket | quote }}
+  region: {{ $backupRegion | quote }}
+  endpoint: {{ $backupEndpoint | quote }}
+  retention: {{ .Values.backup.retention | quote }}
+  encryption: {{ env "OWNSUITE_BACKUP_PG_ENCRYPTION" | default "" | quote }}
+restore:
+  enabled: {{ .Values.restore.enabled }}
+  sourceServerName: {{ .Values.postgres.clusterName | quote }}
+  targetServerName: {{ env "OWNSUITE_RESTORE_SERVER_NAME" | default (printf "%s-restored" .Values.postgres.clusterName) | quote }}

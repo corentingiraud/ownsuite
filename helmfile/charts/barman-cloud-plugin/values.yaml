@@ -1,0 +1,6 @@
+---
+# The plugin is installed from a vendored, pinned upstream manifest
+# (templates/plugin.yaml). It takes no configuration here: backup destinations are
+# expressed as `ObjectStore` CRs (see the postgres chart) and the sidecar image is
+# pinned inside the vendored manifest. This file exists only so `helm lint` has a
+# values file to render against.

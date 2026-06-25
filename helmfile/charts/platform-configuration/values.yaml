@@ -47,6 +47,17 @@ objectStorage:
 garage:
   enabled: false
 
+# Off-site backup credentials (ADR-006, ADR-017). Derived by default so CI and
+# self-controlled targets work with no manual sync; override the backup-s3-access /
+# backup-s3-secret ids (via secretOverrides) to a real external account's keys.
+# `rclone-crypt` is the passphrase for the rclone client-side encryption of objects.
+backup:
+  enabled: false
+  secretName: backup-s3-credentials
+  # When the off-site store is the in-cluster garage-backup (CI), derive its
+  # internal Garage RPC secret + admin token too.
+  inCluster: false
+
 valkey:
   secretName: valkey-credentials
   # Secret consumed by the Valkey chart (extraSecretValkeyConfigs) to inject

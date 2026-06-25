@@ -92,11 +92,17 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 
 ### Phase 3 — Backups & Restore (the "production-ready" pillar)
 
-- Postgres: CNPG PITR to S3 (GFS retention).
-- Objects: bucket replication **or** `restic`/`rclone` off-site (even with external S3).
-- Keycloak: scheduled realm export.
-- **Tested restore procedure**: `make restore` brings up a clean instance.
-- **Done:** we destroy an instance and fully restore it from backups.
+- Postgres: CNPG **Barman Cloud Plugin** — WAL archiving + base backups to **off-site** S3,
+  PITR, recovery-window retention ([ADR-017](architecture/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
+- Objects: **`rclone`** S3→S3 copy off-site, client-side encrypted (both garage and external modes).
+- Keycloak: covered by **PITR of its database** (realm + users) — refines ADR-006's "scheduled
+  export"; a `kc.sh` export stays a later portability add-on.
+- Off-site by design: a distinct destination (a different account in prod; a second in-cluster
+  Garage in CI) with seed-derived-or-overridden credentials. See [Backups & restore](operations/backups.md).
+- **Tested restore procedure**: `make restore` rebuilds a clean instance; the k3d e2e runs a full
+  **backup → destroy → restore** cycle.
+- **Done:** we destroy an instance and fully restore it from backups — the Phase-2 document and
+  the Keycloak user survive, proven by CI.
 
 ### Phase 4 — "Domain → DNS → it works" experience
 

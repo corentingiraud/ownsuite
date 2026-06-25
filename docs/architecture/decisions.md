@@ -371,3 +371,76 @@ a document — see [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-har
 browser-driven SSO/collaboration check is deferred to a targeted job. The one-namespace and
 realm-import-on-first-boot choices are explicit simplifications to revisit as the suite
 broadens (Phase 5).
+
+---
+
+## ADR-017 — Backups & tested restore: Barman Cloud Plugin, rclone, off-site by design
+
+**Context.** [ADR-006](#adr-006-backups-and-tested-restore) commits to backing up the **three
+sources of state** and to a **tested** restore. Phase 3 implements it on the running stack:
+CNPG (operator **1.29.1**, chart 0.28.3), Keycloak + Docs databases, an object store that is
+in-cluster Garage *or* external S3, and cert-manager already deployed. The decisions left open
+were the PostgreSQL backup mechanism, the object-copy tool, the off-site destination + its
+credentials, the depth of Keycloak backup, and how to prove the cycle hermetically in CI.
+
+**Decision.**
+
+- **PostgreSQL → CNPG Barman Cloud Plugin** ([v0.13.0](https://github.com/cloudnative-pg/plugin-barman-cloud),
+  the CNPG-I plugin), not the in-tree `.spec.backup.barmanObjectStore` (deprecated since CNPG
+  1.26). The plugin is installed from its **pinned, vendored** release manifest
+  (`charts/barman-cloud-plugin`) into `cnpg-system`, reusing cert-manager for its TLS. A
+  `barmancloud.cnpg.io/v1` **`ObjectStore`** describes the off-site S3; the `Cluster` references
+  it via `spec.plugins` (`isWALArchiver`) for continuous WAL archiving + base backups; a
+  `ScheduledBackup` (`method: plugin`) anchors the recovery window. Recovery is a fresh
+  `Cluster` with `bootstrap.recovery` + an `externalClusters` plugin entry pointing at the same
+  store — restoring the **whole instance**, hence both the `keycloak` and `docs` databases. The
+  restored cluster *reads* the original `serverName` but *archives* under a distinct one
+  (`<cluster>-restored`): CNPG runs `barman-cloud-check-wal-archive` first and refuses a
+  destination that already holds an archive, so reusing the source `serverName` would block it.
+- **Objects (media) → `rclone`** (pinned image), an S3→S3 `sync` CronJob from the primary
+  bucket to the off-site store, **client-side encrypted** through an rclone `crypt` remote. A
+  one-shot Job syncs back during restore. Chosen over `restic` because the source is already an
+  S3 bucket (no filesystem to snapshot). Required in **both** garage and external modes (ADR-006).
+- **Keycloak → PITR only.** Keycloak keeps realm + users in its `keycloak` database, which CNPG
+  recovery restores verbatim (the user's subject/id is stable, so JIT-provisioned app accounts
+  map back). This **refines** ADR-006's "scheduled realm export": a separate `kc.sh` export adds
+  a recurring Job and RAM pressure on a single VPS for portability we don't need in v1. Deferred,
+  not forbidden — it stays an easy add-on for migration/portability later.
+- **Off-site by construction.** The backup destination is a **distinct** S3 (`OWNSUITE_BACKUP_S3_*`)
+  that must survive loss of the VPS — **never** the in-cluster Garage being backed up. In
+  **production** it is a managed S3 in a *different account/provider* than the primary; in **CI**
+  it is a **second in-cluster Garage** (`garage-backup`, own PVC/service/bucket) that is *kept*
+  when the primary is destroyed — hermetic, and respecting the no-MinIO rule. The off-site
+  credentials and the rclone crypt passphrase are **seed-derived by default** (so CI and
+  self-controlled targets need no manual sync) and **overridable** (`secretOverrides` ids
+  `backup-s3-access` / `backup-s3-secret` / `rclone-crypt`, or an untracked Secret) for a real
+  external account ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)).
+
+**Why not the in-tree barmanObjectStore.** It is deprecated (CNPG 1.26+) and slated for removal;
+building Phase 3 on it would mean migrating immediately. The plugin is the supported path on our
+version, its only extra dependency (cert-manager) is already present, and the image is pinned
+inside the vendored manifest (Renovate-tracked, re-vendored on bump).
+
+**Encryption & retention — honest limits.** PostgreSQL backups rely on **TLS in transit** plus
+the destination's **at-rest** protection (optional S3 SSE `AES256` via
+`OWNSUITE_BACKUP_PG_ENCRYPTION`, left off for S3-compatible stores like Garage that don't support
+it); **objects** get **client-side** encryption via the rclone `crypt` remote. Retention is a
+Barman **recovery window** (e.g. `30d`) for PITR, not true grandfather-father-son — GFS-style
+retention is expressed on the object copy / bucket lifecycle. Full GFS for PostgreSQL is a later
+enhancement.
+
+**Tested in CI (the deliverable).** The k3d e2e ([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness))
+runs one hermetic **backup → destroy → restore** cycle: sync with backups on, assert the Phase-2
+DoD (creating the survivor document), seed a media object, take an on-demand base backup + an
+off-site object copy, **destroy** the primary state (DB + primary store + apps; keep
+`platform-configuration` + `garage-backup` + the operators), `make restore`, then assert the
+document and the Keycloak user **survived** and the media object is back. Kept on the existing
+cost-aware triggers (nightly + on `helmfile/**`), with the same fail-fast watchdog. This is the
+machine-checked Phase-3 definition of done and the seed of the install→upgrade→restore replay
+ADR-006/ADR-010 promise; `make restore` prefigures the backup-gated `suite restore`
+([ADR-007](#adr-007-upgrade-model-semver-releases-backup-gated-cli)).
+
+**Consequences.** Credible, *proven* disaster recovery from off-site backups with one seed and
+one command. Cost: a heavier nightly e2e, a small barman sidecar next to PostgreSQL, an rclone
+CronJob, and (in CI) a second Garage — all kept on modest `requests`/`limits` so Keycloak and
+Docs are not starved on a single VPS. Operator guide: [Backups & restore](../operations/backups.md).

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: object-backup
+description: >-
+  Off-site object (media) backup via rclone (ADR-006, ADR-017). A CronJob copies the
+  primary media bucket to the off-site store, client-side encrypted with an rclone
+  `crypt` remote; a one-shot Job restores it back during `make restore`. Works in both
+  in-cluster Garage and external S3 modes.
+type: application
+version: 0.1.0

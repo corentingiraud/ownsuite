@@ -1,0 +1,42 @@
+{{- $ns := .Values.workloadsNamespace -}}
+{{- /* Primary store: in-cluster Garage in garage mode, else the external S3. */ -}}
+{{- $primaryEndpoint := .Values.objectStorage.endpoint -}}
+{{- $primaryRegion := .Values.objectStorage.region -}}
+{{- if .Values.garage.enabled -}}
+{{-   $primaryEndpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
+{{-   $primaryRegion = .Values.garage.region -}}
+{{- end -}}
+{{- /* Off-site store: in-cluster garage-backup (CI), else the external backup S3.
+       For the in-cluster Garage the SigV4 region must be "garage". */ -}}
+{{- $offsiteEndpoint := .Values.backup.s3.endpoint -}}
+{{- $offsiteRegion := .Values.backup.s3.region -}}
+{{- if eq .Values.backup.s3.target "in-cluster" -}}
+{{-   $offsiteEndpoint = printf "http://garage-backup.%s.svc.cluster.local:3900" $ns -}}
+{{-   $offsiteRegion = "garage" -}}
+{{- end -}}
+image:
+  repository: rclone/rclone
+  tag: {{ .Values.imageVersions.rclone | quote }}
+
+schedule: {{ .Values.backup.schedule | quote }}
+
+restore:
+  enabled: {{ .Values.restore.enabled }}
+
+primary:
+  endpoint: {{ $primaryEndpoint | quote }}
+  region: {{ $primaryRegion | quote }}
+  bucket: {{ .Values.objectStorage.bucket | quote }}
+  secret: s3-credentials
+  accessKeyIdKey: AWS_S3_ACCESS_KEY_ID
+  secretAccessKeyKey: AWS_S3_SECRET_ACCESS_KEY
+
+offsite:
+  endpoint: {{ $offsiteEndpoint | quote }}
+  region: {{ $offsiteRegion | quote }}
+  bucket: {{ .Values.backup.s3.bucket | quote }}
+  mediaPrefix: media
+  secret: backup-s3-credentials
+  accessKeyIdKey: ACCESS_KEY_ID
+  secretAccessKeyKey: ACCESS_SECRET_KEY
+  cryptPassphraseKey: RCLONE_CRYPT_PASSWORD

@@ -58,6 +58,20 @@ releases:
     values:
       - values/cnpg-operator.yaml.gotmpl
 
+  # --- Backups: CNPG Barman Cloud Plugin (ADR-006, ADR-017) ----------------
+  # The CNPG-I plugin (vendored manifest) that performs WAL archiving + base
+  # backups to off-site S3 and drives recovery. Installs into cnpg-system next to
+  # the operator and reuses cert-manager for plugin TLS. Deployed only when backups
+  # are enabled; the ObjectStore CRD it ships must exist before `postgres` applies
+  # its ObjectStore CR (see `needs` below).
+  - name: barman-cloud-plugin
+    namespace: cnpg-system
+    chart: ./charts/barman-cloud-plugin
+    condition: backup.enabled
+    needs:
+      - cert-manager/cert-manager
+      - cnpg-system/cnpg-operator
+
   # --- Shared config + derived secrets + Keycloak realm (ADR-005, ADR-012) -
   - name: platform-configuration
     namespace: {{ $ns }}
@@ -73,6 +87,14 @@ releases:
     needs:
       - cnpg-system/cnpg-operator
       - {{ $ns }}/platform-configuration
+      {{- if .Values.backup.enabled }}
+      # The ObjectStore CR (rendered by this chart) needs the plugin's CRD, and
+      # recovery needs the off-site store reachable before the cluster bootstraps.
+      - cnpg-system/barman-cloud-plugin
+      {{- if eq .Values.backup.s3.target "in-cluster" }}
+      - {{ $ns }}/garage-backup
+      {{- end }}
+      {{- end }}
     values:
       - values/postgres.yaml.gotmpl
 
@@ -97,6 +119,39 @@ releases:
       - {{ $ns }}/platform-configuration
     values:
       - values/garage.yaml.gotmpl
+
+  # --- Off-site backup store: second in-cluster Garage (ADR-006, ADR-017) ---
+  # Deployed only when backups target an in-cluster store (CI / hermetic). Distinct
+  # name/PVC/bucket from the primary Garage and kept across a primary destroy, so it
+  # stands in for storage that survives the VPS. In prod the off-site is external and
+  # this release is absent.
+  - name: garage-backup
+    namespace: {{ $ns }}
+    chart: ./charts/garage
+    condition: backup.garageBackup.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+    values:
+      - values/garage-backup.yaml.gotmpl
+
+  # --- Off-site object copy: rclone (ADR-006, ADR-017) ---------------------
+  # Encrypted S3->S3 copy of the media bucket to the off-site store, plus the
+  # restore Job (gated on restore mode). Runs in both garage and external modes.
+  - name: object-backup
+    namespace: {{ $ns }}
+    chart: ./charts/object-backup
+    condition: backup.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      {{- if .Values.garage.enabled }}
+      # Primary store must exist (bucket bootstrapped) before the restore Job copies in.
+      - {{ $ns }}/garage
+      {{- end }}
+      {{- if .Values.backup.garageBackup.enabled }}
+      - {{ $ns }}/garage-backup
+      {{- end }}
+    values:
+      - values/object-backup.yaml.gotmpl
 
   # --- SSO: Keycloak over HTTPS (ADR-005, ADR-011) — the Phase 1 DoD -------
   - name: keycloak

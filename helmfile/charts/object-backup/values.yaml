@@ -1,0 +1,44 @@
+---
+# Overridden by Helmfile (values/object-backup.yaml.gotmpl). Listed for `helm lint`.
+
+image:
+  repository: rclone/rclone
+  tag: "1.71.2"
+
+# Cron schedule for the off-site copy (5-field). Empty disables the CronJob.
+schedule: "0 3 * * *"
+
+# Restore mode: when true, render the one-shot restore Job (offsite -> primary).
+restore:
+  enabled: false
+
+# Primary object store (source of the media). In garage mode this is the in-cluster
+# Garage; in external mode the managed S3.
+primary:
+  endpoint: "http://garage.ownsuite.svc.cluster.local:3900"
+  region: garage
+  bucket: docs-media-storage
+  # Secret + keys holding the primary store credentials.
+  secret: s3-credentials
+  accessKeyIdKey: AWS_S3_ACCESS_KEY_ID
+  secretAccessKeyKey: AWS_S3_SECRET_ACCESS_KEY
+
+# Off-site backup store (destination). NEVER the primary (ADR-006 #4).
+offsite:
+  endpoint: "http://garage-backup.ownsuite.svc.cluster.local:3900"
+  region: garage
+  bucket: ownsuite-backups
+  # Prefix within the off-site bucket where the encrypted media copy lives.
+  mediaPrefix: media
+  # Secret + keys for the off-site credentials and the rclone crypt passphrase.
+  secret: backup-s3-credentials
+  accessKeyIdKey: ACCESS_KEY_ID
+  secretAccessKeyKey: ACCESS_SECRET_KEY
+  cryptPassphraseKey: RCLONE_CRYPT_PASSWORD
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "128Mi"
+  limits:
+    memory: "256Mi"
