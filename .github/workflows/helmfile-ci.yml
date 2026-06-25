@@ -17,6 +17,10 @@ on:
       - ".github/workflows/helmfile-ci.yml"
   workflow_dispatch:
 
+# Least privilege: static checks only read the repo.
+permissions:
+  contents: read
+
 env:
   # Pinned CLI tools (tracked by Renovate via the workflow customManager).
   HELM_VERSION: "v4.2.2" # renovate: datasource=github-releases depName=helm/helm

@@ -125,6 +125,10 @@ the [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness) test harn
 
 ## ADR-008 — Mailbox out of scope for v1 (feasible as an add-on)
 
+> **Superseded in part by [ADR-021](#adr-021).** The "out of v1, optional add-on" stance and
+> the "relay outbound through a reputable EU SMTP" workaround still hold; the mail stack is now
+> **suitenumerique/messages**, not Stalwart.
+
 **Context.** La Suite numérique provides **no** mail server. The request "create
 `firstname@assoc.org` with their mailbox" requires a separate stack.
 
@@ -534,3 +538,43 @@ install, not just a fresh one — the day-2 path ADR-016 deferred. `helm --wait`
 until the clients are reconciled, and the e2e exercises the Job on every run (the SSO
 definition-of-done mints a token with the upserted `docs` client). The realm import remains the
 first-boot seed; the Job is the authoritative reconciler thereafter.
+
+---
+
+## ADR-021 — Mailbox: suitenumerique/messages, outbound via EU relay
+
+**Context.** ADR-008 deferred mail and tentatively recommended Stalwart. Since then,
+**suitenumerique/messages** has become La Suite's own mail app, so adopting it keeps the
+mailbox consistent with the rest of the suite (same look-and-feel, same Keycloak SSO) instead
+of bolting on a foreign server + separate webmail. The earlier "IMAP + generic webmail" path
+(Stalwart + Roundcube) was the lighter option but loses the integrated La Suite UX.
+
+**Decision.** Phase 6's mailbox is **suitenumerique/messages**, federated to the **same
+Keycloak** via OIDC. It is a full mail provider, not an IMAP client:
+
+- **Inbound:** its own **Postfix MTA-in** receives directly from the internet (domain MX →
+  port 25) and relays to a Django **MDA** that stores and indexes mail (Postgres + Redis +
+  **OpenSearch**).
+- **Webmail:** ships its own **integrated web UI**. **No IMAP/POP3 by design** — users read
+  mail in messages, not in Thunderbird/Apple Mail. Accepted trade-off.
+- **Outbound:** **never direct from the VPS IP.** `MTA_OUT_MODE=relay` points the MTA-out at a
+  reputable EU SMTP relay (Infomaniak `mail.infomaniak.com:587`, STARTTLS, `MTA_OUT_RELAY_*`
+  credentials, `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure`).
+
+**Why.** Owning the easy half (receiving) and renting the hard half (deliverability) is the
+same stance ADR-008 took — outbound from a fresh VPS IP loses on reputation/PTR/port-25. The
+relay carries SPF/DKIM alignment; messages signs DKIM for the domain and SPF `include`s the relay.
+
+**Consequences.**
+
+- Integrated La Suite webmail; SSO and UX consistent with Docs/Drive. No second webmail to run.
+- **No IMAP/POP3** — desktop/mobile mail clients are not supported; the web UI is the only client.
+- **Heavier than the Stalwart path:** adds **OpenSearch** (RAM-hungry on a single VPS) + Redis +
+  two Postfix containers. Phase 7 sizing must budget for it; the mailbox stays **optional and
+  isolated**, blocking no earlier phase.
+- **Outbound is rate-capped by the relay** (Infomaniak: 1440 msg/24h, 100 recipients/msg). Set
+  messages' `THROTTLE_MAILBOX_OUTBOUND_EXTERNAL_RECIPIENTS` /
+  `THROTTLE_MAILDOMAIN_OUTBOUND_EXTERNAL_RECIPIENTS` below that ceiling so it fails gracefully
+  in-app. Not suitable for bulk/newsletters — that's a separate product.
+- Supersedes ADR-008's "Stalwart recommended" note; ADR-008's "optional add-on" and "relay
+  outbound" decisions carry over unchanged.

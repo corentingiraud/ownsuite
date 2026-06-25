@@ -33,7 +33,7 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 | Upgrade model | **Semver releases + backup-gated `suite` CLI + Renovate** |
 
 **Out of scope for v1:** Meet (LiveKit/coturn — UDP, CPU, painful on a single server).
-**Advanced add-on, not in the core:** the mailbox (see Phase 6 — this is NOT part of La Suite).
+**Advanced add-on:** the mailbox (see Phase 6 — a La Suite app, `suitenumerique/messages`, but heavy and optional).
 
 ---
 
@@ -133,15 +133,23 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 
 ### Phase 6 — (Advanced / optional) Mailbox
 
-> ⚠️ **La Suite numérique provides NO mail server.** This is an add-on, and the
-> hardest part to make reliable on a server.
+> ⚠️ Mail is the **hardest part to make reliable on a server**. Kept as an optional,
+> isolated add-on so it blocks none of the earlier phases.
 
-- A mail stack federated to the same Keycloak: **Stalwart** (modern, OIDC) recommended;
-  Mailcow/Mailu as alternatives.
-- Deliverability reality: port 25 often blocked by the host, **rDNS/PTR** set at the
-  host (not in DNS), SPF/DKIM/DMARC, IP reputation.
-- Offer **two modes**: self-hosted (sovereign, demanding) **or** an external EU relay/
-  provider (pragmatic, better deliverability). Mailbox provisioning wired into the Phase 5 CLI.
+- Mailbox is **`suitenumerique/messages`** — La Suite's own mail app, federated to the
+  same Keycloak via OIDC (ADR-021). It is a full provider: its own **Postfix MTA-in**
+  receives mail from the internet (MX → port 25), a Django MDA stores/indexes it
+  (Postgres + Redis + OpenSearch), and it ships an **integrated webmail**. No IMAP/POP3
+  by design — users read mail in the messages web UI, not Thunderbird/Apple Mail.
+- **Outbound is relayed, never direct.** `MTA_OUT_MODE=relay` points messages' MTA-out at
+  a reputable EU SMTP relay (Infomaniak: `mail.infomaniak.com:587`, STARTTLS) so mail
+  leaves a reputable IP — not the VPS. Set messages' `THROTTLE_*_OUTBOUND_EXTERNAL_RECIPIENTS`
+  below the relay's cap (Infomaniak: 1440 msg/24h).
+- Deliverability reality still applies to the relay path: **MX/SPF/DKIM/DMARC** in the DNS
+  flow (SPF must `include` the relay), **rDNS/PTR** at the host. Provisioning wired into
+  the Phase 5 `suite` CLI.
+- Trade-off accepted: messages drags OpenSearch (RAM-hungry) + Redis + two Postfix
+  containers — sizing covered in Phase 7; it stays optional and isolated.
 - **Done:** `suite user add` also creates the mailbox; an outbound email lands in the inbox (not spam).
 
 ### Phase 7 — Production hardening & packaging
