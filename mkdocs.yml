@@ -89,6 +89,7 @@ plugins:
         Operations:
           - operations/bootstrap.md: One-command VPS bootstrap into a single-node K3s cluster.
           - operations/platform.md: Helmfile shared infrastructure (cert-manager, CNPG, Valkey, Keycloak over HTTPS).
+          - operations/docs.md: Docs application (SSO, S3 storage, real-time collaboration) wired to the foundation.
         Contributing:
           - contributing/for-ai-agents.md: Conventions for AI agents and the documentation.
 
@@ -101,5 +102,6 @@ nav:
   - Operations:
       - VPS bootstrap: operations/bootstrap.md
       - Shared infrastructure: operations/platform.md
+      - Docs application: operations/docs.md
   - Contributing:
       - For AI agents: contributing/for-ai-agents.md

@@ -21,6 +21,8 @@ repositories:
     url: https://codecentric.github.io/helm-charts
   - name: groundhog2k
     url: https://groundhog2k.github.io/helm-charts
+  - name: suitenumerique
+    url: https://suitenumerique.github.io/docs
 
 helmDefaults:
   wait: true
@@ -85,6 +87,17 @@ releases:
     values:
       - values/valkey.yaml.gotmpl
 
+  # --- Object storage: in-cluster Garage (ADR-003, ADR-015) ----------------
+  # Deployed only in `garage` mode; production defaults to an external S3.
+  - name: garage
+    namespace: {{ $ns }}
+    chart: ./charts/garage
+    condition: garage.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+    values:
+      - values/garage.yaml.gotmpl
+
   # --- SSO: Keycloak over HTTPS (ADR-005, ADR-011) — the Phase 1 DoD -------
   - name: keycloak
     namespace: {{ $ns }}
@@ -97,3 +110,33 @@ releases:
       - cert-manager/issuers
     values:
       - values/keycloak.yaml.gotmpl
+
+  # --- Docs ingress glue: Traefik middlewares for authenticated media (ADR-016).
+  # Ordered after Keycloak so the K3s Traefik CRDs are present before these CRs.
+  - name: docs-ingress
+    namespace: {{ $ns }}
+    chart: ./charts/docs-ingress
+    condition: apps.docs.enabled
+    needs:
+      - {{ $ns }}/keycloak
+    values:
+      - values/docs-ingress.yaml.gotmpl
+
+  # --- App: Docs (suitenumerique / impress) — the Phase 2 vertical slice ----
+  - name: docs
+    namespace: {{ $ns }}
+    chart: suitenumerique/docs
+    version: {{ .Values.chartVersions.docs | quote }}
+    condition: apps.docs.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/postgres
+      - {{ $ns }}/valkey
+      - {{ $ns }}/keycloak
+      - {{ $ns }}/docs-ingress
+      - cert-manager/issuers
+      {{- if .Values.garage.enabled }}
+      - {{ $ns }}/garage
+      {{- end }}
+    values:
+      - values/docs.yaml.gotmpl

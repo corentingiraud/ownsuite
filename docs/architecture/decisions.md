@@ -297,3 +297,77 @@ the API private.
 tunnel must be open during `sync` (a manual `make tunnel` for now). The Phase 4
 installer / Phase 5 `suite` CLI will open the tunnel automatically, making this
 invisible — they implement this model rather than change it.
+
+---
+
+## ADR-015 — In-cluster object storage: Garage (single-node), deterministic key
+
+**Context.** [ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3) made
+object storage pluggable — Garage (self-hosted) or external EU S3 — and Phase 1 only
+*derived* the S3 credentials; nothing was deployed. Phase 2's Docs app needs a real
+bucket, and the hermetic k3d e2e ([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness))
+needs an S3 backend that exists with no external account. MinIO is banned (ADR-004).
+
+**Decision.** Deploy **Garage** in-cluster as a single-node `StatefulSet`, via a local
+chart (`helmfile/charts/garage`), gated on `objectStorage.mode == garage`. Garage runs
+with `replication_factor = 1`; its RPC secret and admin token are seed-derived and
+injected as `GARAGE_RPC_SECRET` / `GARAGE_ADMIN_TOKEN` env vars, so `garage.toml` stays
+secret-free and committed-safe. A post-install Helm-hook **bootstrap Job** (least-privilege
+`kubectl exec` into the pod) idempotently assigns the cluster layout, **imports the
+seed-derived S3 access key/secret** (the same `s3-credentials` the app consumes — no
+read-back, no manual sync), creates the bucket, and grants access. `helm --wait` blocks
+the release — and Docs, which `needs` it — until the store is usable.
+
+**Why import the key rather than generate it.** Derivation stays one-way (ADR-012): the
+single seed reproduces both the app's credentials and Garage's. Garage's `key import`
+accepts arbitrary conforming strings (id ≥8 alnum/`-_.`, secret ≥16 graphic ASCII), so the
+existing derived creds are imported as-is. **Production default stays external S3** (ADR-003):
+in `external` mode nothing is deployed and Docs points at the configured endpoint.
+
+**Consequences.** A real, sovereign object store on one node and a fully hermetic e2e, at a
+tiny footprint (Rust; ~128Mi request). Off-site object backup is still required (ADR-006,
+Phase 3). The bootstrap Job depends on a pinned community `kubectl` image — acceptable, and
+the only non-distroless piece (Garage's own image ships no shell).
+
+---
+
+## ADR-016 — Docs (impress) integration: one namespace, Traefik ingress, OIDC split
+
+**Context.** Phase 2 wires the first app — **Docs** (`suitenumerique` / impress) — to the
+whole foundation. Three integration choices were left open by Phase 1: where apps live
+(namespace), how the upstream chart's **nginx**-oriented ingress maps onto our **Traefik**
+(K3s-bundled), and how a backend inside the cluster talks OIDC to a Keycloak that issues
+browser-facing URLs.
+
+**Decision.**
+- **One workloads namespace.** Docs runs in the same `ownsuite` namespace as the Phase 1
+  infra, reusing the secrets already there. No per-app namespaces or cross-namespace secret
+  reflector in v1 — unnecessary moving parts for a single VPS. (Per-app namespaces remain a
+  clean later evolution.)
+- **Traefik ingress.** The official chart ships nginx annotations; we override them for
+  Traefik. Websockets need no annotation (Traefik proxies them natively), and a single
+  y-provider replica removes the need for room-sticky routing. Authenticated **media
+  serving** is reproduced with two Traefik middlewares (a `forwardAuth` to the backend
+  media-auth endpoint + a path rewrite to the bucket), defined in `platform-configuration`.
+  cert-manager issues one `docs-tls` certificate on the main ingress; the sibling ingresses
+  reuse it for the same host.
+- **OIDC external/internal endpoint split.** The browser-facing endpoints
+  (authorization, logout) point at `https://auth.{domain}`; the backend-to-Keycloak
+  endpoints (JWKS, token, userinfo) point at the in-cluster service
+  `keycloak-keycloakx-http`. `OIDC_VERIFY_SSL` is off under the self-signed issuer. The
+  `docs` OIDC client (confidential, secret derived from the same seed id the app reads) is
+  appended to `keycloak.clients`, so the realm and the app agree with no manual sync.
+
+**Realm import on an existing install.** `--import-realm` only imports on Keycloak's
+**first** boot, so adding the `docs` client to an *already-imported* realm has no effect on
+upgrade. Acceptable for a fresh install / CI (the path Phase 2 proves). For an existing
+install the client must be added out-of-band (Keycloak admin API / `kcadm`, or a one-shot
+upsert Job); this is documented and slated for the Phase 4 installer / Phase 5 `suite` CLI,
+which own the upgrade flow.
+
+**Consequences.** Docs is reachable over HTTPS with real SSO and persistent storage, proven
+by CI. The DoD is verified at the API level (a Keycloak-issued token creates and reads back
+a document — see [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness)); a full
+browser-driven SSO/collaboration check is deferred to a targeted job. The one-namespace and
+realm-import-on-first-boot choices are explicit simplifications to revisit as the suite
+broadens (Phase 5).

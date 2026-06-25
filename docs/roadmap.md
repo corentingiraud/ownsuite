@@ -81,8 +81,13 @@ The full rationale lives in the [Architecture Decision Records](architecture/dec
 
 > Go deep on **one** app before broadening.
 
-- Deploy Docs wired to CNPG + Valkey + S3 + Keycloak SSO.
-- Validate SSO login, file upload (S3), real-time collaboration.
+- Build the real object store the foundation only stubbed: single-node **Garage**
+  in-cluster with a seed-derived key + bucket bootstrap ([ADR-015](architecture/decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key)); external EU S3 stays the production default.
+- Deploy **Docs** (`suitenumerique`/impress) wired to CNPG + Valkey + S3 + Keycloak SSO,
+  in the shared `ownsuite` namespace, over **Traefik** with the OIDC external/internal
+  endpoint split ([ADR-016](architecture/decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)). See [Docs application](operations/docs.md).
+- Validate SSO login, file upload (S3), real-time collaboration; the k3d e2e proves the
+  DoD at the API level (a Keycloak token creates and reads back a document).
 - **Done:** a Keycloak user logs into Docs and creates a persistent document.
 
 ### Phase 3 — Backups & Restore (the "production-ready" pillar)

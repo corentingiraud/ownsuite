@@ -11,22 +11,41 @@ secretOverrides: {}
 
 domain: ownsuite.localhost
 
+# Per-app toggles (gates app-specific secrets like docs-secrets).
+apps:
+  docs:
+    enabled: true
+
 # Databases whose owner password is derived and exposed as a basic-auth Secret.
 databases:
   - name: keycloak
     secretName: keycloak-db
+  - name: docs
+    secretName: docs-db
 
 keycloak:
   realm: ownsuite
   adminUser: admin
-  # One OIDC client per app, e.g. {clientId: docs}. None in Phase 1.
-  clients: []
+  # One OIDC client per app. Each entry: {clientId, directAccessGrants?}.
+  clients:
+    - clientId: docs
+      directAccessGrants: false
+  # Optional realm user seeded for the e2e SSO check (CI only).
+  seedTestUser:
+    enabled: false
+    username: docs-tester
+    email: docs-tester@example.org
 
 # Object storage credentials are always derived (the pluggable seam, ADR-003).
 objectStorage:
   secretName: s3-credentials
   endpoint: ""
   region: eu-west
+
+# In-cluster Garage object store (ADR-015). When enabled, its internal RPC secret
+# and admin token are derived here too, so all secret derivation stays in one place.
+garage:
+  enabled: false
 
 valkey:
   secretName: valkey-credentials

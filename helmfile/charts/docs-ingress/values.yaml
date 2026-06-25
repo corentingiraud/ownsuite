@@ -1,0 +1,8 @@
+---
+# Overridden by Helmfile (values/docs-ingress.yaml.gotmpl). Listed for standalone
+# `helm lint` / `helm template`.
+
+# Backend service that authorizes media requests (the impress backend, port 80).
+backendService: docs
+# Bucket the media path rewrites to (path-style S3).
+bucket: docs-media-storage

@@ -27,9 +27,13 @@ in the docs: **[docs/roadmap.md](docs/roadmap.md)** and the
 - [x] k3d e2e proving the DoD in CI (`helmfile-e2e.yml`)
 - **DoD:** `helmfile sync` brings up all shared infra; Keycloak reachable over HTTPS.
 
-## Phase 2 — Vertical slice: Docs end to end ⬜
-- [ ] Docs wired to CNPG + Valkey + S3 + Keycloak SSO
-- [ ] Validate SSO login, file upload, real-time collaboration
+## Phase 2 — Vertical slice: Docs end to end 🚧
+- [x] In-cluster object storage: single-node Garage + bucket bootstrap (ADR-015), external S3 still default
+- [x] Docs (suitenumerique/impress) wired to CNPG + Valkey + S3 + Keycloak SSO (ADR-016)
+- [x] Traefik ingress for Docs (websockets + authenticated media via middlewares); OIDC external/internal split
+- [x] `docs` OIDC client + optional seeded test user generated from `secretSeed`
+- [x] k3d e2e extended: Garage + Docs deployed, API-level DoD (token → create + read back a document)
+- [ ] Full browser-driven SSO + collaboration check (deferred to a targeted job)
 - **DoD:** a Keycloak user logs into Docs and creates a persistent document.
 
 ## Phase 3 — Backups & restore (production pillar) ⬜

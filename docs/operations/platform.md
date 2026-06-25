@@ -17,7 +17,12 @@ deploys, in dependency order:
 | 3 | `platform-configuration` | All derived secrets + the Keycloak realm ConfigMap | [ADR-012](../architecture/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating) |
 | 4 | `postgres` | One CNPG `Cluster` + one `Database` per app | [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
 | 5 | `valkey` | Cache / broker | [ADR-004](../architecture/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami) |
-| 6 | `keycloak` | SSO over HTTPS — the Phase 1 DoD | [ADR-011](../architecture/decisions.md#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator) |
+| 6 | `garage` | In-cluster object store + bucket bootstrap (only in `garage` mode) | [ADR-015](../architecture/decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key) |
+| 7 | `keycloak` | SSO over HTTPS — the Phase 1 DoD | [ADR-011](../architecture/decisions.md#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator) |
+
+After the shared infrastructure, **apps** are deployed as further releases (each
+gated on `apps.<name>.enabled`). The first is **Docs** — see
+[Docs application](docs.md) and [ADR-016](../architecture/decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split).
 
 ## Layout
 
@@ -58,8 +63,12 @@ sensible defaults), e.g.:
 | `OWNSUITE_DOMAIN` | `ownsuite.localhost` | Base domain; each app is `<name>.{domain}` |
 | `OWNSUITE_TLS_ISSUER` | `selfsigned` | `letsencrypt-http01` in production |
 | `OWNSUITE_ACME_EMAIL` | `admin@example.org` | ACME registration email |
-| `OWNSUITE_OBJECT_STORAGE_MODE` | `external` | `external` (managed S3) or `garage` |
-| `OWNSUITE_S3_ENDPOINT` | _(empty)_ | External S3 endpoint URL |
+| `OWNSUITE_ADMIN_EMAIL` | `admin@example.org` | Contact for app admin / superuser accounts |
+| `OWNSUITE_OBJECT_STORAGE_MODE` | `external` | `external` (managed S3) or `garage` (in-cluster) |
+| `OWNSUITE_S3_ENDPOINT` | _(empty)_ | External S3 endpoint URL (`external` mode) |
+| `OWNSUITE_S3_BUCKET` | `docs-media-storage` | Bucket for app media (created by Garage in `garage` mode) |
+| `OWNSUITE_GARAGE_META_STORAGE` | `1Gi` | Garage metadata volume size (`garage` mode) |
+| `OWNSUITE_GARAGE_DATA_STORAGE` | `10Gi` | Garage data volume size (`garage` mode) |
 | `OWNSUITE_PG_STORAGE` | `10Gi` | Postgres volume size |
 
 ## Run it (interim manual flow)

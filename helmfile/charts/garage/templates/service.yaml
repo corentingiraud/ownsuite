@@ -1,0 +1,18 @@
+{{- /* S3 API (3900) for apps, admin API (3903) for health checks / ops. The RPC
+       port (3901) stays pod-local (single node), so it is not published here. */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage
+  labels:
+    app.kubernetes.io/name: garage
+spec:
+  selector:
+    app.kubernetes.io/name: garage
+  ports:
+    - name: s3-api
+      port: 3900
+      targetPort: s3-api
+    - name: admin
+      port: 3903
+      targetPort: admin

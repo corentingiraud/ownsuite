@@ -10,17 +10,44 @@ Phase 2 by appending to keycloak.clients).
 {{- $clients := list -}}
 {{- range .Values.keycloak.clients }}
   {{- $secret := include "ownsuite.getSecret" (dict "root" $ "id" (printf "%s-oidc" .clientId)) -}}
+  {{- $host := printf "%s.%s" .clientId $.Values.domain -}}
   {{- $client := dict
       "clientId" .clientId
+      "name" .clientId
       "secret" $secret
       "enabled" true
       "protocol" "openid-connect"
       "publicClient" false
+      "clientAuthenticatorType" "client-secret"
       "standardFlowEnabled" true
-      "redirectUris" (list (printf "https://%s.%s/*" .clientId $.Values.domain))
-      "webOrigins" (list (printf "https://%s.%s" .clientId $.Values.domain))
+      "implicitFlowEnabled" false
+      "directAccessGrantsEnabled" (.directAccessGrants | default false)
+      "serviceAccountsEnabled" false
+      "frontchannelLogout" true
+      "redirectUris" (list (printf "https://%s/*" $host))
+      "webOrigins" (list (printf "https://%s" $host))
+      "defaultClientScopes" (list "web-origins" "acr" "roles" "profile" "email")
+      "attributes" (dict
+          "post.logout.redirect.uris" (printf "https://%s/*" $host)
+          "user.info.response.signature.alg" "RS256")
   -}}
   {{- $clients = append $clients $client -}}
+{{- end }}
+{{- /* Optional realm user for the e2e SSO check (CI only). Password derived from
+       the seed (id "kc-test-user"); never committed in plaintext. */ -}}
+{{- $users := list -}}
+{{- if .Values.keycloak.seedTestUser.enabled }}
+  {{- $pw := include "ownsuite.getSecret" (dict "root" $ "id" "kc-test-user") -}}
+  {{- $user := dict
+      "username" .Values.keycloak.seedTestUser.username
+      "email" .Values.keycloak.seedTestUser.email
+      "enabled" true
+      "emailVerified" true
+      "firstName" "Docs"
+      "lastName" "Tester"
+      "credentials" (list (dict "type" "password" "value" $pw "temporary" false))
+  -}}
+  {{- $users = append $users $user -}}
 {{- end }}
 {{- $realm := dict
     "realm" .Values.keycloak.realm
@@ -29,6 +56,7 @@ Phase 2 by appending to keycloak.clients).
     "sslRequired" "external"
     "registrationAllowed" false
     "clients" $clients
+    "users" $users
 -}}
 apiVersion: v1
 kind: ConfigMap

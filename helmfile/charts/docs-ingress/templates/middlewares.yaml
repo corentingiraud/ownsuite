@@ -1,0 +1,33 @@
+{{- /*
+Traefik middlewares for Docs authenticated media serving (ADR-016). The upstream
+impress chart ships nginx-specific auth-url/rewrite annotations on its media
+ingress; on Traefik (K3s-bundled) the equivalent is a forwardAuth middleware to
+the backend media-auth endpoint plus a path rewrite to the bucket (path-style S3).
+The Docs media ingress references these by name (see values/docs.yaml.gotmpl).
+*/}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: docs-media-auth
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: docs
+spec:
+  forwardAuth:
+    address: {{ printf "http://%s.%s.svc.cluster.local/api/v1.0/documents/media-auth/" .Values.backendService .Release.Namespace | quote }}
+    authResponseHeaders:
+      - Authorization
+      - X-Amz-Date
+      - X-Amz-Content-SHA256
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: docs-media-rewrite
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: docs
+spec:
+  replacePathRegex:
+    regex: "^/media/(.*)"
+    replacement: {{ printf "/%s/$1" .Values.bucket | quote }}

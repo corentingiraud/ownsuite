@@ -2,6 +2,9 @@ secretSeed: {{ .Values.secretSeed | quote }}
 domain: {{ .Values.domain | quote }}
 secretOverrides:
 {{ .Values.secretOverrides | toYaml | indent 2 }}
+apps:
+  docs:
+    enabled: {{ .Values.apps.docs.enabled }}
 databases:
 {{ .Values.databases | toYaml | indent 2 }}
 keycloak:
@@ -9,10 +12,14 @@ keycloak:
   adminUser: admin
   clients:
 {{ .Values.keycloak.clients | default list | toYaml | indent 4 }}
+  seedTestUser:
+{{ .Values.keycloak.seedTestUser | toYaml | indent 4 }}
 objectStorage:
   secretName: s3-credentials
   endpoint: {{ .Values.objectStorage.endpoint | quote }}
   region: {{ .Values.objectStorage.region | quote }}
+garage:
+  enabled: {{ .Values.garage.enabled }}
 valkey:
   secretName: valkey-credentials
   configSecretName: valkey-extra-config
