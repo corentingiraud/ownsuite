@@ -6,7 +6,7 @@ description: >-
   upstream release manifest (see templates/plugin.yaml). Installs into cnpg-system
   alongside the operator and reuses cert-manager for plugin TLS.
 type: application
-# Chart version is local; the plugin image/manifest version is pinned in
-# helmfile/versions/versions.yaml (barmanCloudPlugin) and vendored verbatim.
+# Chart version is local. No appVersion: the plugin version is the single source of
+# truth in helmfile/versions/versions.yaml (manifestVersions.barmanCloudPlugin),
+# injected into the vendored manifest — not duplicated here.
 version: 0.1.0
-appVersion: "v0.13.0"

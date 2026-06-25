@@ -1,0 +1,4 @@
+# CNPG Barman Cloud Plugin (ADR-006, ADR-017). The pinned version is the single
+# source of truth in versions.yaml; it drives both the operator and sidecar image
+# tags in the vendored manifest (charts/barman-cloud-plugin/templates/plugin.yaml).
+barmanCloudPlugin: {{ .Values.manifestVersions.barmanCloudPlugin | quote }}

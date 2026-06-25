@@ -7,5 +7,5 @@ description: >-
   object-storage mode; production defaults to an external S3 (ADR-003).
 type: application
 version: 0.1.0
-# The Garage image tag is pinned in helmfile/versions/versions.yaml, not here.
-appVersion: "2.3.0"
+# No appVersion: the Garage image version is the single source of truth in
+# helmfile/versions/versions.yaml (imageVersions.garage), not duplicated here.
