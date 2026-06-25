@@ -202,15 +202,17 @@ spec:
   pluginConfiguration:
     name: barman-cloud.cloudnative-pg.io
 EOF
+# The first base backup on a fresh cluster must first establish WAL archiving, then
+# upload to the off-site store, so allow generous time (~9 min).
 echo "    waiting for backup to complete..."
-for i in $(seq 1 60); do
+for i in $(seq 1 110); do
   phase="$(kubectl -n "$NS" get backup e2e-backup -o jsonpath='{.status.phase}' 2>/dev/null || echo '')"
   echo "    [backup $i] phase=${phase:-<pending>}"
   case "$phase" in
     completed) break ;;
     failed) echo "==> backup failed"; kubectl -n "$NS" describe backup e2e-backup | tail -40; exit 1 ;;
   esac
-  [ "$i" -eq 60 ] && { echo "==> backup did not complete in time"; kubectl -n "$NS" describe backup e2e-backup | tail -40; exit 1; }
+  [ "$i" -eq 110 ] && { echo "==> backup did not complete in time"; kubectl -n "$NS" describe backup e2e-backup | tail -40; exit 1; }
   sleep 5
 done
 

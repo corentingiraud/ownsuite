@@ -63,8 +63,16 @@ spec:
               NODE_ID=$(g node id -q | cut -d@ -f1 | tr -d '[:space:]')
               echo "Garage node id: $NODE_ID"
 
-              if g layout show | grep -q "$NODE_ID"; then
-                echo "Layout already assigned, skipping."
+              # Idempotency must hold across re-runs (this Job is a post-upgrade hook,
+              # so `make sync`/`make restore` re-run it on a cluster that is already
+              # laid out). `layout show` prints a TRUNCATED node id, so matching the
+              # full id is unreliable; instead skip once a layout version >= 1 exists
+              # (re-applying "--version 1" on top of an applied layout errors with
+              # "Invalid new layout version").
+              LAYOUT_VERSION=$(g layout show 2>/dev/null \
+                | sed -nE 's/.*[Cc]luster layout version:[[:space:]]*([0-9]+).*/\1/p' | tail -1)
+              if [ "${LAYOUT_VERSION:-0}" -ge 1 ] 2>/dev/null; then
+                echo "Layout already applied (version ${LAYOUT_VERSION}), skipping."
               else
                 echo "Assigning single-node layout..."
                 g layout assign -z dc1 -c 1G "$NODE_ID"
