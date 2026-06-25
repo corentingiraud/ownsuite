@@ -63,7 +63,35 @@ KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
 export KUBECONFIG
 
 echo "==> helmfile sync (domain=$OWNSUITE_DOMAIN, issuer=$OWNSUITE_TLS_ISSUER)"
-helmfile -f "$HELMFILE" sync
+# `helmfile sync` blocks silently on `helm --wait` (up to 900s/release). Run it in
+# the background with a watchdog that prints a per-pod-phase heartbeat and aborts
+# IMMEDIATELY on an unrecoverable pod state (image pull errors, container start
+# errors, or a pod stuck in CrashLoopBackOff) — turning a 15-minute silent timeout
+# into a ~15-second, actionable failure. Full diagnostics are dumped by the EXIT
+# trap; here we just surface the cause and stop waiting.
+SYNC_LOG="$(mktemp)"
+helmfile -f "$HELMFILE" sync >"$SYNC_LOG" 2>&1 &
+SYNC_PID=$!
+
+while kill -0 "$SYNC_PID" 2>/dev/null; do
+  sleep 15
+  echo "[watch $(date -u +%H:%M:%S)] pods: $(kubectl get pods -A --no-headers 2>/dev/null \
+    | awk '{c[$4]++} END{for(k in c) printf "%s=%d ", k, c[k]}')"
+  if kubectl get pods -A --no-headers 2>/dev/null | awk '
+      $4 ~ /ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerError|RunContainerError|CreateContainerConfigError/ {bad=1; print "  ! "$0}
+      $4 == "CrashLoopBackOff" && ($5+0) >= 3 {bad=1; print "  ! "$0}
+      END {exit bad ? 0 : 1}'; then
+    echo "==> FAIL-FAST: unrecoverable pod state during sync (see above)"
+    kill "$SYNC_PID" 2>/dev/null || true
+    cat "$SYNC_LOG"
+    exit 1
+  fi
+done
+
+SYNC_RC=0
+wait "$SYNC_PID" || SYNC_RC=$?
+cat "$SYNC_LOG"
+[ "$SYNC_RC" -eq 0 ] || { echo "==> helmfile sync failed (exit $SYNC_RC)"; exit "$SYNC_RC"; }
 
 # cert-manager issues the certificates asynchronously after the ingresses are
 # created; give them a moment before asserting (non-fatal — pytest re-checks).

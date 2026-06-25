@@ -29,6 +29,9 @@ spec:
       containers:
         - name: garage
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          # The image has no entrypoint (Cmd is "/garage server"); set the binary
+          # path explicitly so `args` doesn't replace the whole command.
+          command: ["/garage"]
           args: ["server"]
           ports:
             - name: s3-api
