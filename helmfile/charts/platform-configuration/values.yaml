@@ -11,11 +11,15 @@ secretOverrides: {}
 
 domain: ownsuite.localhost
 
-# Per-app toggles (gates app-specific secrets like docs-secrets / drive-secrets).
+# Per-app toggles (gates app-specific secrets like docs-secrets / drive-secrets /
+# grist-secrets). Defaults are for standalone `helm lint`; Helmfile feeds the real
+# values from the environment.
 apps:
   docs:
     enabled: true
   drive:
+    enabled: true
+  grist:
     enabled: true
 
 # Databases whose owner password is derived and exposed as a basic-auth Secret.

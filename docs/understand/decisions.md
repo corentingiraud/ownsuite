@@ -683,3 +683,82 @@ knowledge; the verb is app-count-agnostic by construction (JIT). The same path i
 drives to prove the DoD (create a user via the CLI → it reaches Docs **and** Drive). `suite
 upgrade` / `suite restore` remain later verbs (ADR-007). Residual: the CLI assumes the realm's
 default (no password policy); a stricter policy would need the generated password to conform.
+
+---
+
+## ADR-024 — Grist integration: local chart, public-issuer OIDC, PVC storage, off by default
+
+**Context.** Phase 5 broadens the suite beyond the DoD apps. **Grist** (getgrist — spreadsheets
+that behave like a database) is the next one. Unlike Drive
+([ADR-022](#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)), Grist is **not** a
+`suitenumerique`/impress sibling: it is a single-container Node app, it ships **no official Helm
+chart**, and its OIDC and storage models differ from the Django apps. So the question ADR-022
+answered ("what must the Docs seam grow") does not apply — Grist needs its own small chart and a
+fresh look at three couplings: how it talks OIDC to our Keycloak, where its documents live, and
+whether it is safe to ship enabled. The design was scoped against three facts discovered while
+wiring it, which overrode an earlier sketch (internal-discovery + S3 doc storage):
+
+1. **Grist does OIDC by single-issuer discovery only.** It takes one `GRIST_OIDC_IDP_ISSUER`
+   and discovers every endpoint from that issuer's `/.well-known/openid-configuration`. It has
+   **no** per-endpoint override, so the external/internal split Docs/Drive rely on
+   ([ADR-016](#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)) is not
+   expressible for Grist.
+2. **The off-site object backup copies a single bucket.** `object-backup`
+   ([ADR-017](#adr-017-backups--tested-restore-barman-cloud-plugin-rclone-off-site-by-design))
+   syncs only the Docs media bucket today, so putting Grist documents in a *new* S3 bucket would
+   **not** make them off-site-backed without first reworking the restore machinery — defeating the
+   one reason ("close the backup gap") to prefer S3 over a volume.
+3. **Grist is not part of the Phase 5 DoD** (Docs + Drive), and the constrained CI runner is
+   already near its ceiling under the existing stack (the restore phase had to shed Drive to stay
+   within the node's memory — see `run-e2e.sh`).
+
+**Decision.** Add Grist as a Helmfile release backed by a **small local chart**
+(`helmfile/charts/grist`), reusing the shared seams, with these specific choices:
+
+- **Local chart, not Bitnami, not a fork.** One `Deployment` (single replica,
+  `strategy: Recreate` so the read-write-once volume is never double-mounted across a rollout),
+  one `Service`, one `PersistentVolumeClaim`, one Traefik `Ingress`. The chart renders standalone
+  (`helm lint helmfile/charts/*`) like the Garage chart; the pinned image tag (`gristlabs/grist`,
+  versions.yaml) is injected by Helmfile.
+- **OIDC via the public issuer (discovery), no Keycloak change.** `GRIST_OIDC_IDP_ISSUER` is the
+  **public** realm URL `https://auth.{domain}/realms/{realm}`; the browser and the Grist backend
+  both reach Keycloak there. In production the backend hairpins to `auth.{domain}` with the real
+  Let's Encrypt certificate (standard for an OIDC client that happens to run in-cluster), so no
+  TLS-skip or CA wiring is needed. This is the documented Grist↔Keycloak path. **Rejected:**
+  pointing Grist at the in-cluster Keycloak service and enabling
+  `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` on the *shared* Keycloak — it would make the discovery
+  document's `issuer` (still the public host) disagree with the URL Grist discovered against,
+  risking an openid-client issuer-mismatch, and it perturbs the Keycloak that Docs/Drive depend on
+  for no benefit Grist needs. The `grist` OIDC client is one more `keycloak.clients` entry; the
+  existing realm-import + upsert-Job templates already emit `redirectUris: https://grist.{domain}/*`
+  (covering Grist's `/oauth2/callback`) and the `profile`+`email` scopes Grist maps to its user —
+  so no client-template change ([ADR-020](#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)).
+- **Storage: a PVC for documents, CNPG for the home DB.** Grist keeps its document SQLite files on
+  its `/persist` volume (a `PersistentVolumeClaim`) and its home database (orgs, users, ACLs) in a
+  dedicated CNPG `grist` database via `TYPEORM_*`. **No S3, no Redis** — those exist in Grist for
+  multi-worker, horizontally-scaled deployments, which a single node is not, and (per Context #2)
+  S3 would not even buy off-site backup yet. The session secret and OIDC client secret are
+  seed-derived ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating))
+  in a `grist-secrets` Secret; the home-DB password reuses the per-app `grist-db` Secret.
+- **Formula sandbox: unsandboxed by default, overridable.** Grist runs document formulas in a
+  Python sandbox; `gvisor` (the image default) needs node capabilities that stock K3s/containerd
+  does not reliably grant unprivileged, which would block boot. OwnSuite is a **single trusted
+  organisation** — only its own members author documents — so `GRIST_SANDBOX_FLAVOR=unsandboxed`
+  is an acceptable, boot-reliable default, surfaced as `OWNSUITE_GRIST_SANDBOX` for anyone who has
+  set their node up for gvisor.
+- **Off by default, fully gated.** Every Grist piece (release, OIDC client, `grist` database,
+  secrets) is gated on `apps.grist.enabled`, which defaults **false** (`OWNSUITE_APP_GRIST`).
+  Reasons: it is outside the hard DoD, it is not yet booted in the constrained CI e2e (Context #3),
+  and enabling is a single flag. Because it is gated off, the e2e renders and deploys **identically**
+  to before; the chart is validated cheaply by `helm template` + kubeconform on every change.
+
+**Consequences.** A non-profit gets Grist over HTTPS with real SSO by flipping one flag, reusing
+Keycloak + CNPG with no new infrastructure and no change to the apps already in the DoD. **Honest
+limits, each with an upgrade path:** (a) the documents PVC is **not** off-site-backed — the same
+pre-existing gap as Drive's bucket (Context #2); closing it means teaching `object-backup` to copy
+N buckets / a volume, deferred until Grist graduates from off-by-default. (b) `unsandboxed`
+formulas trust the document authors (true for one org); switch to `gvisor` on a suitably-configured
+node otherwise. (c) Grist is **template/lint-validated, not yet CI-booted**; a targeted boot check
+(enable Grist on a beefier/nightly runner and assert a Keycloak user reaches it) is the natural next
+step before it becomes a default app. The public-issuer OIDC choice assumes the in-cluster backend
+can reach `auth.{domain}` (DNS + hairpin), which holds on a normal single-server install.

@@ -245,3 +245,20 @@ releases:
       {{- end }}
     values:
       - values/drive.yaml.gotmpl
+
+  # --- App: Grist (getgrist) — Phase 5 broadening (ADR-024) -------------------
+  # A single-container app from a local chart, OFF by default (apps.grist.enabled).
+  # Reuses CNPG (its own `grist` home database) + Keycloak SSO; its documents live on
+  # a PVC, so it needs neither Valkey nor S3 (no garage/valkey dependency, unlike the
+  # impress apps). OIDC is single-issuer discovery against the public Keycloak host.
+  - name: grist
+    namespace: {{ $ns }}
+    chart: ./charts/grist
+    condition: apps.grist.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/postgres
+      - {{ $ns }}/keycloak
+      - cert-manager/issuers
+    values:
+      - values/grist.yaml.gotmpl

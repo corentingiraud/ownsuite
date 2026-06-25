@@ -1,0 +1,18 @@
+{{- /* Durable home for Grist's document SQLite files (/persist). Single-instance,
+       so ReadWriteOnce. NOT off-site-backed yet — see ADR-024 (same gap as Drive's
+       bucket); object-backup copies a single bucket today. */}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grist-persist
+  labels:
+    app.kubernetes.io/name: grist
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}

@@ -1,0 +1,67 @@
+{{- /*
+Grist server (ADR-024). One container, one replica. The document SQLite files live
+on the `grist-persist` PVC mounted at /persist; the home database is external (CNPG,
+via TYPEORM_* env). `strategy: Recreate` guarantees the read-write-once volume is
+never mounted by two pods during a rollout. All credentials arrive by secretKeyRef
+(secretEnv) — nothing secret is rendered here.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grist
+  labels:
+    app.kubernetes.io/name: grist
+spec:
+  replicas: {{ .Values.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grist
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grist
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: grist
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          env:
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- range .Values.secretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probePath }}
+              port: http
+            # Generous: the first boot runs the home-DB migration before /status answers.
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          volumeMounts:
+            - name: persist
+              mountPath: /persist
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: persist
+          persistentVolumeClaim:
+            claimName: grist-persist

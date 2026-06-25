@@ -1,0 +1,69 @@
+# Grist (getgrist) — Phase 5 broadening (ADR-024). Deployed from the local
+# ./charts/grist chart; OFF by default (gated on apps.grist.enabled at the Helmfile
+# level). Image tag pinned in versions.yaml.
+#
+# Unlike Docs/Drive (suitenumerique/impress), Grist authenticates by single-issuer
+# OIDC discovery — it has no per-endpoint split — so it points at the PUBLIC Keycloak
+# issuer (https://auth.{domain}/realms/{realm}); the browser and the in-cluster
+# backend both reach Keycloak there (the backend hairpins with the real cert in
+# production). Its documents are SQLite files on the /persist PVC; the home DB is a
+# dedicated CNPG `grist` database. No S3, no Redis on a single node. Every credential
+# comes from a seed-derived Secret via secretKeyRef (ADR-012); nothing secret here.
+{{- $domain := .Values.domain -}}
+{{- $host := printf "grist.%s" $domain -}}
+{{- $realm := .Values.keycloak.realm -}}
+{{- $ns := .Values.workloadsNamespace -}}
+{{- $pgHost := printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName $ns -}}
+{{- $issuer := printf "https://auth.%s/realms/%s" $domain $realm }}
+
+image:
+  repository: gristlabs/grist
+  tag: {{ .Values.imageVersions.grist | quote }}
+
+persistence:
+  size: {{ .Values.apps.grist.storageSize | quote }}
+
+ingress:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.tls.issuer | quote }}
+  tls:
+    enabled: true
+    secretName: grist-tls
+
+env:
+  PORT: "8484"
+  # Externally visible base URL — Grist builds redirect/links from it.
+  APP_HOME_URL: {{ printf "https://%s" $host | quote }}
+  # Single-tenant: one team site, no org selector.
+  GRIST_SINGLE_ORG: {{ .Values.apps.grist.org | quote }}
+  GRIST_DEFAULT_EMAIL: {{ .Values.adminEmail | quote }}
+  # Require SSO — no anonymous access.
+  GRIST_FORCE_LOGIN: "true"
+  # Formula sandbox. `unsandboxed` is boot-reliable on stock K3s and acceptable for a
+  # single trusted organisation; switch to gvisor on a node set up for it (ADR-024).
+  GRIST_SANDBOX_FLAVOR: {{ .Values.apps.grist.sandbox | quote }}
+  # --- Home database (CNPG) — orgs, users, workspaces, ACLs ---
+  TYPEORM_TYPE: postgres
+  TYPEORM_HOST: {{ $pgHost | quote }}
+  TYPEORM_PORT: "5432"
+  TYPEORM_DATABASE: grist
+  TYPEORM_USERNAME: grist
+  # --- OIDC (Keycloak) — single public issuer; discovery derives every endpoint ---
+  GRIST_OIDC_IDP_ISSUER: {{ $issuer | quote }}
+  GRIST_OIDC_IDP_CLIENT_ID: grist
+  GRIST_OIDC_IDP_SCOPES: "openid email profile"
+  GRIST_OIDC_SP_HOST: {{ printf "https://%s" $host | quote }}
+
+secretEnv:
+  - name: GRIST_SESSION_SECRET
+    secretName: grist-secrets
+    secretKey: GRIST_SESSION_SECRET
+  - name: GRIST_OIDC_IDP_CLIENT_SECRET
+    secretName: grist-secrets
+    secretKey: GRIST_OIDC_IDP_CLIENT_SECRET
+  - name: TYPEORM_PASSWORD
+    secretName: grist-db
+    secretKey: password
