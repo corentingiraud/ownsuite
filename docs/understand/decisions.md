@@ -883,17 +883,23 @@ an earlier scout pass wrongly claimed messages publishes no images and had no re
 - **Off by default, fully gated.** Every piece (release, OIDC client, `messages` DB, bucket, secrets,
   seed Job) is gated on `apps.messages.enabled`, default **false** (`OWNSUITE_APP_MESSAGES`): it is the
   optional, advanced add-on. Gated off, the e2e renders/deploys identically; the chart is validated by
-  `helm lint` + kubeconform on every change and booted in the k3d e2e behind the flag (the local-delivery
-  loopback below).
+  `helm lint` + kubeconform on every change. Like Grist and Projects
+  ([ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default),
+  [ADR-025](#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)),
+  it is **not booted in the constrained k3d e2e** — heavier still (five pods), it would push the runner,
+  already shedding Drive during the restore phase, over its memory ceiling. The hermetic loopback below
+  is the natural next step on a beefier/nightly runner.
 
 **Consequences.** A non-profit gets an integrated webmail over HTTPS with real SSO by enabling one
 flag and supplying a relay account — reusing Keycloak, CNPG, Valkey and the S3 seam with **one** new
-heavy dependency removed (OpenSearch). **Honest limits:** no full-text mail search until OpenSearch is
-re-enabled; **no IMAP/POP3** by design (ADR-021); the mail bucket shares Drive/Grist's not-yet-off-site
-backup gap. The hermetic half — pods converge, webmail 200s, OIDC login works, and a message delivered
-between two local mailboxes reads back via the API (the Docs create-and-read-back analog) — is proven in
-CI; real external deliverability (SPF/DKIM/DMARC-aligned, inbox-not-spam) is an **off-CI human check** on
-a real domain + relay, exactly as real ACME was validated off-CI in Phase 4.
+heavy dependency removed (OpenSearch). **Honest limits, each with an upgrade path:** no full-text mail
+search until OpenSearch is re-enabled; **no IMAP/POP3** by design (ADR-021); the mail bucket shares
+Drive/Grist's not-yet-off-site backup gap; and messages is **template/lint-validated, not yet CI-booted**
+(runner footprint). The intended boot check is the **hermetic loopback** — pods converge, webmail 200s,
+OIDC login works, and a message delivered between two local mailboxes reads back via the API (the Docs
+create-and-read-back analog) — run on a beefier/nightly runner. **Real external deliverability**
+(SPF/DKIM/DMARC-aligned, inbox-not-spam) is an **off-CI human check** on a real domain + relay account,
+exactly as real ACME issuance was validated off-CI in Phase 4.
 
 ---
 
