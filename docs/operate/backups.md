@@ -1,10 +1,8 @@
 # Backups & tested restore
 
-OwnSuite backs up the **three sources of state** and **proves** it can restore them
-([ADR-006](../understand/decisions.md#adr-006-backups-and-tested-restore),
-[ADR-017](../understand/decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
-Backups are **off-site by construction**: the destination must survive the loss of the
-Server, so it is **never** the in-cluster Garage you are backing up.
+OwnSuite backs up everything that matters and — just as important — **proves it can restore
+it**. A backup you've never tested isn't really a backup. Copies are kept **off-site**: the
+destination has to survive losing the whole server, so it's never stored on the server itself.
 
 ## What is backed up
 
@@ -96,15 +94,10 @@ This runs a Helmfile sync in restore mode:
 2. **Objects** are copied back from the off-site store into the primary bucket (rclone restore Job).
 3. **Apps** (Keycloak, Docs) come up against the restored database + bucket.
 
-`make restore` prefigures the backup-gated `suite restore`
-([ADR-007](../understand/decisions.md#adr-007-upgrade-model-semver-releases-backup-gated-cli)).
+## Tested every night
 
-## Proven in CI
-
-The k3d e2e (`make test-platform`,
-[ADR-010](../understand/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness))
-runs the full cycle every night and on Helmfile changes: it brings the stack up with backups on,
-creates a document and seeds a media object, backs them up, **destroys** the primary state
-(keeping only the off-site store + secrets + operators), runs `make restore`, and asserts the
-**document, the Keycloak user, and the media object all survived**. That is the Phase-3
-definition of done.
+This isn't a backup you hope works. Every night (and whenever the deployment changes), CI runs
+the whole cycle on a throwaway cluster: it brings the stack up with backups on, creates a
+document and a file, backs them up, **destroys** the primary data (keeping only the off-site
+copy), runs `make restore`, and checks that the **document, the user account, and the file all
+came back**. If restore ever broke, the build would catch it before you ever needed it.

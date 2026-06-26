@@ -26,11 +26,11 @@ isolation**, with no shared infrastructure and no common SSO.
 cache, storage and — above all — **one SSO** across every app, plus everything real
 production needs: **backups, tested restore, controlled upgrades**.
 
-!!! info "Status"
-    Phases 0–4 are built and proven in CI — bootstrap, shared infrastructure, the Docs
-    app, off-site backups with a tested restore, and the guided installer. Broader apps
-    and hardening are on the [roadmap](project/roadmap.md); the rationale is in the
-    [architecture decisions](understand/decisions.md).
+!!! info "What's ready today"
+    The core is built and tested in CI: server setup, shared single sign-on, the **Docs**
+    and **Drive** apps, off-site backups with a restore that's actually tested, and the
+    guided installer. **Grist**, **Projects** and a **Mailbox** are available as optional
+    extras. See the [feature list](project/roadmap.md).
 
 ## Where to start
 
@@ -43,14 +43,22 @@ production needs: **backups, tested restore, controlled upgrades**.
 
 </div>
 
-**Curious how it works, or contributing?**
+**Running it day to day?**
 
 <div class="grid cards" markdown>
 
-- :material-sitemap: **[Understand the stack](understand/overview.md)** — the architecture, block by block.
-- :material-backup-restore: **[Backups & restore](operate/backups.md)** — off-site, encrypted, with a tested restore.
-- :material-scale-balance: **[Decisions (ADR)](understand/decisions.md)** — the choices and their rationale.
-- :material-map: **[Roadmap](project/roadmap.md)** — the phases to *production-ready*.
+- :material-account-multiple: **[Add your people](operate/users.md)** — one command per person, instant access to every app.
+- :material-backup-restore: **[Backups & restore](operate/backups.md)** — off-site, encrypted, with a restore you can trust.
+- :material-server-network: **[Pick a server size](operate/sizing.md)** — how much RAM, CPU and disk to rent.
+
+</div>
+
+**Curious how it works?**
+
+<div class="grid cards" markdown>
+
+- :material-sitemap: **[How it works](understand/overview.md)** — the moving parts, in plain terms.
+- :material-map: **[What's included](project/roadmap.md)** — the apps and features, and what's coming.
 
 </div>
 

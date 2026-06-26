@@ -61,11 +61,10 @@ S3 — so the disk stays small and predictable.
 
 ## Notes
 
-- **OpenSearch is not deployed.** The mailbox's optional full-text search is deferred to protect
-  RAM on a single VPS ([ADR-026](../understand/decisions.md#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred)).
-  If you re-enable it, budget **+1–2 GB RAM** for its JVM heap.
-- **Memory limits, not CPU limits.** Each workload caps memory (to stop one app starving the
-  others) but only *requests* CPU — a CPU limit would throttle queries and migrations. See
-  [ADR-028](../understand/decisions.md#adr-028-resource-requestslimits-and-probes-for-every-workload).
-- **Headroom for upgrades.** `suite upgrade` / `helmfile apply` may run a new pod alongside the
-  old one for a moment; the recommended RAM covers that overlap.
+- **Full-text mail search is not enabled.** The mailbox can run an optional search engine
+  (OpenSearch), but it's left off to save memory on a single server. If you turn it on, add
+  **1–2 GB of RAM** for it.
+- **Memory is capped, CPU is not.** Each app has a memory ceiling (so one app can't starve the
+  others) but is free to use spare CPU — capping CPU would slow down queries and migrations.
+- **Leave room for upgrades.** During an upgrade a new copy of an app may run briefly alongside
+  the old one; the recommended figures cover that overlap.
