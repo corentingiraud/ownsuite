@@ -972,3 +972,57 @@ pods self-heal, and a volunteer can read one [sizing guide](../operate/sizing.md
 VPS. **Trade-off:** the limits are deliberately generous ceilings (headroom for migrations and
 upgrade overlap), so steady-state usage sits well below them — the recommended-RAM figure is a safe
 buy, not a tight one.
+
+## ADR-033 — `suite status` for monitoring (CLI, no in-cluster workload)
+
+**Context.** A non-expert operator needs a quick, trustworthy answer to "is my OwnSuite
+healthy?" — node, database, certificates, off-site backups, and each enabled app. The
+single-server target makes a full monitoring stack (Prometheus/Grafana/Alertmanager) a poor
+trade: it costs RAM and operational surface on a node sized for the apps themselves, and it is
+one more thing the volunteer must learn, secure, and keep alive.
+
+**Decision.** Add a read-only `suite status` subcommand that reads live state over the existing
+SSH tunnel (ADR-014) with `kubectl get -o json` and prints a readable, line-per-check summary.
+It reuses the CLI's tunnel/kubectl plumbing — no new server-side workload, no extra Helm
+release, no scrape endpoints. The k8s/CNPG/cert/backup JSON is parsed by small pure functions
+that are unit-tested against fixtures, so the parsing has coverage without a live cluster. Only
+the apps switched on (via `OWNSUITE_APP_*`, same precedence the Helmfile uses) are reported.
+
+**Consequences.** The operator gets an at-a-glance health check with nothing extra running on
+the server, on demand, over the private tunnel. **Trade-off:** it is a point-in-time snapshot,
+not continuous alerting — there is no history and nothing pages you when something breaks at
+3am. For the single-server, volunteer-run target that is the right altitude; a deployment that
+outgrows it can layer a real monitoring stack on top later.
+
+## ADR-034 — `suite upgrade` (backup-gated snapshot → diff → apply → health → rollback)
+
+**Context.** Version bumps land as Renovate-proposed edits to the pinned versions (ADR-007),
+gated by CI. Applying them on a live server is the dangerous moment: a bad upgrade can wedge an
+app or, worse, touch data with no undo. The operator needs a single safe path that makes the
+right thing the easy thing — never an upgrade without a fresh restore point, and automatic
+recovery when an upgrade fails its health check.
+
+**Decision.** Add `suite upgrade`, the operationalisation of ADR-007's "explicit, reviewable,
+CI-gated bump" into a safe apply:
+
+1. **Refuse if backups are disabled.** A destructive operation requires a recovery net; with
+   `OWNSUITE_BACKUP_ENABLED` not true, the command stops before doing anything (ADR-006).
+2. **Pre-upgrade snapshot.** It reuses the `make backup` machinery (CNPG base backup + off-site
+   object copy) — the backup path is not reinvented.
+3. **Show the diff and confirm.** `helmfile diff` is printed and confirmed interactively,
+   skippable with `--yes` like `suite install`'s non-interactive mode.
+4. **Apply** with `helmfile apply`.
+5. **Health-check** by reusing `suite.verify` against single sign-on and each enabled app's
+   public HTTPS host.
+6. **Roll back on failure.** Each host that fails its health check has its Helm release rolled
+   back to the previous revision; the command then exits with an error naming what failed.
+
+The flow's branching — the backup gate and the rollback-on-health-failure path in particular —
+is unit-tested with mocked subprocess and HTTPS calls, no live cluster.
+
+**Consequences.** Upgrades become a one-command, low-anxiety operation: there is always a fresh
+snapshot, the change is shown before it applies, and a regression self-heals back to the working
+version. **Trade-off:** a rollback restores the previous *version*, not the data — the
+pre-upgrade snapshot is the only undo for data changes, which is exactly why backups are a hard
+precondition. The health check is HTTPS-reachability of each app, not a deep functional test;
+deeper assertions live in the nightly e2e (ADR-010), not in the hot upgrade path.
