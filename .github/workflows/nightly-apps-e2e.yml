@@ -13,11 +13,6 @@ on:
   schedule:
     - cron: "0 5 * * *"
   workflow_dispatch:
-  # TEMPORARY (remove before merge): run on this PR to prove all three apps go green.
-  pull_request:
-    paths:
-      - "helmfile/tests/**"
-      - ".github/workflows/nightly-apps-e2e.yml"
 
 # Least privilege: e2e only reads the repo (spins up an ephemeral k3d cluster).
 permissions:
