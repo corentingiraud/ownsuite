@@ -120,6 +120,23 @@ components:
     imageSuffix: mta-out
     port: 587
     portName: smtp
+    # Work around three gaps in the 0.8.0 image so postfix actually starts:
+    #   1. The entrypoint writes the SASL db to /var/spool/postfix/etc/sasldb2 but the
+    #      Dockerfile never creates that dir, so saslpasswd2 fails ("generic failure").
+    #   2. The queue dirs are created owned by root, so `postfix start-fg` aborts on
+    #      mis-owned /var/spool/postfix/{private,public}; `postfix set-permissions`
+    #      fixes the ownership before the daemon starts.
+    #   3. set-permissions chowns postfix's manpages too, but the slim image strips
+    #      them, so chown exits non-zero and (under sh's &&) aborts before the
+    #      entrypoint. The queue-dir chowns it cares about still happen; `|| true`
+    #      swallows only the cosmetic manpage failure. A genuinely broken permission
+    #      set still fails fast at `postfix start-fg`, which validates them.
+    # Create the dir, fix permissions, then exec the stock entrypoint.
+    # ponytail: drop once upstream ships the mkdir + set-permissions in its image.
+    command:
+      - sh
+      - -c
+      - mkdir -p /var/spool/postfix/etc && { postfix set-permissions || true; } && exec /usr/local/bin/entrypoint.sh
     probe:
       type: tcp
     # Postfix: lightweight relay process.

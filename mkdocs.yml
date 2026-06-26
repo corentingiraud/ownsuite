@@ -92,6 +92,8 @@ plugins:
         Operate:
           - operate/users.md: User provisioning with the `suite user` CLI (one Keycloak identity, JIT to all apps).
           - operate/sizing.md: Server sizing — minimum and recommended VPS specs (RAM/CPU/disk) per enabled app.
+          - operate/status.md: Health monitoring with `suite status` (node, database, certificates, backups, per-app pods).
+          - operate/upgrade.md: Safe upgrades with `suite upgrade` (backup-gated snapshot, diff, apply, health check, auto rollback).
           - operate/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
         How it works:
           - understand/overview.md: How it works — the moving parts, in plain terms.
@@ -126,6 +128,8 @@ nav:
   - Operate:
       - Users: operate/users.md
       - Server sizing: operate/sizing.md
+      - Status & monitoring: operate/status.md
+      - Upgrading: operate/upgrade.md
       - Backups & restore: operate/backups.md
   - How it works:
       - Overview: understand/overview.md

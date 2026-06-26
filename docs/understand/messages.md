@@ -97,17 +97,19 @@ one created by `suite user add`), then send a test message to an external inbox.
 
 messages is **template/lint-validated** (`make lint-helm`: `helm lint` the chart standalone +
 kubeconform the rendered manifests, in both relay states), and the installer's DNS/DKIM logic is
-unit-tested (`tests/test_dns.py`, `tests/test_mail.py`). Like Grist and Projects it is **not booted
-in the constrained k3d e2e** — five pods would push the already-tight runner over its memory ceiling.
+unit-tested (`tests/test_dns.py`, `tests/test_mail.py`). On top of that, the **hermetic mail
+loopback runs nightly** on its own throwaway cluster — kept separate from Docs and Drive because
+five pods would push the shared runner over its memory ceiling. Run it yourself with
+`make test-app APP=messages`.
 
-Two checks remain off the per-PR CI, mirroring how real ACME is validated off-CI:
-
-- **Hermetic loopback** (a beefier/nightly runner): pods converge, the webmail returns 200, OIDC login
-  works, and a message delivered between two local mailboxes reads back via the API — the Docs
-  create-and-read-back analog. No relay account, so mta-out delivers locally only.
+- **Hermetic loopback** (nightly): the five components converge, the webmail answers, and a message
+  delivered to a local mailbox reads back via the API. The test injects a message over SMTP to the
+  inbound MTA and confirms it lands in the recipient's mailbox — the real inbound path
+  (MTA → delivery agent → mailbox), with no relay account, so nothing leaves the cluster.
 - **Real external deliverability** (a human, on a real domain + relay account): publish the records,
   `suite user add`, send to an external inbox, and confirm it lands **not in spam** with SPF/DKIM/DMARC
-  aligned. The `dns_check` management command verifies record alignment.
+  aligned. The `dns_check` management command verifies record alignment. This is the one check a
+  CI cluster cannot stand in for — it needs a real domain, a real relay, and a real external inbox.
 
 ## Limits
 

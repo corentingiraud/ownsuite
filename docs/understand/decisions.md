@@ -190,7 +190,9 @@ is still machine-verified, just not on every PR.
 the shared infra up; the backup work adds the install → upgrade → **restore** replay ADR-006
 mandates. The Helmfile layer runs on **k3d** (purpose-built for in-cluster Helm e2e) with the
 same pytest-style assertions, kept in a dedicated, cost-aware workflow
-(`helmfile-e2e.yml`) — the layered philosophy holds; only the substrate fits the tool.
+(`helmfile-e2e.yml`) — the layered philosophy holds; only the substrate fits the tool. The
+optional apps that don't fit alongside the core on one runner get their own per-app nightly
+matrix ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)) — one app per fresh cluster.
 
 **Consequences.** Robust feedback proportional to risk, and a test foundation that the
 later work inherits instead of reinventing. Cost: Molecule/Testinfra are Python dev
@@ -978,6 +980,46 @@ VPS. **Trade-off:** the limits are deliberately generous ceilings (headroom for 
 upgrade overlap), so steady-state usage sits well below them — the recommended-RAM figure is a safe
 buy, not a tight one.
 
+---
+
+## ADR-029 — Per-app nightly e2e: one app per cluster
+
+**Context.** [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness) runs the combined
+end-to-end check (`helmfile-e2e.yml`) on a single k3d cluster: the shared infrastructure plus the
+**Docs + Drive** core, then a full backup → restore cycle. The optional apps (Grist, Projects,
+messages) are deliberately **left out** of that run — bringing them up alongside the core, the
+operators, Keycloak and a CNPG recovery would push the GitHub runner past its memory ceiling.
+messages alone is five pods. So the optional apps were lint/template-validated but never actually
+booted in CI, and the messages mail loopback stayed an off-CI manual check. That is the last
+coverage gap before any of them could graduate to on-by-default.
+
+**Decision.** A **separate nightly workflow** (`nightly-apps-e2e.yml`) with a **matrix, one app per
+job, each on its own fresh k3d cluster**. Because each job holds only the platform plus one app,
+none competes for RAM. Per job it brings the app up, asserts it converges, that its UI is reachable
+over HTTPS through Traefik, and an app-appropriate read-back:
+
+- **Grist** — the health endpoint answers and an unauthenticated visit bounces to the SSO login page.
+- **Projects** — the UI is reachable over HTTPS (its SSO redirect happens client-side, so the bounce
+  target is not asserted; the browser flow stays a human check on first deployment).
+- **messages** — the local mail-delivery loopback: a message injected over SMTP to the inbound MTA
+  is delivered (MTA → delivery agent → mailbox) and reads back via the API, with no external relay,
+  so nothing leaves the cluster. This finally exercises the inbound mail path in CI.
+
+The fail-fast watchdog, the cert wait and the failure diagnostics are **factored into a shared
+`helmfile/tests/lib.sh`** sourced by both the combined `run-e2e.sh` and the new `run-app-e2e.sh`,
+so the two harnesses share one implementation. The workflow runs on a schedule (after the combined
+e2e) and on demand (`workflow_dispatch`), never on every PR — it is heavy and the Docs+Drive core
+is already proven on every relevant push. Locally: `make test-app APP=<grist|projects|messages>`.
+
+**Consequences.** Every shipped app is now actually booted in CI, the messages mail loopback is
+automated rather than manual, and the optional apps have the boot evidence they need to graduate
+later. The split matrix keeps each run within the runner's budget at the cost of more total CI
+minutes (three clusters instead of one) — acceptable for a nightly. Real external mail
+deliverability ([ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay)) remains
+the one check a hermetic cluster cannot stand in for: it needs a real domain, relay and inbox.
+
+---
+
 ## ADR-030 — N-bucket off-site object backup
 
 **Context.** The off-site object copy ([ADR-006](#adr-006-backups-and-tested-restore),
@@ -1004,6 +1046,8 @@ restore path stays symmetric (each restored from its own sub-path).
 single-bucket gap is closed. **Trade-off:** the copy runs the buckets sequentially in one CronJob
 pass (simple, and fine at single-VPS data volumes); a future parallel/per-bucket schedule is a small
 change if data ever outgrows it.
+
+---
 
 ## ADR-031 — Projects uploads on S3, eliminating the PVC
 
@@ -1032,6 +1076,8 @@ storage is uniformly S3 (no app-specific PVC for uploads). This **supersedes the
 ADR-025**. **Trade-off:** Projects now requires the object-storage seam (Garage in `garage` mode, a
 pre-created bucket on external S3) where before it needed only a volume — acceptable, since the seam
 is already mandatory for the core apps.
+
+---
 
 ## ADR-032 — Standardised reusable off-site PVC backup
 
@@ -1064,3 +1110,59 @@ entry. An e2e step proves a seeded Grist document survives a PVC backup → wipe
 the backup container mounts the live volume rather than a snapshot, so a copy taken mid-write captures
 a crash-consistent (not quiesced) state — acceptable for SQLite documents on a single VPS; snapshotting
 is the upgrade path if needed.
+
+---
+
+## ADR-033 — `suite status` for monitoring (CLI, no in-cluster workload)
+
+**Context.** A non-expert operator needs a quick, trustworthy answer to "is my OwnSuite
+healthy?" — node, database, certificates, off-site backups, and each enabled app. The
+single-server target makes a full monitoring stack (Prometheus/Grafana/Alertmanager) a poor
+trade: it costs RAM and operational surface on a node sized for the apps themselves, and it is
+one more thing the volunteer must learn, secure, and keep alive.
+
+**Decision.** Add a read-only `suite status` subcommand that reads live state over the existing
+SSH tunnel (ADR-014) with `kubectl get -o json` and prints a readable, line-per-check summary.
+It reuses the CLI's tunnel/kubectl plumbing — no new server-side workload, no extra Helm
+release, no scrape endpoints. The k8s/CNPG/cert/backup JSON is parsed by small pure functions
+that are unit-tested against fixtures, so the parsing has coverage without a live cluster. Only
+the apps switched on (via `OWNSUITE_APP_*`, same precedence the Helmfile uses) are reported.
+
+**Consequences.** The operator gets an at-a-glance health check with nothing extra running on
+the server, on demand, over the private tunnel. **Trade-off:** it is a point-in-time snapshot,
+not continuous alerting — there is no history and nothing pages you when something breaks at
+3am. For the single-server, volunteer-run target that is the right altitude; a deployment that
+outgrows it can layer a real monitoring stack on top later.
+
+## ADR-034 — `suite upgrade` (backup-gated snapshot → diff → apply → health → rollback)
+
+**Context.** Version bumps land as Renovate-proposed edits to the pinned versions (ADR-007),
+gated by CI. Applying them on a live server is the dangerous moment: a bad upgrade can wedge an
+app or, worse, touch data with no undo. The operator needs a single safe path that makes the
+right thing the easy thing — never an upgrade without a fresh restore point, and automatic
+recovery when an upgrade fails its health check.
+
+**Decision.** Add `suite upgrade`, the operationalisation of ADR-007's "explicit, reviewable,
+CI-gated bump" into a safe apply:
+
+1. **Refuse if backups are disabled.** A destructive operation requires a recovery net; with
+   `OWNSUITE_BACKUP_ENABLED` not true, the command stops before doing anything (ADR-006).
+2. **Pre-upgrade snapshot.** It reuses the `make backup` machinery (CNPG base backup + off-site
+   object copy) — the backup path is not reinvented.
+3. **Show the diff and confirm.** `helmfile diff` is printed and confirmed interactively,
+   skippable with `--yes` like `suite install`'s non-interactive mode.
+4. **Apply** with `helmfile apply`.
+5. **Health-check** by reusing `suite.verify` against single sign-on and each enabled app's
+   public HTTPS host.
+6. **Roll back on failure.** Each host that fails its health check has its Helm release rolled
+   back to the previous revision; the command then exits with an error naming what failed.
+
+The flow's branching — the backup gate and the rollback-on-health-failure path in particular —
+is unit-tested with mocked subprocess and HTTPS calls, no live cluster.
+
+**Consequences.** Upgrades become a one-command, low-anxiety operation: there is always a fresh
+snapshot, the change is shown before it applies, and a regression self-heals back to the working
+version. **Trade-off:** a rollback restores the previous *version*, not the data — the
+pre-upgrade snapshot is the only undo for data changes, which is exactly why backups are a hard
+precondition. The health check is HTTPS-reachability of each app, not a deep functional test;
+deeper assertions live in the nightly e2e (ADR-010), not in the hot upgrade path.
