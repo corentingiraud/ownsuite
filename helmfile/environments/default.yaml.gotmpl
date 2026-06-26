@@ -56,6 +56,13 @@ keycloak:
       # OIDC callback) and the profile+email scopes Projects maps to its user.
       directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
     {{- end }}
+    {{- if eq (env "OWNSUITE_APP_MESSAGES" | default "false") "true" }}
+    - clientId: messages
+      # Only present when the mailbox is enabled (ADR-026, off by default). messages
+      # is a Django/mozilla-django-oidc app like Docs, so the shared client template
+      # (redirectUris https://messages.{domain}/* + profile/email scopes) fits as-is.
+      directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
+    {{- end }}
   # Optional realm user seeded for the e2e SSO check (CI only). Its password is
   # derived from the seed (id "kc-test-user") — never committed in plaintext.
   seedTestUser:
@@ -88,6 +95,11 @@ apps:
     enabled: {{ env "OWNSUITE_APP_PROJECTS" | default "false" }}
     # Capacity of the PVC holding Projects' uploads (avatars/backgrounds/attachments).
     storageSize: {{ env "OWNSUITE_PROJECTS_STORAGE" | default "5Gi" | quote }}
+  # Messages (suitenumerique/messages, mailbox) — OFF by default (ADR-021, ADR-026):
+  # the optional, advanced add-on. Relay + DNS config (relay host, throttles, DKIM)
+  # is wired in a later PR. Enable with OWNSUITE_APP_MESSAGES=true.
+  messages:
+    enabled: {{ env "OWNSUITE_APP_MESSAGES" | default "false" }}
 
 # Contact address used for app admin / superuser accounts.
 adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}
@@ -116,6 +128,12 @@ databases:
   # Projects' database. Only provisioned when Projects is enabled.
   - name: projects
     secretName: projects-db
+  {{- end }}
+  {{- if eq (env "OWNSUITE_APP_MESSAGES" | default "false") "true" }}
+  # Messages' database (mailboxes/threads/contacts). Only provisioned when the
+  # mailbox is enabled.
+  - name: messages
+    secretName: messages-db
   {{- end }}
 
 # TLS issuance (ADR-013, ADR-019). Accepted `OWNSUITE_TLS_ISSUER` values:
@@ -147,6 +165,9 @@ objectStorage:
   # isolated under the shared S3 key). Created by Garage in `garage` mode; must
   # pre-exist on the external S3 in `external` mode, alongside the Docs bucket.
   driveBucket: {{ env "OWNSUITE_DRIVE_S3_BUCKET" | default "drive-media-storage" | quote }}
+  # Bucket holding the mailbox's message blobs/attachments (ADR-026). Created by
+  # Garage in `garage` mode when messages is enabled; pre-create it on external S3.
+  messagesBucket: {{ env "OWNSUITE_MESSAGES_S3_BUCKET" | default "messages-media-storage" | quote }}
 
 # In-cluster Garage object store (ADR-015), deployed only in `garage` mode. Its
 # S3 access key/secret are the seed-derived s3-access/s3-secret credentials,
