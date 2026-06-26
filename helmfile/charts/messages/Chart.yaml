@@ -1,0 +1,16 @@
+apiVersion: v2
+name: messages
+description: >-
+  suitenumerique/messages mailbox for OwnSuite (ADR-021, ADR-026). messages ships
+  container images but no official Helm chart, so this thin local chart runs its
+  components as Deployments: the Django backend (MDA + REST API), a Celery worker,
+  the webmail frontend, and the inbound/outbound Postfix MTAs. Inbound SMTP (port
+  25) is exposed via a ServiceLB LoadBalancer (ADR-027); the webmail via a Traefik
+  Ingress. State is external: a CNPG `messages` database, the shared Valkey, and an
+  S3 bucket for mail blobs — so the chart carries no PVC. A pre-upgrade hook runs
+  the DB migration (the backend does not auto-migrate). Off by default; deployed
+  only when apps.messages.enabled.
+type: application
+version: 0.1.0
+# No appVersion: the messages image tag is the single source of truth in
+# helmfile/versions/versions.yaml (imageVersions.messages), not duplicated here.

@@ -1,0 +1,77 @@
+{{- /*
+One Deployment per component (ADR-026): backend, worker, frontend, mta-in, mta-out.
+All share the image repository + pinned tag; each picks its published image via
+imageSuffix (the worker reuses the backend image with a different command). State is
+external (CNPG + Valkey + S3), so no volumes — `strategy: Recreate` only matters for
+the MTAs' brief in-flight queue. Credentials arrive by secretKeyRef (secretEnv);
+nothing secret is rendered here.
+*/}}
+{{- range $name, $c := .Values.components }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messages-{{ $name }}
+  labels:
+    app.kubernetes.io/name: messages
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  replicas: {{ $c.replicas | default $.Values.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: messages
+      app.kubernetes.io/component: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: messages
+        app.kubernetes.io/component: {{ $name }}
+    spec:
+      {{- with $.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.image.repository }}-{{ $c.imageSuffix }}:{{ $.Values.image.tag }}"
+          {{- with $c.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if $c.port }}
+          ports:
+            - name: {{ $c.portName | default "http" }}
+              containerPort: {{ $c.port }}
+          {{- end }}
+          env:
+            {{- range $k, $v := $c.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- range $c.secretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+          {{- with $c.probe }}
+          readinessProbe:
+            {{- if eq .type "http" }}
+            httpGet:
+              path: {{ .path }}
+              port: {{ $c.portName | default "http" }}
+            {{- else if eq .type "tcp" }}
+            tcpSocket:
+              port: {{ $c.portName | default "http" }}
+            {{- end }}
+            initialDelaySeconds: {{ .initialDelaySeconds | default 15 }}
+            periodSeconds: {{ .periodSeconds | default 10 }}
+            timeoutSeconds: {{ .timeoutSeconds | default 5 }}
+            failureThreshold: {{ .failureThreshold | default 30 }}
+          {{- end }}
+          resources:
+            {{- toYaml ($c.resources | default $.Values.resources) | nindent 12 }}
+{{- end }}

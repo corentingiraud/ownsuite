@@ -1,0 +1,26 @@
+{{- /*
+A Service per component that declares one (ADR-026). backend/frontend/mta-out are
+ClusterIP (in-cluster only); mta-in is a LoadBalancer so K3s' ServiceLB binds host
+port 25 for inbound SMTP from the internet (ADR-027).
+*/}}
+{{- range $name, $c := .Values.components }}
+{{- with $c.service }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: messages-{{ $name }}
+  labels:
+    app.kubernetes.io/name: messages
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  type: {{ .type | default "ClusterIP" }}
+  selector:
+    app.kubernetes.io/name: messages
+    app.kubernetes.io/component: {{ $name }}
+  ports:
+    - name: {{ $c.portName | default "http" }}
+      port: {{ .port }}
+      targetPort: {{ $c.portName | default "http" }}
+{{- end }}
+{{- end }}
