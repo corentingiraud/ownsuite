@@ -25,7 +25,8 @@ replicas: 1
 podSecurityContext:
   fsGroup: 1000
 
-# Shared resource defaults; a component may override with its own `resources`.
+# Shared resource fallback; every component below sets its own `resources` (the
+# backend/worker are heavier than the Postfix MTAs, so they are tuned separately).
 resources:
   requests:
     cpu: 100m
@@ -38,7 +39,9 @@ resources:
 #   command      overrides the image CMD (worker only).
 #   port         container port (omit for the worker); portName names it.
 #   portName     "http" (default) or "smtp" for the MTAs.
-#   probe        readiness check: {type: http|tcp, path, initialDelaySeconds, ...}.
+#   probe        health check: {type: http|tcp, path, startupFailureThreshold, ...};
+#                drives startup + readiness + liveness (the deployment template).
+#   resources    per-component requests/limits (overrides the shared fallback).
 #   service      expose it: {type: ClusterIP|LoadBalancer, port}.
 #   env          plain env (filled by the gotmpl).
 #   secretEnv    list of {name, secretName, secretKey} (filled by the gotmpl).
@@ -52,7 +55,13 @@ components:
     # same reasoning as the projects chart, ADR-025).
     probe:
       type: tcp
-      initialDelaySeconds: 20
+    # Django + gunicorn: the heaviest component.
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
     service:
       type: ClusterIP
       port: 8000
@@ -61,6 +70,13 @@ components:
   worker:
     imageSuffix: backend
     command: ["python", "worker.py", "--loglevel=INFO"]
+    # Background task runner — same image as backend, lighter steady-state.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 384Mi
+      limits:
+        memory: 768Mi
     env: {}
     secretEnv: []
   frontend:
@@ -69,7 +85,13 @@ components:
     probe:
       type: http
       path: /__lbheartbeat__
-      initialDelaySeconds: 10
+    # Static webmail server (Node) — light.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
     service:
       type: ClusterIP
       port: 8080
@@ -81,7 +103,13 @@ components:
     portName: smtp
     probe:
       type: tcp
-      initialDelaySeconds: 10
+    # Postfix: lightweight relay process.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
     # Inbound SMTP from the internet — ServiceLB binds host port 25 (ADR-027).
     service:
       type: LoadBalancer
@@ -94,7 +122,13 @@ components:
     portName: smtp
     probe:
       type: tcp
-      initialDelaySeconds: 10
+    # Postfix: lightweight relay process.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
     # ClusterIP only: the worker submits outbound mail here; it never faces the net.
     service:
       type: ClusterIP

@@ -46,15 +46,25 @@ spec:
                   name: {{ .secretName }}
                   key: {{ .secretKey }}
             {{- end }}
-          readinessProbe:
-            # TCP, not HTTP: the app enforces OIDC on every route, so there is no
-            # unauthenticated 2xx endpoint to probe. Generous startup: the first boot
-            # runs DB migrations before it listens.
+          # TCP, not HTTP: the app enforces OIDC on every route, so there is no
+          # unauthenticated 2xx endpoint to probe. startupProbe absorbs the first-boot
+          # DB migration (≈5 min budget); readiness/liveness then run fast. Liveness
+          # restarts a wedged pod that readiness alone would only pull from the Service.
+          startupProbe:
             tcpSocket:
               port: http
-            initialDelaySeconds: 20
             periodSeconds: 10
             failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
           volumeMounts:
             - name: data
               mountPath: /app/public/user-avatars

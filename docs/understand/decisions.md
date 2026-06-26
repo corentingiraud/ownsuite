@@ -930,3 +930,45 @@ ServiceLB was already there. The seam now distinguishes HTTP apps (Traefik + cer
 from the single raw-TCP exception (port 25), documented so it isn't mistaken for a Traefik route.
 **Trade-off:** ServiceLB is single-node-simple and binds the host port directly; a multi-node or
 HA mail setup would need a real LB / MetalLB — out of scope for the single-server target.
+
+## ADR-028 — Resource requests/limits and probes for every workload
+
+**Context.** Production hardening for a non-expert operator means two things the cluster can act on
+without a human: a workload must declare what it costs (so the scheduler protects the node and the
+operator can size a VPS), and it must say when it is healthy (so a wedged pod recovers and a rollout
+waits for readiness). Most workloads already had requests/probes, but with gaps: the messages chart
+shipped one shared resource block for five very different components, the single-container apps
+(Grist, Projects, messages) had a *readiness* probe only — no liveness, and the boot delay was
+faked with a large `initialDelaySeconds` — and the PostgreSQL `Cluster` and Valkey ran with no
+declared resources at all.
+
+**Decision.** Give every workload OwnSuite directly defines sane requests/limits and a
+startup/readiness/liveness probe set.
+
+- **Memory limit, no CPU limit.** Each workload *requests* CPU + memory (its guaranteed floor) and
+  *limits* memory only. A CPU limit throttles queries, migrations and first-boot work on a shared
+  single node; a memory limit stops one app OOM-ing its neighbours. This is the convention every
+  chart now follows.
+- **startupProbe gates the boot; liveness/readiness run fast after.** A `startupProbe` with a
+  generous `failureThreshold` (~5 min budget) absorbs the first-boot DB migration, so readiness and
+  liveness no longer need a long `initialDelaySeconds` hack. Once startup passes, **readiness** gates
+  the Service/rollout and **liveness** restarts a pod that has wedged (a deadlock readiness alone
+  would only pull from the Service, never recover). The probe action (httpGet/tcpSocket) is defined
+  once per chart and reused for all three.
+- **Per-component sizing where components differ.** The messages chart sizes each component
+  separately — the Django backend/worker are heavier than the lightweight Postfix MTAs — instead of
+  one shared block.
+- **PostgreSQL and Valkey get explicit resources.** The CNPG `Cluster` and the Valkey release now
+  declare requests + a memory limit like everything else.
+
+A few **upstream** operator/sidecar pods (cert-manager, the CNPG operator, Drive's Celery split)
+keep their chart defaults rather than being force-overridden — fragile to track per chart version,
+and small/stable enough to fall under the recommended-RAM headroom. The
+[server sizing guide](../operate/sizing.md) accounts for them and is derived by summing these
+declarations.
+
+**Consequences.** The scheduler can protect the node, rollouts wait for genuine readiness, wedged
+pods self-heal, and a volunteer can read one [sizing guide](../operate/sizing.md) to buy the right
+VPS. **Trade-off:** the limits are deliberately generous ceilings (headroom for migrations and
+upgrade overlap), so steady-state usage sits well below them — the recommended-RAM figure is a safe
+buy, not a tight one.

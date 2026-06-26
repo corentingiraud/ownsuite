@@ -10,6 +10,10 @@ spec:
   {{- with .Values.cluster.imageName }}
   imageName: {{ . | quote }}
   {{- end }}
+  {{- with .Values.cluster.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   storage:
     size: {{ .Values.cluster.storage.size | quote }}
     {{- with .Values.cluster.storage.storageClass }}

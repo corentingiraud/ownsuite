@@ -45,15 +45,30 @@ spec:
                   name: {{ .secretName }}
                   key: {{ .secretKey }}
             {{- end }}
+          # startupProbe absorbs the first-boot home-DB migration (≈5 min budget) before
+          # /status answers; readiness/liveness then run at a fast cadence. Liveness
+          # restarts a wedged pod that readiness alone would only pull from the Service.
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probePath }}
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: {{ .Values.probePath }}
               port: http
-            # Generous: the first boot runs the home-DB migration before /status answers.
-            initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 30
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probePath }}
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
           volumeMounts:
             - name: persist
               mountPath: /persist
