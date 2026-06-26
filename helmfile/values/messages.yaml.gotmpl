@@ -104,6 +104,12 @@ components:
       - name: MDA_API_SECRET
         secretName: messages-secrets
         secretKey: MDA_API_SECRET
+      # Salt for django-fernet-encrypted-fields; required or core.models import raises
+      # "MultiFernet requires at least one Fernet instance". Needed by backend, worker
+      # and the maildomain Job (they all import the models).
+      - name: SALT_KEY
+        secretName: messages-secrets
+        secretKey: SALT_KEY
       # The worker authenticates to mta-out with the internal SMTP password.
       - name: MTA_OUT_RELAY_PASSWORD
         secretName: messages-secrets
