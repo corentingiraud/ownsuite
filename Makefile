@@ -96,6 +96,10 @@ test-full: ## Full bootstrap incl. real K3s (Molecule full scenario)
 test-platform: ## Full DoD on a throwaway k3d cluster — installer-provisioned (heavy)
 	helmfile/tests/run-e2e.sh
 
+.PHONY: test-app
+test-app: ## Boot ONE optional app on its own throwaway k3d cluster (APP=grist|projects|messages)
+	helmfile/tests/run-app-e2e.sh $(APP)
+
 # --- Backups & tested restore (ADR-006, ADR-017) -----------------------------
 PG_CLUSTER ?= ownsuite-pg
 WORKLOADS_NS ?= ownsuite

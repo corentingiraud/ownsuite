@@ -1,0 +1,63 @@
+name: nightly-apps-e2e
+
+# Per-app end-to-end check for the OPTIONAL apps (Grist, Projects, Mailbox). Each
+# runs on its OWN fresh k3d cluster in a matrix — one app per job — so they never
+# compete for RAM (the reason they are kept out of the combined helmfile-e2e.yml).
+# Per job: bring up the platform + that one app (Docs/Drive off), assert it
+# converges, its UI is reachable over HTTPS with SSO wired, and — for messages — a
+# message delivered to a local mailbox reads back via the API.
+#
+# Heavy, so it runs nightly (after helmfile-e2e) and on demand, not on every PR.
+# The Docs+Drive core stays proven on every relevant push by helmfile-e2e.yml.
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+# Least privilege: e2e only reads the repo (spins up an ephemeral k3d cluster).
+permissions:
+  contents: read
+
+env:
+  # Pinned CLI tools (tracked by Renovate via the workflow customManager).
+  HELM_VERSION: "v4.2.2" # renovate: datasource=github-releases depName=helm/helm
+  HELMFILE_VERSION: "v1.6.0" # renovate: datasource=github-releases depName=helmfile/helmfile
+  KUBECONFORM_VERSION: "v0.8.0" # renovate: datasource=github-releases depName=yannh/kubeconform
+  K3D_VERSION: "v5.9.0" # renovate: datasource=github-releases depName=k3d-io/k3d
+  KUBECTL_VERSION: "v1.36.2" # renovate: datasource=github-releases depName=kubernetes/kubernetes
+
+jobs:
+  app-e2e:
+    runs-on: ubuntu-latest
+    # One app on one cluster (no backup/restore cycle), so ~15-20 min; cap above that
+    # so a wedged API/sync fails in bounded time, never the GitHub default of 6h.
+    timeout-minutes: 35
+    strategy:
+      # One app's failure must not cancel the others — each is independent.
+      fail-fast: false
+      matrix:
+        app: [grist, projects, messages]
+    name: app-e2e (${{ matrix.app }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - run: pip install pytest==9.1.1
+      - name: Install helm, helmfile, kubeconform, k3d (pinned)
+        # Extract in a clean temp dir: the repo root has a `helmfile/` directory,
+        # which would collide with `tar x helmfile` (the binary).
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo install linux-amd64/helm /usr/local/bin/helm
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION#v}_linux_amd64.tar.gz" | tar xz helmfile
+          sudo install helmfile /usr/local/bin/helmfile
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar xz kubeconform
+          sudo install kubeconform /usr/local/bin/kubeconform
+          curl -fsSL "https://github.com/k3d-io/k3d/releases/download/${K3D_VERSION}/k3d-linux-amd64" -o k3d
+          sudo install k3d /usr/local/bin/k3d
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
+          sudo install kubectl /usr/local/bin/kubectl
+      - name: Boot ${{ matrix.app }} and assert its definition of done
+        run: make test-app APP=${{ matrix.app }}
