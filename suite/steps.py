@@ -11,7 +11,7 @@ import contextlib
 import os
 import shutil
 
-from . import config, dns, ip, propagation, tunnel, verify
+from . import config, dns, ip, mail, propagation, tunnel, verify
 from .errors import SuiteError
 from .process import run
 
@@ -45,12 +45,16 @@ def install(args):
     ssh = cfg.get("OWNSUITE_SERVER_SSH", "")
     _preflight(args, ssh)
 
+    # The optional mailbox (ADR-026) needs a DKIM key before we print the DNS records.
+    # Generate it once and carry it like the seed (in env, never written to .env).
+    mail_dns = _ensure_mail(cfg, domain) if _mailbox_enabled(cfg) else None
+
     if not args.skip_bootstrap:
         print("\n==> Bootstrapping the server (ansible)")
         run(["make", "bootstrap"], step="bootstrap")
 
     if args.tls_mode != "selfsigned" and not args.skip_dns:
-        _dns_and_propagation(args, domain, ssh)
+        _dns_and_propagation(args, domain, ssh, mail_dns)
 
     env = {**cfg, "OWNSUITE_SECRET_SEED": seed}
     tunnel_ctx = (
@@ -72,17 +76,65 @@ def install(args):
     print("\n==> Done. OwnSuite is serving over HTTPS.")
 
 
-def _dns_and_propagation(args, domain, ssh):
+def _dns_and_propagation(args, domain, ssh, mail_dns=None):
     ipv4 = args.public_ip or (ip.detect_over_ssh(ssh, 4) if ssh else None)
     if not ipv4:
         ipv4 = input("Server public IPv4: ").strip()
     ipv6 = ip.detect_over_ssh(ssh, 6) if ssh else None
     print("\n==> Create these DNS records at your registrar:\n")
-    print(dns.format_table(dns.records(domain, ipv4, ipv6)))
+    print(dns.format_table(dns.records(domain, ipv4, ipv6, mail=mail_dns)))
+    if mail_dns:
+        _mail_manual_steps(ipv4, mail_dns.mail_host)
     if not args.skip_propagation:
         print("\n==> Waiting for DNS to propagate (before triggering ACME)...")
         if not propagation.wait(domain, ipv4):
             raise SuiteError("DNS did not propagate in time; not triggering ACME")
+
+
+def _mailbox_enabled(cfg):
+    return cfg.get("OWNSUITE_APP_MESSAGES", "false").lower() == "true"
+
+
+def _ensure_mail(cfg, domain):
+    """Build the mailbox's MailDns. Ensure a DKIM key exists in the environment
+    (generate one if the operator hasn't supplied OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64),
+    so `helmfile sync` hands the same key to mta-out and the DKIM TXT we print matches.
+    """
+    private_b64 = os.environ.get("OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64")
+    if not private_b64:
+        private_b64 = mail.generate_dkim_private_b64()
+        os.environ["OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64"] = private_b64
+        _dkim_banner(private_b64)
+    return dns.MailDns(
+        mail_host=f"mail.{domain}",
+        spf_include=cfg.get("OWNSUITE_MTA_SPF_INCLUDE", "spf.infomaniak.ch"),
+        dkim_selector=cfg.get("OWNSUITE_MTA_DKIM_SELECTOR", "ownsuite"),
+        dkim_public_key=mail.dkim_public_p(private_b64),
+        dmarc_rua=cfg.get("OWNSUITE_MTA_DMARC_RUA", ""),
+    )
+
+
+def _mail_manual_steps(ipv4, mail_host):
+    print(
+        "\n==> Mailbox — two manual steps DNS cannot cover (ADR-027):\n"
+        f"  1. rDNS / PTR: set the reverse DNS for {ipv4} to {mail_host} at your\n"
+        "     server/VPS provider (mail.* must resolve back to the IP).\n"
+        "  2. Confirm your provider allows INBOUND TCP port 25 (outbound 25 is\n"
+        "     usually blocked — fine, we relay outbound via the relay's 587).\n"
+        "  Also export the relay account before sync (never written to .env):\n"
+        "     export OWNSUITE_MTA_RELAY_USERNAME=... OWNSUITE_MTA_RELAY_PASSWORD=..."
+    )
+
+
+def _dkim_banner(private_b64):
+    print(
+        "\n" + "=" * 70 + "\n"
+        "DKIM KEY generated for the mailbox. Store it in your password manager and\n"
+        "re-export it on every run (like the seed) — otherwise the DKIM TXT changes\n"
+        "and outbound mail fails DKIM until DNS catches up (ADR-026).\n\n"
+        f"  export OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64={private_b64}\n"
+        + "=" * 70
+    )
 
 
 def _issue(env, issuer):

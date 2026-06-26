@@ -79,15 +79,22 @@ of the existing A/AAAA/CAA:
 
 ```bash
 set -a && source .env && set +a            # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
-export OWNSUITE_APP_MESSAGES=true          # opt in (off by default)
-# provide the relay account + (generated) DKIM key as overrides — see the installer
-make tunnel                                # in another terminal (ADR-014)
-make sync                                  # brings up the infra + enabled apps + messages
+export OWNSUITE_APP_MESSAGES=true           # opt in (off by default)
+# External relay account + DKIM key — held in the env, never written to .env (like the
+# seed). The installer generates the DKIM key the first time and prints it to re-export.
+export OWNSUITE_MTA_RELAY_USERNAME=...      # your relay account (e.g. Infomaniak)
+export OWNSUITE_MTA_RELAY_PASSWORD=...
+export OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64=... # printed by `suite install` on first run
+make tunnel                                 # in another terminal (ADR-014)
+make sync                                   # brings up the infra + enabled apps + messages
 ```
 
-When it finishes, the webmail answers at `https://messages.{domain}`; log in with a Keycloak user
-(e.g. one created by `suite user add`). Publish the printed DNS records and rDNS, then send a test
-message to an external inbox.
+`suite install` does this for you: with the mailbox enabled it generates the DKIM key, prints
+the MX/SPF/DKIM/DMARC records plus the rDNS/port-25 manual steps, then waits for propagation
+before issuing certificates. Without the relay account exported, mta-out comes up **without** an
+external relay (the hermetic path — local delivery only); set it to send to the internet. When it
+finishes, the webmail answers at `https://messages.{domain}`; log in with a Keycloak user (e.g.
+one created by `suite user add`), then send a test message to an external inbox.
 
 ## Tests
 

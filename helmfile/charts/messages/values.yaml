@@ -11,6 +11,11 @@ image:
   repository: ghcr.io/suitenumerique/messages
   tag: ""
 
+# The mail domain to seed (with oidc_autojoin, so a mailbox is created on first OIDC
+# login — the JIT path the DoD relies on). Empty here so the seed Job is skipped for
+# standalone `helm template`; Helmfile sets it to the base domain.
+mailDomain: ""
+
 # Single instance per component (single node, no horizontal scale).
 replicas: 1
 

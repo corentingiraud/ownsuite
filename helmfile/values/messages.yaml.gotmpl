@@ -21,11 +21,17 @@
 {{- if .Values.garage.enabled -}}
 {{-   $s3Endpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
 {{-   $s3Region = .Values.garage.region -}}
-{{- end }}
+{{- end -}}
+{{- /* Postfix relayhost wants [host]:port (the brackets skip the MX lookup). */ -}}
+{{- $relayParts := splitList ":" .Values.apps.messages.relayHost -}}
+{{- $relayHost := printf "[%s]:%s" (first $relayParts) (last $relayParts) }}
 
 image:
   repository: ghcr.io/suitenumerique/messages
   tag: {{ .Values.imageVersions.messages | quote }}
+
+# Seed this mail domain (with oidc_autojoin) so a mailbox is created on first login.
+mailDomain: {{ $domain | quote }}
 
 ingress:
   enabled: true
@@ -130,7 +136,25 @@ components:
       MYHOSTNAME: {{ $mailHost | quote }}
       # Internal submission auth — the worker logs in here with the same credentials.
       SMTP_USERNAME: messages
+      {{- if .Values.apps.messages.relayConfigured }}
+      # External relay (ADR-021) — only once the operator has supplied an account.
+      # Until then mta-out runs without it (the hermetic e2e: local delivery only).
+      SMTP_RELAY_HOST: {{ $relayHost | quote }}
+      MESSAGES_DKIM_SELECTOR: {{ .Values.apps.messages.dkimSelector | quote }}
+      MESSAGES_DKIM_DOMAINS: {{ $domain | quote }}
+      {{- end }}
     secretEnv:
       - name: SMTP_PASSWORD
         secretName: messages-secrets
         secretKey: SMTP_INTERNAL_PASSWORD
+      {{- if .Values.apps.messages.relayConfigured }}
+      - name: SMTP_RELAY_USERNAME
+        secretName: messages-secrets
+        secretKey: SMTP_RELAY_USERNAME
+      - name: SMTP_RELAY_PASSWORD
+        secretName: messages-secrets
+        secretKey: SMTP_RELAY_PASSWORD
+      - name: MESSAGES_DKIM_PRIVATE_KEY_B64
+        secretName: messages-secrets
+        secretKey: DKIM_PRIVATE_KEY_B64
+      {{- end }}
