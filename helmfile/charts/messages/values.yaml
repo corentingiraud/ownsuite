@@ -120,6 +120,12 @@ components:
     imageSuffix: mta-out
     port: 587
     portName: smtp
+    # The 0.8.0 image's entrypoint writes the SASL db to /var/spool/postfix/etc/sasldb2
+    # but its Dockerfile never creates that directory, so saslpasswd2 fails with
+    # "generic failure" and the container crash-loops. Create the dir, then exec the
+    # stock entrypoint. ponytail: drop this once upstream ships the mkdir (the Dockerfile
+    # creates /var/spool/postfix/{private,public} but omits etc).
+    command: ["sh", "-c", "mkdir -p /var/spool/postfix/etc && exec /usr/local/bin/entrypoint.sh"]
     probe:
       type: tcp
     # Postfix: lightweight relay process.
