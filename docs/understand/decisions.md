@@ -125,7 +125,7 @@ the [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness) test harn
 
 ## ADR-008 — Mailbox out of scope for v1 (feasible as an add-on)
 
-> **Superseded in part by [ADR-021](#adr-021).** The "out of v1, optional add-on" stance and
+> **Superseded in part by [ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay).** The "out of v1, optional add-on" stance and
 > the "relay outbound through a reputable EU SMTP" workaround still hold; the mail stack is now
 > **suitenumerique/messages**, not Stalwart.
 
@@ -543,6 +543,19 @@ first-boot seed; the Job is the authoritative reconciler thereafter.
 
 ## ADR-021 — Mailbox: suitenumerique/messages, outbound via EU relay
 
+> **Refined by [ADR-026](#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred) (app integration) and [ADR-027](#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb) (port-25 ingress).**
+> Two component specifics below were revisited against the verified-current upstream
+> (`suitenumerique/messages` v0.8.0, June 2026):
+>
+> - **OpenSearch is now optional upstream** — every `OPENSEARCH_*` variable is optional and an
+>   unset `OPENSEARCH_URL` simply disables full-text mail search; delivery, storage and reading
+>   are unaffected. To keep the single-VPS RAM budget honest (OpenSearch single-node is ~1–2 GB
+>   of JVM heap), v1 ships **without** it; search returns behind its own flag later. The
+>   "heavier than Stalwart" consequence below stands but is lighter than first feared.
+> - **DKIM key is supplied, not DB-generated.** messages accepts `MESSAGES_DKIM_PRIVATE_KEY_B64`,
+>   so the installer generates the keypair once and treats it as an external override (the S3-creds
+>   pattern), publishing the public key as a TXT record up front — no two-phase DNS dance.
+
 **Context.** ADR-008 deferred mail and tentatively recommended Stalwart. Since then,
 **suitenumerique/messages** has become La Suite's own mail app, so adopting it keeps the
 mailbox consistent with the rest of the suite (same look-and-feel, same Keycloak SSO) instead
@@ -818,3 +831,96 @@ is **template/lint-validated, not yet CI-booted** — its OIDC env was wired fro
 + our RS256 Keycloak, so the first real deployment should confirm login end to end. People remains
 the only documented-and-deferred item; the "add an app" seam now hosts Docs, Drive, Grist and
 Projects without forking.
+
+---
+
+## ADR-026 — Mailbox integration: messages, Django OIDC split, reuse the seam, OpenSearch deferred
+
+**Context.** Phase 6 implements the mailbox decided in
+[ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay): **suitenumerique/messages**,
+La Suite's own mail app, federated to the same Keycloak. Where Grist
+([ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)) and
+Projects ([ADR-025](#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default))
+asked *"how to bolt on a foreign single-container app"*, messages is the opposite: a
+`suitenumerique` Django sibling of Docs, so the question is again ADR-022's — *what the existing seam
+must grow* — plus the genuinely new mail machinery (port 25, DKIM/SPF/DMARC), which
+[ADR-027](#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb) covers. The design was scoped against the verified-current upstream
+(v0.8.0, June 2026: `compose.yaml`, `docs/env.md`, the `core` management commands), **not** memory —
+an earlier scout pass wrongly claimed messages publishes no images and had no recent release.
+
+**Decision.** Add messages as a Helmfile release backed by a **small local chart**
+(`helmfile/charts/messages`) — upstream ships images (`ghcr.io/suitenumerique/messages-{backend,frontend,mta-in,mta-out}`, semver-tagged, pinned `0.8.0`) but **no** Helm chart — reusing the shared seams:
+
+- **OIDC by the external/internal split, like Docs.** messages is `mozilla-django-oidc`, so it takes
+  the per-endpoint `OIDC_OP_{AUTHORIZATION,TOKEN,USER,JWKS}_ENDPOINT` + `OIDC_RP_CLIENT_{ID,SECRET}`
+  contract ([ADR-016](#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)),
+  **not** Grist/Projects single-issuer discovery: browser-facing endpoints at the public
+  `auth.{domain}`, token/userinfo/jwks hairpinned to the in-cluster Keycloak service. The `messages`
+  OIDC client is one more `keycloak.clients` entry; the existing realm-import + idempotent upsert Job
+  ([ADR-020](#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)) need no template change.
+- **Reuse the shared infrastructure, per-app instances.** A dedicated CNPG `messages` database; the
+  shared **Valkey** with dedicated DB numbers (**4** cache / **5** Celery broker — Docs uses 0/1,
+  Drive 2/3, so the queues never cross-consume, the one real co-tenancy trap, ADR-022); a per-app
+  **S3 bucket** for mail blobs/attachments on the pluggable seam (mirror ADR-022 — messages stores
+  blobs in object storage, `create_bucket`/`verify_blobs`). The Django `SECRET_KEY`, the OIDC client
+  secret and the internal `MDA_API_SECRET` (MTA↔MDA) are seed-derived
+  ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)); the relay
+  credentials and the DKIM private key are **external overrides**, not derived (ADR-021 refinement).
+- **OpenSearch deferred.** Verified optional upstream (an unset `OPENSEARCH_URL` only turns off
+  full-text search); omitted from v1 to protect the single-VPS RAM budget, behind a future flag. This
+  is the one ADR-021 component we drop — it was the heaviest.
+- **rspamd and socks-proxy skipped.** rspamd (inbound spam filter) is not on the path to the DoD
+  ("outbound reaches the inbox, not spam" is an SPF/DKIM/DMARC-via-relay property); mta-in delivers to
+  the MDA without it. socks-proxy only serves `MTA_OUT_MODE=direct`, and we relay. Both carry a
+  `ponytail:` marker and a one-line re-enable path.
+- **Outbound relayed, throttled.** `MTA_OUT_MODE=relay`, `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure` to
+  the EU relay (Infomaniak `mail.infomaniak.com:587`); `THROTTLE_{MAILBOX,MAILDOMAIN}_OUTBOUND_EXTERNAL_RECIPIENTS`
+  set below the relay's 1440 msg/24h ceiling so it fails gracefully in-app.
+- **Mailbox provisioning needs no `suite user add` change.** A maildomain with `oidc_autojoin=True`
+  auto-creates a user's mailbox on first OIDC login — exactly the JIT model the CLI already relies on
+  (ADR-023). The one new piece is a **one-time maildomain seed Job** (mirrors `keycloak-config`) that
+  creates the domain, enables autojoin and registers the supplied DKIM key.
+- **Off by default, fully gated.** Every piece (release, OIDC client, `messages` DB, bucket, secrets,
+  seed Job) is gated on `apps.messages.enabled`, default **false** (`OWNSUITE_APP_MESSAGES`): it is the
+  optional, advanced add-on. Gated off, the e2e renders/deploys identically; the chart is validated by
+  `helm lint` + kubeconform on every change and booted in the k3d e2e behind the flag (the local-delivery
+  loopback below).
+
+**Consequences.** A non-profit gets an integrated webmail over HTTPS with real SSO by enabling one
+flag and supplying a relay account — reusing Keycloak, CNPG, Valkey and the S3 seam with **one** new
+heavy dependency removed (OpenSearch). **Honest limits:** no full-text mail search until OpenSearch is
+re-enabled; **no IMAP/POP3** by design (ADR-021); the mail bucket shares Drive/Grist's not-yet-off-site
+backup gap. The hermetic half — pods converge, webmail 200s, OIDC login works, and a message delivered
+between two local mailboxes reads back via the API (the Docs create-and-read-back analog) — is proven in
+CI; real external deliverability (SPF/DKIM/DMARC-aligned, inbox-not-spam) is an **off-CI human check** on
+a real domain + relay, exactly as real ACME was validated off-CI in Phase 4.
+
+---
+
+## ADR-027 — Non-HTTP ingress: inbound SMTP on port 25 via K3s ServiceLB
+
+**Context.** Every public port in the stack so far is HTTP/S, carried by Traefik with cert-manager
+TLS. The mailbox (ADR-026) needs the stack's **first non-HTTP public port**: its Postfix MTA-in must
+receive mail from the internet on **port 25** (domain `MX` → port 25). Traefik's web/websecure
+entrypoints don't carry raw SMTP, so port 25 needs a different ingress path on single-node K3s.
+
+**Decision.** Expose mta-in with a Kubernetes **`Service` of `type: LoadBalancer`**, which K3s'
+bundled **ServiceLB (klipper-lb)** — already in the cluster and already fronting Traefik — realizes by
+binding host port **25** and routing it to the mta-in pod. No new controller, no MetalLB, no Traefik
+TCP entrypoint to configure.
+
+- **Firewall.** The Ansible `security` role must allow **inbound TCP 25** (it is closed by default);
+  this is the only host-firewall change the mailbox needs. Added there, gated on the mailbox being
+  enabled.
+- **Outbound 25 stays blocked — fine.** Most VPS providers block *outbound* 25; we never send directly
+  (ADR-021 relays out via 587), so only *inbound* 25 matters. The installer documents confirming the
+  provider permits inbound 25 as a pre-flight check.
+- **rDNS / PTR is a manual host step.** A correct reverse-DNS record for the server IP is set at the
+  provider/host level and **cannot** be set in-cluster; the install flow documents it as a manual step
+  alongside the MX/SPF/DKIM/DMARC records (the relay carries most reputation, but PTR still matters).
+
+**Consequences.** The mailbox receives mail with no addition to the cluster's networking stack —
+ServiceLB was already there. The seam now distinguishes HTTP apps (Traefik + cert-manager, the norm)
+from the single raw-TCP exception (port 25), documented so it isn't mistaken for a Traefik route.
+**Trade-off:** ServiceLB is single-node-simple and binds the host port directly; a multi-node or
+HA mail setup would need a real LB / MetalLB — out of scope for the single-server target.
