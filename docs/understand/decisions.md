@@ -190,7 +190,9 @@ is still machine-verified, just not on every PR.
 the shared infra up; the backup work adds the install → upgrade → **restore** replay ADR-006
 mandates. The Helmfile layer runs on **k3d** (purpose-built for in-cluster Helm e2e) with the
 same pytest-style assertions, kept in a dedicated, cost-aware workflow
-(`helmfile-e2e.yml`) — the layered philosophy holds; only the substrate fits the tool.
+(`helmfile-e2e.yml`) — the layered philosophy holds; only the substrate fits the tool. The
+optional apps that don't fit alongside the core on one runner get their own per-app nightly
+matrix ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)) — one app per fresh cluster.
 
 **Consequences.** Robust feedback proportional to risk, and a test foundation that the
 later work inherits instead of reinventing. Cost: Molecule/Testinfra are Python dev
@@ -972,6 +974,46 @@ pods self-heal, and a volunteer can read one [sizing guide](../operate/sizing.md
 VPS. **Trade-off:** the limits are deliberately generous ceilings (headroom for migrations and
 upgrade overlap), so steady-state usage sits well below them — the recommended-RAM figure is a safe
 buy, not a tight one.
+
+---
+
+## ADR-029 — Per-app nightly e2e: one app per cluster
+
+**Context.** [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness) runs the combined
+end-to-end check (`helmfile-e2e.yml`) on a single k3d cluster: the shared infrastructure plus the
+**Docs + Drive** core, then a full backup → restore cycle. The optional apps (Grist, Projects,
+messages) are deliberately **left out** of that run — bringing them up alongside the core, the
+operators, Keycloak and a CNPG recovery would push the GitHub runner past its memory ceiling.
+messages alone is five pods. So the optional apps were lint/template-validated but never actually
+booted in CI, and the messages mail loopback stayed an off-CI manual check. That is the last
+coverage gap before any of them could graduate to on-by-default.
+
+**Decision.** A **separate nightly workflow** (`nightly-apps-e2e.yml`) with a **matrix, one app per
+job, each on its own fresh k3d cluster**. Because each job holds only the platform plus one app,
+none competes for RAM. Per job it brings the app up, asserts it converges, that its UI is reachable
+over HTTPS through Traefik, and an app-appropriate read-back:
+
+- **Grist** — the health endpoint answers and an unauthenticated visit bounces to the SSO login page.
+- **Projects** — the UI is reachable over HTTPS (its SSO redirect happens client-side, so the bounce
+  target is not asserted; the browser flow stays a human check on first deployment).
+- **messages** — the local mail-delivery loopback: a message injected over SMTP to the inbound MTA
+  is delivered (MTA → delivery agent → mailbox) and reads back via the API, with no external relay,
+  so nothing leaves the cluster. This finally exercises the inbound mail path in CI.
+
+The fail-fast watchdog, the cert wait and the failure diagnostics are **factored into a shared
+`helmfile/tests/lib.sh`** sourced by both the combined `run-e2e.sh` and the new `run-app-e2e.sh`,
+so the two harnesses share one implementation. The workflow runs on a schedule (after the combined
+e2e) and on demand (`workflow_dispatch`), never on every PR — it is heavy and the Docs+Drive core
+is already proven on every relevant push. Locally: `make test-app APP=<grist|projects|messages>`.
+
+**Consequences.** Every shipped app is now actually booted in CI, the messages mail loopback is
+automated rather than manual, and the optional apps have the boot evidence they need to graduate
+later. The split matrix keeps each run within the runner's budget at the cost of more total CI
+minutes (three clusters instead of one) — acceptable for a nightly. Real external mail
+deliverability ([ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay)) remains
+the one check a hermetic cluster cannot stand in for: it needs a real domain, relay and inbox.
+
+---
 
 ## ADR-033 — `suite status` for monitoring (CLI, no in-cluster workload)
 

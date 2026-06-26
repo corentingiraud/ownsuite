@@ -17,6 +17,9 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."  # repo root
+# Shared helpers: provision_with_watchdog, wait_for_certs, wait_job,
+# dump_failure_diagnostics (also used by run-app-e2e.sh).
+. helmfile/tests/lib.sh
 
 CLUSTER="${OWNSUITE_E2E_CLUSTER:-ownsuite-e2e}"
 HELMFILE="helmfile/helmfile.yaml.gotmpl"
@@ -57,117 +60,13 @@ MEDIA_FIXTURE="e2e/media-fixture.txt"
 
 cleanup() {
   rc=$?
-  # On failure, dump cluster state before tearing down — the only window to see
-  # what went wrong in CI (pod status, recent events, logs of non-Ready pods).
-  if [ "$rc" != "0" ] && [ -n "${KUBECONFIG:-}" ]; then
-    echo "==> FAILURE diagnostics (exit $rc)"
-    kubectl get pods -A -o wide || true
-    echo "--- recent events (ownsuite) ---"
-    kubectl -n "$NS" get events --sort-by=.lastTimestamp 2>/dev/null | tail -50 || true
-    echo "--- CNPG cluster + backups ---"
-    kubectl -n "$NS" get cluster,backup,objectstore,scheduledbackup 2>/dev/null || true
-    kubectl -n "$NS" get cluster ownsuite-pg -o jsonpath='{.status.phase}{"\n"}{.status.conditions}{"\n"}' 2>/dev/null || true
-    echo "--- barman-cloud plugin logs (cnpg-system) ---"
-    kubectl -n cnpg-system logs -l app=barman-cloud --tail=60 2>&1 | tail -60 || true
-    echo "--- CNPG recovery/job pod logs (ownsuite) ---"
-    for p in $(kubectl -n "$NS" get pods --no-headers 2>/dev/null \
-      | awk '$1 ~ /-recovery|-full-recovery|object-restore/ {print $1}'); do
-      echo "### $p ###"
-      kubectl -n "$NS" logs "$p" --all-containers --tail=120 2>&1 | tail -120 || true
-    done
-    echo "--- logs of non-Ready pods (ownsuite) ---"
-    for p in $(kubectl -n "$NS" get pods \
-      -o jsonpath='{range .items[?(@.status.containerStatuses[0].ready==false)]}{.metadata.name}{"\n"}{end}' 2>/dev/null); do
-      echo "### $p ###"
-      kubectl -n "$NS" logs "$p" --all-containers --tail=80 2>&1 | tail -80 || true
-    done
-  fi
+  [ "$rc" != "0" ] && { echo "(exit $rc)"; dump_failure_diagnostics; }
   if [ "${OWNSUITE_E2E_KEEP:-0}" != "1" ]; then
     echo "==> Deleting k3d cluster '$CLUSTER'"
     k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
-
-# `helmfile sync` blocks silently on `helm --wait` (up to 900s/release). Run it in
-# the background with a watchdog that prints a per-pod-phase heartbeat and aborts
-# IMMEDIATELY on an unrecoverable pod state (image pull errors, container start
-# errors, or a pod stuck in CrashLoopBackOff) — turning a 15-minute silent timeout
-# into a ~15-second, actionable failure. Reused for the initial sync and `restore`.
-provision_with_watchdog() {
-  # Run an arbitrary provisioning command ("$@") in the background while monitoring
-  # pods, so a wedged bring-up fails fast instead of waiting out the helm timeout.
-  local desc="$1"; shift
-  echo "==> provisioning the stack ($desc)"
-  local log; log="$(mktemp)"
-  "$@" >"$log" 2>&1 &
-  local pid=$!
-  local empty=0
-  while kill -0 "$pid" 2>/dev/null; do
-    sleep 15
-    local summary
-    # --request-timeout bounds the call: if the API server is wedged (e.g. the node
-    # is starved), kubectl returns empty fast instead of blocking for minutes, so the
-    # empty-summary fail-fast below can actually trigger.
-    summary="$(kubectl get pods -A --no-headers --request-timeout=10s 2>/dev/null \
-      | awk '{c[$4]++} END{for(k in c) printf "%s=%d ", k, c[k]}')"
-    echo "[watch $(date -u +%H:%M:%S)] pods: $summary"
-    # kube-system pods appear within ~1 min of a healthy k3d cluster. A prolonged
-    # empty listing means the cluster API is unreachable (k3d/runner flakiness) —
-    # fail fast instead of waiting out the helm timeout.
-    if [ -z "$summary" ]; then empty=$((empty + 1)); else empty=0; fi
-    if [ "$empty" -ge 10 ]; then
-      echo "==> FAIL-FAST: no pods visible for ${empty} checks — cluster API unreachable"
-      kubectl get nodes -o wide 2>&1 | head -5 || true
-      kubectl cluster-info 2>&1 | head -5 || true
-      kill "$pid" 2>/dev/null || true
-      cat "$log"
-      exit 1
-    fi
-    if kubectl get pods -A --no-headers --request-timeout=10s 2>/dev/null | awk '
-        $4 ~ /ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerError|RunContainerError|CreateContainerConfigError/ {bad=1; print "  ! "$0}
-        $4 == "CrashLoopBackOff" && ($5+0) >= 3 {bad=1; print "  ! "$0}
-        # Several pods stuck in Error usually means a Job (e.g. CNPG recovery) is
-        # failing and retrying — surface it instead of waiting for the helm timeout.
-        $4 == "Error" {err++} END {if (err+0 >= 4) {print "  ! "err" pods in Error state"; bad=1}; exit bad ? 0 : 1}'; then
-      echo "==> FAIL-FAST: unrecoverable pod state during sync (see above)"
-      kill "$pid" 2>/dev/null || true
-      cat "$log"
-      exit 1
-    fi
-  done
-  local sync_rc=0
-  wait "$pid" || sync_rc=$?
-  cat "$log"
-  [ "$sync_rc" -eq 0 ] || { echo "==> helmfile sync failed (exit $sync_rc)"; exit "$sync_rc"; }
-}
-
-wait_for_certs() {
-  # cert-manager issues the certificates asynchronously after the ingresses are
-  # created; give them a moment before asserting (non-fatal — pytest re-checks).
-  echo "==> Waiting for the Keycloak + Docs TLS certificates"
-  kubectl -n "$NS" wait --for=condition=Ready certificate/keycloak-tls --timeout=180s || true
-  kubectl -n "$NS" wait --for=condition=Ready certificate/docs-tls --timeout=180s || true
-}
-
-wait_job() {
-  # Poll a Job to success/failure (kubectl wait can't watch two conditions at once).
-  local name="$1" timeout="${2:-180}" i=0
-  while :; do
-    local s f
-    s="$(kubectl -n "$NS" get job "$name" -o jsonpath='{.status.succeeded}' 2>/dev/null || echo 0)"
-    f="$(kubectl -n "$NS" get job "$name" -o jsonpath='{.status.failed}' 2>/dev/null || echo 0)"
-    if [ "${s:-0}" -ge 1 ] 2>/dev/null; then echo "    job/$name succeeded"; return 0; fi
-    if [ "${f:-0}" -ge 1 ] 2>/dev/null; then
-      echo "    job/$name FAILED"; kubectl -n "$NS" logs "job/$name" --tail=80 || true; return 1
-    fi
-    i=$((i + 1))
-    if [ "$i" -gt "$((timeout / 3))" ]; then
-      echo "    job/$name TIMEOUT"; kubectl -n "$NS" logs "job/$name" --tail=80 || true; return 1
-    fi
-    sleep 3
-  done
-}
 
 # Run an rclone one-shot Job against the PRIMARY media store (Garage). The actual
 # off-site copy/restore is exercised by the chart's CronJob / restore Job; this
@@ -234,7 +133,7 @@ provision_with_watchdog "domain=$OWNSUITE_DOMAIN, issuer=$OWNSUITE_TLS_ISSUER, b
   python3 -m suite install \
     --non-interactive --no-tunnel --skip-bootstrap --skip-dns --skip-propagation \
     --tls-mode selfsigned --domain "$OWNSUITE_DOMAIN" --env-file "$(mktemp)"
-wait_for_certs
+wait_for_certs keycloak-tls docs-tls
 
 echo "==> Phase 5: provisioning a user through the suite CLI (JIT to all apps)"
 # Exercises the real CLI path (ADR-023): admin REST to the in-cluster Keycloak over
@@ -308,7 +207,7 @@ export OWNSUITE_APP_DRIVE=false
 # the initial provisioning goes through `suite install` (above).
 OWNSUITE_RESTORE=true provision_with_watchdog "RESTORE: CNPG recovery + object copy" \
   helmfile -f "$HELMFILE" sync
-wait_for_certs
+wait_for_certs keycloak-tls docs-tls
 
 echo "==> Verifying the media object came back into the primary bucket"
 rclone_primary_job e2e-verify-media \

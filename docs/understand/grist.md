@@ -63,10 +63,11 @@ team-site name with `OWNSUITE_GRIST_ORG`.
 
 ## Tests
 
-Grist's deployment is checked by the static suite (`make lint-helm`), but — unlike Docs and
-Drive — it isn't yet started up in the automated end-to-end tests (it's an optional extra, and
-the test runner is memory-constrained). The next step before it becomes a default app is a
-boot check on a larger runner that confirms a user can reach it.
+Grist's deployment is checked by the static suite (`make lint-helm`) and booted nightly on its
+own throwaway cluster: the nightly check brings Grist up, confirms it converges, that its health
+endpoint answers, and that an unauthenticated visit lands on the single sign-on login page. It
+runs on a cluster of its own (separate from Docs and Drive) so the memory-constrained shared
+runner never has to hold every app at once. Run it yourself with `make test-app APP=grist`.
 
 ## Limits
 

@@ -59,15 +59,17 @@ When it finishes, Projects answers at `https://projects.{domain}`; log in with a
 
 ## Tests
 
-Projects' deployment is checked by the static suite (`make lint-helm`), but — like Grist and
-unlike Docs and Drive — it isn't yet started up in the automated end-to-end tests (it's an
-optional extra, and the test runner is memory-constrained). Its login wiring was derived from
-the upstream config, so the **first real deployment should confirm login works end to end**
-before Projects becomes a default app.
+Projects' deployment is checked by the static suite (`make lint-helm`) and booted nightly on its
+own throwaway cluster: the nightly check brings Projects up, confirms it converges, and that its
+UI is reachable over HTTPS. It runs on a cluster of its own (separate from Docs and Drive) so the
+memory-constrained shared runner never has to hold every app at once. Run it yourself with
+`make test-app APP=projects`. The browser single sign-on dance still wants a real human pass on
+the first production deployment.
 
 ## Limits
 
 - **The uploads PVC is not yet off-site-backed** — the same pre-existing gap as Grist's PVC and
   Drive's bucket (`object-backup` copies a single bucket today).
-- **Not yet CI-booted** — wired from the upstream env contract; verify login on the first real
+- **Browser login unverified in CI** — the nightly check boots Projects and confirms its UI is
+  reachable, but the full browser single sign-on flow still wants a human pass on the first real
   deployment.
