@@ -48,6 +48,12 @@ imageVersions:
   # chart), deployed from the local ./charts/projects chart (ADR-025).
   # renovate: datasource=docker depName=lasuite/projects
   projects: "1.27.10"
+  # Messages (suitenumerique) — the mailbox (ADR-021, ADR-026). No official Helm
+  # chart; the local ./charts/messages chart runs four images that share this one
+  # tag: messages-{backend,frontend,mta-in,mta-out} on ghcr.io (the worker reuses
+  # the backend image). Off by default.
+  # renovate: datasource=docker depName=ghcr.io/suitenumerique/messages-backend
+  messages: "0.8.0"
   # Garage object store (ADR-015), deployed from the local ./charts/garage chart.
   # renovate: datasource=docker depName=dxflrs/garage
   garage: "v2.3.0"

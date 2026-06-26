@@ -1,0 +1,34 @@
+{{- if .Values.ingress.enabled }}
+{{- /* Traefik ingress to the webmail (frontend) Service. The frontend's Caddy
+       reverse-proxies /api + /__heartbeat__ to the backend, so one host serves the
+       whole webmail. cert-manager issues messages-tls. */}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: messages
+  labels:
+    app.kubernetes.io/name: messages
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.ingress.service.name }}
+                port:
+                  number: {{ .Values.ingress.service.port }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+{{- end }}

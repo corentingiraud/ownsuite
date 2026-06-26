@@ -1,0 +1,108 @@
+---
+# Defaults are overridden by Helmfile (values/messages.yaml.gotmpl). Listed here so
+# `helm lint` / `helm template` can render the chart standalone (ADR-026). The real
+# env/secretEnv (DB, OIDC, S3, relay, DKIM, ...) are filled in by the gotmpl.
+
+# Image tag is NOT pinned here. The single source of truth is
+# helmfile/versions/versions.yaml (imageVersions.messages); Helmfile injects it.
+# Each component image is "{repository}-{imageSuffix}:{tag}", e.g.
+# ghcr.io/suitenumerique/messages-backend:0.8.0.
+image:
+  repository: ghcr.io/suitenumerique/messages
+  tag: ""
+
+# Single instance per component (single node, no horizontal scale).
+replicas: 1
+
+# messages' images run as a non-root uid; fsGroup is harmless and matches the
+# other app charts. No volumes are mounted (state is external), so this is mostly
+# future-proofing.
+podSecurityContext:
+  fsGroup: 1000
+
+# Shared resource defaults; a component may override with its own `resources`.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# One Deployment per entry. Fields:
+#   imageSuffix  the published image (messages-<suffix>); the worker reuses backend.
+#   command      overrides the image CMD (worker only).
+#   port         container port (omit for the worker); portName names it.
+#   portName     "http" (default) or "smtp" for the MTAs.
+#   probe        readiness check: {type: http|tcp, path, initialDelaySeconds, ...}.
+#   service      expose it: {type: ClusterIP|LoadBalancer, port}.
+#   env          plain env (filled by the gotmpl).
+#   secretEnv    list of {name, secretName, secretKey} (filled by the gotmpl).
+components:
+  backend:
+    imageSuffix: backend
+    port: 8000
+    probe:
+      type: http
+      path: /__heartbeat__/
+      initialDelaySeconds: 20
+    service:
+      type: ClusterIP
+      port: 8000
+    env: {}
+    secretEnv: []
+  worker:
+    imageSuffix: backend
+    command: ["python", "worker.py", "--loglevel=INFO"]
+    env: {}
+    secretEnv: []
+  frontend:
+    imageSuffix: frontend
+    port: 8080
+    probe:
+      type: http
+      path: /__lbheartbeat__
+      initialDelaySeconds: 10
+    service:
+      type: ClusterIP
+      port: 8080
+    env: {}
+    secretEnv: []
+  mta-in:
+    imageSuffix: mta-in
+    port: 25
+    portName: smtp
+    probe:
+      type: tcp
+      initialDelaySeconds: 10
+    # Inbound SMTP from the internet — ServiceLB binds host port 25 (ADR-027).
+    service:
+      type: LoadBalancer
+      port: 25
+    env: {}
+    secretEnv: []
+  mta-out:
+    imageSuffix: mta-out
+    port: 587
+    portName: smtp
+    probe:
+      type: tcp
+      initialDelaySeconds: 10
+    # ClusterIP only: the worker submits outbound mail here; it never faces the net.
+    service:
+      type: ClusterIP
+      port: 587
+    env: {}
+    secretEnv: []
+
+# Webmail Ingress (Traefik HTTPS) -> the frontend Service. cert-manager issues the cert.
+ingress:
+  enabled: true
+  className: traefik
+  host: messages.localhost
+  annotations: {}
+  service:
+    name: messages-frontend
+    port: 8080
+  tls:
+    enabled: true
+    secretName: messages-tls
