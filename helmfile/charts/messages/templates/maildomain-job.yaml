@@ -1,0 +1,64 @@
+{{- if .Values.mailDomain }}
+{{- /*
+Seed the mail domain (ADR-026). messages ships no create-maildomain command, so we
+create it with a one-line `manage.py shell` against the MailDomain model, with
+oidc_autojoin=True — then a user's mailbox is created automatically on first OIDC
+login (the JIT path, like the rest of `suite user add`, ADR-005). A post-install/
+post-upgrade hook so it runs after the schema is migrated (the pre-* migrate hook);
+`before-hook-creation` lets it re-run every sync and the upsert is idempotent. Uses
+the backend image + the backend's DB env, so it stays in lockstep with the app.
+*/}}
+{{- $backend := .Values.components.backend }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: messages-maildomain
+  labels:
+    app.kubernetes.io/name: messages
+    app.kubernetes.io/component: maildomain
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: messages
+        app.kubernetes.io/component: maildomain
+    spec:
+      restartPolicy: OnFailure
+      {{- with $.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: maildomain
+          image: "{{ $.Values.image.repository }}-{{ $backend.imageSuffix }}:{{ $.Values.image.tag }}"
+          command:
+            - python
+            - manage.py
+            - shell
+            - -c
+            - |
+              from core.models import MailDomain
+              d, created = MailDomain.objects.get_or_create(name="{{ .Values.mailDomain }}")
+              d.oidc_autojoin = True
+              d.save(update_fields=["oidc_autojoin"])
+              print("maildomain {{ .Values.mailDomain }}:", "created" if created else "exists")
+          env:
+            {{- range $k, $v := $backend.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- range $backend.secretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+{{- end }}

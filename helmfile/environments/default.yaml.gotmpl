@@ -18,10 +18,21 @@ domain: {{ env "OWNSUITE_DOMAIN" | default "ownsuite.localhost" | quote }}
 #   export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"
 secretSeed: {{ requiredEnv "OWNSUITE_SECRET_SEED" | quote }}
 
-# Optional explicit overrides for individual derived secrets, keyed by id
-# (e.g. {"keycloak-db": "..."}). Empty by default; provide via an untracked
-# values file only if you ever need to pin a specific credential.
-secretOverrides: {}
+# Optional explicit overrides for individual derived secrets, keyed by id (ADR-012).
+# Most credentials are seed-derived; a few are EXTERNAL input that cannot be derived.
+# Like the seed, these are read from the environment at sync time and never written
+# to the repo. The mailbox's relay account + DKIM key (ADR-026) are captured by the
+# installer and exported as OWNSUITE_MTA_* before `helmfile sync`.
+secretOverrides:
+  {{- if env "OWNSUITE_MTA_RELAY_USERNAME" }}
+  messages-relay-user: {{ env "OWNSUITE_MTA_RELAY_USERNAME" | quote }}
+  {{- end }}
+  {{- if env "OWNSUITE_MTA_RELAY_PASSWORD" }}
+  messages-relay-pass: {{ env "OWNSUITE_MTA_RELAY_PASSWORD" | quote }}
+  {{- end }}
+  {{- if env "OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64" }}
+  messages-dkim-key: {{ env "OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64" | quote }}
+  {{- end }}
 
 # Component toggles (ADR-001 enable/disable conditions).
 certManager:
@@ -96,10 +107,23 @@ apps:
     # Capacity of the PVC holding Projects' uploads (avatars/backgrounds/attachments).
     storageSize: {{ env "OWNSUITE_PROJECTS_STORAGE" | default "5Gi" | quote }}
   # Messages (suitenumerique/messages, mailbox) — OFF by default (ADR-021, ADR-026):
-  # the optional, advanced add-on. Relay + DNS config (relay host, throttles, DKIM)
-  # is wired in a later PR. Enable with OWNSUITE_APP_MESSAGES=true.
+  # the optional, advanced add-on. Enable with OWNSUITE_APP_MESSAGES=true.
   messages:
     enabled: {{ env "OWNSUITE_APP_MESSAGES" | default "false" }}
+    # The reputable EU SMTP relay messages' mta-out delivers through (never direct
+    # from the VPS IP, ADR-021). Default: Infomaniak. Format host:port (STARTTLS 587).
+    relayHost: {{ env "OWNSUITE_MTA_RELAY_HOST" | default "mail.infomaniak.com:587" | quote }}
+    # The relay's SPF include (published in the SPF TXT). Provider-specific; the
+    # default matches the Infomaniak relay above.
+    spfInclude: {{ env "OWNSUITE_MTA_SPF_INCLUDE" | default "spf.infomaniak.ch" | quote }}
+    # DKIM selector — must match the published DKIM TXT record (_domainkey).
+    dkimSelector: {{ env "OWNSUITE_MTA_DKIM_SELECTOR" | default "ownsuite" | quote }}
+    # Optional DMARC aggregate-report mailbox.
+    dmarcRua: {{ env "OWNSUITE_MTA_DMARC_RUA" | default "" | quote }}
+    # True once the operator has supplied the external relay account (username set).
+    # Until then mta-out runs without an external relay (the hermetic e2e path:
+    # internal local delivery only, no outbound to the internet).
+    relayConfigured: {{ ne (env "OWNSUITE_MTA_RELAY_USERNAME" | default "") "" }}
 
 # Contact address used for app admin / superuser accounts.
 adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}

@@ -18,6 +18,10 @@ PROMPTS = [
     ("OWNSUITE_SERVER_SSH", "Server SSH target (user@host)", ""),
     ("OWNSUITE_OBJECT_STORAGE_MODE", "Object storage [external|garage]", "external"),
     ("OWNSUITE_BACKUP_ENABLED", "Enable off-site backups [true|false]", "true"),
+    # Advanced, optional add-on (ADR-026). If enabled, the installer also generates a
+    # DKIM key and prints MX/SPF/DKIM/DMARC + the rDNS/port-25 manual steps; export the
+    # relay account (OWNSUITE_MTA_RELAY_USERNAME/PASSWORD) before sync.
+    ("OWNSUITE_APP_MESSAGES", "Enable the mailbox [true|false]", "false"),
 ]
 
 

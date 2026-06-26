@@ -37,3 +37,46 @@ def test_records_validation():
 def test_format_table():
     out = dns.format_table(dns.records("x.org", "1.2.3.4"))
     assert "Name" in out and "*.x.org" in out and "letsencrypt.org" in out
+
+
+def test_records_omit_mail_by_default():
+    # No mailbox -> the record set is unchanged (A/AAAA/CAA only).
+    assert not any(r.type in ("MX", "TXT") for r in dns.records("x.org", "1.2.3.4"))
+
+
+def _mail():
+    return dns.MailDns(
+        mail_host="mail.assoc.example.org",
+        spf_include="spf.infomaniak.ch",
+        dkim_selector="ownsuite",
+        dkim_public_key="MIIBIjANBgkq...PUBKEY",
+        dmarc_rua="postmaster@assoc.example.org",
+    )
+
+
+def test_mail_records_mx_spf_dkim_dmarc():
+    recs = {
+        (r.name, r.type): r.value for r in dns.mail_records("assoc.example.org", _mail())
+    }
+    assert recs[("assoc.example.org", "MX")] == "10 mail.assoc.example.org."
+    assert recs[("assoc.example.org", "TXT")] == "v=spf1 include:spf.infomaniak.ch ~all"
+    assert recs[("ownsuite._domainkey.assoc.example.org", "TXT")] == (
+        "v=DKIM1; k=rsa; p=MIIBIjANBgkq...PUBKEY"
+    )
+    assert recs[("_dmarc.assoc.example.org", "TXT")] == (
+        "v=DMARC1; p=quarantine; rua=mailto:postmaster@assoc.example.org"
+    )
+
+
+def test_records_appends_mail_after_base():
+    recs = dns.records("assoc.example.org", "1.2.3.4", mail=_mail())
+    types = [r.type for r in recs]
+    # Base records (A/A/CAA) still come first, then the four mail records.
+    assert types[:3] == ["A", "A", "CAA"]
+    assert set(types[3:]) == {"MX", "TXT"}
+
+
+def test_dmarc_without_rua():
+    m = dns.MailDns("mail.x.org", "spf.x", "ownsuite", "P", dmarc_rua="")
+    dmarc = next(r for r in dns.mail_records("x.org", m) if r.name == "_dmarc.x.org")
+    assert dmarc.value == "v=DMARC1; p=quarantine"
