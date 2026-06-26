@@ -149,7 +149,7 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 - **Done:** the admin runs `suite user add firstname@assoc.org` and the person has Docs **and**
   Drive.
 
-### Phase 6 — (Advanced / optional) Mailbox
+### Phase 6 — (Advanced / optional) Mailbox 🚧
 
 > ⚠️ Mail is the **hardest part to make reliable on a server**. Kept as an optional,
 > isolated add-on so it blocks none of the earlier phases.

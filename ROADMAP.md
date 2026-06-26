@@ -6,7 +6,7 @@ in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
 
 **Legend:** ✅ done · 🚧 in progress · ⬜ not started
 
-**Current focus:** Phase 5 — broaden apps + user provisioning.
+**Current focus:** Phase 6 — the Mailbox (optional, advanced add-on).
 
 ---
 
@@ -61,7 +61,7 @@ in the docs: **[docs/project/roadmap.md](docs/project/roadmap.md)** and the
 - [x] `suite` CLI: create/disable users, password reset (Keycloak, JIT to all apps) (ADR-023)
 - **DoD:** `suite user add firstname@assoc.org` grants Docs + Drive immediately.
 
-## Phase 6 — (Optional) Mailbox ⬜
+## Phase 6 — (Optional) Mailbox 🚧
 - [ ] Mailbox: **suitenumerique/messages** — La Suite's own mail app (Postfix MTA-in + Django MDA + Postgres/Redis/OpenSearch + integrated webmail, no IMAP), federated to the same Keycloak via OIDC (ADR-021)
 - [ ] Outbound via `MTA_OUT_MODE=relay` through a reputable EU SMTP relay (Infomaniak) — never direct from the VPS IP
 - [ ] MX/SPF/DKIM/DMARC in the DNS flow; rDNS/PTR at the host; provisioning wired into the `suite` CLI
