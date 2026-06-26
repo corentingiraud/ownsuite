@@ -1,7 +1,7 @@
 # Server bootstrap
 
-Phase 0's deliverable: turn a **bare Debian server** into a ready **single-node K3s**
-cluster with one command.
+Turn a **bare Debian server** into a ready **single-node K3s** cluster with one
+command — the first step before installing OwnSuite.
 
 > **Definition of done:** `make bootstrap` turns a bare Debian server into a ready
 > single-node K3s cluster.

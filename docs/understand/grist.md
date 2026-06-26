@@ -1,14 +1,14 @@
 # Grist application
 
-Phase 5 broadens the suite beyond the DoD apps (Docs + Drive). **Grist**
+An **optional** app beyond the core (Docs + Drive). **Grist**
 ([getgrist](https://github.com/gristlabs/grist-core) — spreadsheets that behave like a
-database) is wired to the same Phase 1 foundation, with Keycloak SSO so a user provisioned
+database) is wired to the same shared foundation, with Keycloak SSO so a user provisioned
 once reaches it on first login (JIT — no per-app step).
 
 !!! note "Off by default"
-    Grist ships **disabled** (`OWNSUITE_APP_GRIST`, default `false`). It is outside the hard
-    Phase 5 definition of done and is **not yet booted in the CI e2e** (the constrained runner
-    is already near its ceiling). It is fully wired and validated by `helm template` +
+    Grist ships **disabled** (`OWNSUITE_APP_GRIST`, default `false`). It is an optional app,
+    not part of the core definition of done, and is **not yet booted in the CI e2e** (the
+    constrained runner is already near its ceiling). It is fully wired and validated by `helm template` +
     kubeconform; enable it with one flag (below). See
     [ADR-024](decisions.md#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default).
 

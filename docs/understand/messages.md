@@ -1,6 +1,6 @@
 # Mailbox application
 
-Phase 6 adds the **optional, advanced** add-on: a mailbox.
+The **optional, advanced** add-on: a mailbox (off by default).
 **[suitenumerique/messages](https://github.com/suitenumerique/messages)** is La Suite's own mail
 app — a full provider with its own Postfix MTA, a Django MDA that stores and indexes mail, and an
 **integrated webmail**. It is federated to the same Keycloak, so a user provisioned once reaches it
@@ -104,7 +104,7 @@ unit-tested (`tests/test_dns.py`, `tests/test_mail.py`). Like Grist and Projects
 in the constrained k3d e2e** — five pods would push the already-tight runner over its memory ceiling
 ([ADR-026](decisions.md#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred)).
 
-Two checks remain off the per-PR CI, mirroring how real ACME was validated off-CI in Phase 4:
+Two checks remain off the per-PR CI, mirroring how real ACME is validated off-CI:
 
 - **Hermetic loopback** (a beefier/nightly runner): pods converge, the webmail returns 200, OIDC login
   works, and a message delivered between two local mailboxes reads back via the API — the Docs

@@ -25,21 +25,26 @@ theme:
     - search.highlight
     - content.code.copy
     - content.action.edit
+  # La Suite numérique / DSFR brand colours (bleu France + rouge Marianne).
+  # The exact hex values live in docs/stylesheets/extra.css (palette: custom).
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
+
+extra_css:
+  - stylesheets/extra.css
 
 markdown_extensions:
   - admonition
@@ -97,7 +102,7 @@ plugins:
           - understand/messages.md: Mailbox application (suitenumerique/messages) — local chart, Django OIDC split, inbound SMTP, relayed outbound; off by default.
           - understand/decisions.md: Architecture Decision Records (ADR) and their rationale.
         Project:
-          - project/roadmap.md: Project phases and definition of done.
+          - project/roadmap.md: Status board (Shipped / Optional / Planned) and the product vision.
           - project/for-ai-agents.md: Conventions for AI agents and the documentation.
   # Keep pre-restructure URLs valid after the task-oriented folder move.
   - redirects:
@@ -130,5 +135,5 @@ nav:
       - Mailbox application: understand/messages.md
       - Decisions (ADR): understand/decisions.md
   - Project:
-      - Roadmap: project/roadmap.md
+      - Status &amp; roadmap: project/roadmap.md
       - For AI agents: project/for-ai-agents.md

@@ -1,13 +1,13 @@
 # Projects application
 
-Phase 5 broadens the suite beyond the DoD apps (Docs + Drive). **Projects**
+An **optional** app beyond the core (Docs + Drive). **Projects**
 ([suitenumerique/projects](https://github.com/suitenumerique/projects) — kanban boards / task
-management, a Sails.js fork of Planka) is wired to the same Phase 1 foundation, with Keycloak SSO
+management, a Sails.js fork of Planka) is wired to the same shared foundation, with Keycloak SSO
 so a user provisioned once reaches it on first login.
 
 !!! note "Off by default"
-    Projects ships **disabled** (`OWNSUITE_APP_PROJECTS`, default `false`). It is outside the hard
-    Phase 5 definition of done and is **not yet booted in the CI e2e**. It is fully wired and
+    Projects ships **disabled** (`OWNSUITE_APP_PROJECTS`, default `false`). It is an optional app,
+    not part of the core definition of done, and is **not yet booted in the CI e2e**. It is fully wired and
     validated by `helm template` + kubeconform; enable it with one flag (below). See
     [ADR-025](decisions.md#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default).
 
