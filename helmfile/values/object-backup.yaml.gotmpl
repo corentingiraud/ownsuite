@@ -26,7 +26,21 @@ restore:
 primary:
   endpoint: {{ $primaryEndpoint | quote }}
   region: {{ $primaryRegion | quote }}
-  bucket: {{ .Values.objectStorage.bucket | quote }}
+  # One bucket per enabled app that stores media on the primary store (ADR-030).
+  # Mirrors the garage `buckets:` list so backup coverage tracks what is deployed.
+  buckets:
+    {{- if .Values.apps.docs.enabled }}
+    - {{ .Values.objectStorage.bucket | quote }}
+    {{- end }}
+    {{- if .Values.apps.drive.enabled }}
+    - {{ .Values.objectStorage.driveBucket | quote }}
+    {{- end }}
+    {{- if .Values.apps.messages.enabled }}
+    - {{ .Values.objectStorage.messagesBucket | quote }}
+    {{- end }}
+    {{- if .Values.apps.projects.enabled }}
+    - {{ .Values.objectStorage.projectsBucket | quote }}
+    {{- end }}
   secret: s3-credentials
   accessKeyIdKey: AWS_S3_ACCESS_KEY_ID
   secretAccessKeyKey: AWS_S3_SECRET_ACCESS_KEY

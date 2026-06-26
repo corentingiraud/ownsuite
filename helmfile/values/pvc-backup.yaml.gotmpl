@@ -1,0 +1,33 @@
+{{- $ns := .Values.workloadsNamespace -}}
+{{- /* Off-site store: in-cluster garage-backup (CI), else the external backup S3.
+       For the in-cluster Garage the SigV4 region must be "garage". Same computation
+       as values/object-backup.yaml.gotmpl — one off-site config for both copies. */ -}}
+{{- $offsiteEndpoint := .Values.backup.s3.endpoint -}}
+{{- $offsiteRegion := .Values.backup.s3.region -}}
+{{- if eq .Values.backup.s3.target "in-cluster" -}}
+{{-   $offsiteEndpoint = printf "http://garage-backup.%s.svc.cluster.local:3900" $ns -}}
+{{-   $offsiteRegion = "garage" -}}
+{{- end -}}
+image:
+  repository: rclone/rclone
+  tag: {{ .Values.imageVersions.rclone | quote }}
+
+schedule: {{ .Values.backup.schedule | quote }}
+
+restore:
+  enabled: {{ .Values.restore.enabled }}
+
+# Grist is the first consumer: /persist holds its SQLite documents (/persist/docs).
+volumes:
+  - pvcName: grist-persist
+    subPath: ""
+
+offsite:
+  endpoint: {{ $offsiteEndpoint | quote }}
+  region: {{ $offsiteRegion | quote }}
+  bucket: {{ .Values.backup.s3.bucket | quote }}
+  pvcPrefix: pvc
+  secret: backup-s3-credentials
+  accessKeyIdKey: ACCESS_KEY_ID
+  secretAccessKeyKey: ACCESS_SECRET_KEY
+  cryptPassphraseKey: RCLONE_CRYPT_PASSWORD

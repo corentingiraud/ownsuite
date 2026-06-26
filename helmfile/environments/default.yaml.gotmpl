@@ -104,8 +104,8 @@ apps:
   # DoD and not yet CI-booted. Fully wired; enable with OWNSUITE_APP_PROJECTS=true.
   projects:
     enabled: {{ env "OWNSUITE_APP_PROJECTS" | default "false" }}
-    # Capacity of the PVC holding Projects' uploads (avatars/backgrounds/attachments).
-    storageSize: {{ env "OWNSUITE_PROJECTS_STORAGE" | default "5Gi" | quote }}
+    # Uploads (avatars/backgrounds/attachments) live on S3 now (ADR-031), so the
+    # off-site object copy covers them — no PVC, no storageSize knob.
   # Messages (suitenumerique/messages, mailbox) — OFF by default (ADR-021, ADR-026):
   # the optional, advanced add-on. Enable with OWNSUITE_APP_MESSAGES=true.
   messages:
@@ -192,6 +192,9 @@ objectStorage:
   # Bucket holding the mailbox's message blobs/attachments (ADR-026). Created by
   # Garage in `garage` mode when messages is enabled; pre-create it on external S3.
   messagesBucket: {{ env "OWNSUITE_MESSAGES_S3_BUCKET" | default "messages-media-storage" | quote }}
+  # Bucket holding Projects' uploads (avatars/backgrounds/attachments) (ADR-031).
+  # Created by Garage in `garage` mode when projects is enabled; pre-create on external S3.
+  projectsBucket: {{ env "OWNSUITE_PROJECTS_S3_BUCKET" | default "projects-media-storage" | quote }}
 
 # In-cluster Garage object store (ADR-015), deployed only in `garage` mode. Its
 # S3 access key/secret are the seed-derived s3-access/s3-secret credentials,
@@ -241,6 +244,10 @@ backup:
   # single boolean path): backups enabled AND the off-site target is in-cluster.
   garageBackup:
     enabled: {{ and (eq (env "OWNSUITE_BACKUP_ENABLED" | default "false") "true") (eq (env "OWNSUITE_BACKUP_S3_TARGET" | default "in-cluster") "in-cluster") }}
+  # Computed gate for the reusable PVC off-site copy (ADR-032): backups enabled AND at
+  # least one PVC-backed app whose volume it covers is enabled (Grist today).
+  pvcBackup:
+    enabled: {{ and (eq (env "OWNSUITE_BACKUP_ENABLED" | default "false") "true") (eq (env "OWNSUITE_APP_GRIST" | default "false") "true") }}
 
 # Restore mode (ADR-006, ADR-017). When true, the CNPG cluster bootstraps via
 # `recovery` from the backup ObjectStore instead of an empty init, and the rclone

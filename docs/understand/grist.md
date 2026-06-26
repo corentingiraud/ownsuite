@@ -70,8 +70,10 @@ boot check on a larger runner that confirms a user can reach it.
 
 ## Limits
 
-- **The documents PVC is not yet off-site-backed** — the same pre-existing gap as Drive's bucket
-  (`object-backup` copies a single bucket today). Closing it means teaching the off-site copy to
-  cover N buckets / the volume; deferred until Grist graduates from off-by-default.
 - **`unsandboxed` formulas trust the document authors** (true for one organisation); switch to
   `gvisor` otherwise.
+
+The documents PVC (`/persist`, holding the SQLite documents) is now backed up off-site: when
+backups are on, a reusable rclone copy syncs the volume to the off-site store — encrypted — on the
+backup schedule, and restores it during recovery, just like the object (media) copy. So enabling
+Grist no longer opens a backup gap.
