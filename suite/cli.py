@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 
-from . import steps, users
+from . import status, steps, upgrade, users
 from .errors import SuiteError
 
 
@@ -53,6 +53,20 @@ def build_parser():
             # local part so the account is usable (login works) without prompting.
             sp.add_argument("--first-name", help="First name (default: email local part)")
             sp.add_argument("--last-name", help="Last name (default: email local part)")
+
+    # `suite status` — read-only health summary over the tunnel (ADR-033).
+    st = sub.add_parser("status", help="Show a health summary (node, DB, certs, backup, apps).")
+    st.add_argument("--env-file", default=".env")
+    st.add_argument("--ssh", help="Server SSH target user@host (else read from .env)")
+    st.add_argument("--no-tunnel", action="store_true", help="Use the ambient KUBECONFIG")
+
+    # `suite upgrade` — backup-gated snapshot -> diff -> apply -> health -> rollback (ADR-034).
+    up = sub.add_parser("upgrade", help="Safely apply pending chart/image upgrades (backup-gated).")
+    up.add_argument("--env-file", default=".env")
+    up.add_argument("--ssh", help="Server SSH target user@host (else read from .env)")
+    up.add_argument("--no-tunnel", action="store_true", help="Use the ambient KUBECONFIG")
+    up.add_argument("--yes", action="store_true",
+                    help="Skip the diff confirmation (non-interactive)")
     return p
 
 
@@ -61,6 +75,10 @@ def main(argv=None):
     try:
         if args.command == "user":
             users.run(args)
+        elif args.command == "status":
+            status.run_status(args)
+        elif args.command == "upgrade":
+            upgrade.run_upgrade(args)
         else:
             steps.install(args)
     except SuiteError as exc:
