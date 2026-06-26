@@ -28,6 +28,9 @@ buckets:
   {{- if .Values.apps.drive.enabled }}
   - {{ .Values.objectStorage.driveBucket | quote }}
   {{- end }}
+  {{- if .Values.apps.messages.enabled }}
+  - {{ .Values.objectStorage.messagesBucket | quote }}
+  {{- end }}
 keyName: docs
 
 credentialsSecret: garage-credentials
