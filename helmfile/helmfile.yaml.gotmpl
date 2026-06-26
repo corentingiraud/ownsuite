@@ -278,3 +278,24 @@ releases:
       - cert-manager/issuers
     values:
       - values/projects.yaml.gotmpl
+
+  # --- App: Messages (suitenumerique/messages) — the mailbox (ADR-021, ADR-026) -----
+  # The optional, advanced add-on from a local chart, OFF by default. A Django sibling
+  # of Docs: it reuses CNPG (its own `messages` DB), the shared Valkey (DBs 4/5) and the
+  # S3 seam (its own mail-blobs bucket), with the Docs-style external/internal OIDC split.
+  # Inbound SMTP (port 25) is exposed by the chart's mta-in LoadBalancer Service (ADR-027).
+  - name: messages
+    namespace: {{ $ns }}
+    chart: ./charts/messages
+    condition: apps.messages.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/postgres
+      - {{ $ns }}/valkey
+      - {{ $ns }}/keycloak
+      - cert-manager/issuers
+      {{- if .Values.garage.enabled }}
+      - {{ $ns }}/garage
+      {{- end }}
+    values:
+      - values/messages.yaml.gotmpl

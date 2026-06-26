@@ -1,0 +1,136 @@
+# Messages (suitenumerique/messages) — the mailbox (ADR-021, ADR-026). Deployed from
+# the local ./charts/messages chart; OFF by default (gated on apps.messages.enabled at
+# the Helmfile level). Image tag pinned in versions.yaml; all four images share it.
+#
+# Like Docs (suitenumerique/impress), messages is a mozilla-django-oidc app, so OIDC
+# uses the external/internal endpoint split: the browser hits Keycloak at
+# https://auth.{domain}, while the backend reaches it in-cluster over plain HTTP. State
+# is external — CNPG `messages` DB, the shared Valkey (DBs 4/5), and an S3 bucket for
+# mail blobs. Every credential comes from a seed-derived Secret via secretKeyRef
+# (ADR-012); the external relay creds + DKIM key are layered in by the installer PR.
+{{- $domain := .Values.domain -}}
+{{- $host := printf "messages.%s" $domain -}}
+{{- $mailHost := printf "mail.%s" $domain -}}
+{{- $realm := .Values.keycloak.realm -}}
+{{- $ns := .Values.workloadsNamespace -}}
+{{- $pgHost := printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName $ns -}}
+{{- $kcExternal := printf "https://auth.%s/realms/%s/protocol/openid-connect" $domain $realm -}}
+{{- $kcInternal := printf "http://keycloak-keycloakx-http.%s.svc.cluster.local/realms/%s/protocol/openid-connect" $ns $realm -}}
+{{- $s3Endpoint := .Values.objectStorage.endpoint -}}
+{{- $s3Region := .Values.objectStorage.region -}}
+{{- if .Values.garage.enabled -}}
+{{-   $s3Endpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
+{{-   $s3Region = .Values.garage.region -}}
+{{- end }}
+
+image:
+  repository: ghcr.io/suitenumerique/messages
+  tag: {{ .Values.imageVersions.messages | quote }}
+
+ingress:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.tls.issuer | quote }}
+  service:
+    name: messages-frontend
+    port: 8080
+  tls:
+    enabled: true
+    secretName: messages-tls
+
+# The backend and the Celery worker run the same image and share one env block (a YAML
+# anchor keeps it in one place). The MTAs and the frontend take their own small envs.
+components:
+  backend:
+    env: &backendEnv
+      # --- Django core ---
+      DJANGO_SETTINGS_MODULE: messages.settings
+      DJANGO_CONFIGURATION: Production
+      DJANGO_ALLOWED_HOSTS: {{ printf "%s,messages-backend" $host | quote }}
+      DJANGO_CSRF_TRUSTED_ORIGINS: {{ printf "https://%s" $host | quote }}
+      # --- PostgreSQL (CNPG) ---
+      DB_HOST: {{ $pgHost | quote }}
+      DB_NAME: messages
+      DB_USER: messages
+      DB_PORT: "5432"
+      # --- OIDC (Keycloak) — external endpoints for the browser, internal for the backend ---
+      OIDC_RP_CLIENT_ID: messages
+      OIDC_RP_SIGN_ALGO: RS256
+      OIDC_RP_SCOPES: "openid email profile"
+      OIDC_OP_AUTHORIZATION_ENDPOINT: {{ printf "%s/auth" $kcExternal | quote }}
+      OIDC_OP_LOGOUT_ENDPOINT: {{ printf "%s/logout" $kcExternal | quote }}
+      OIDC_OP_JWKS_ENDPOINT: {{ printf "%s/certs" $kcInternal | quote }}
+      OIDC_OP_TOKEN_ENDPOINT: {{ printf "%s/token" $kcInternal | quote }}
+      OIDC_OP_USER_ENDPOINT: {{ printf "%s/userinfo" $kcInternal | quote }}
+      OIDC_REDIRECT_ALLOWED_HOSTS: {{ printf "https://%s" $host | quote }}
+      # Create the Django user on first OIDC login; the maildomain's oidc_autojoin (set
+      # by the seed Job) then provisions the mailbox — the JIT path the DoD relies on.
+      OIDC_CREATE_USER: "True"
+      # --- Object storage (S3 / Garage) — message blobs/attachments ---
+      STORAGE_MESSAGE_BLOBS_ENDPOINT_URL: {{ $s3Endpoint | quote }}
+      STORAGE_MESSAGE_BLOBS_BUCKET_NAME: {{ .Values.objectStorage.messagesBucket | quote }}
+      STORAGE_MESSAGE_BLOBS_REGION_NAME: {{ $s3Region | quote }}
+      # --- Outbound: hand off to the in-cluster mta-out, which relays externally
+      #     (the external relay account is configured on mta-out by the installer PR).
+      #     TLS "may" because the worker->mta-out hop uses the MTA's self-signed cert.
+      MTA_OUT_MODE: relay
+      MTA_OUT_RELAY_HOST: messages-mta-out:587
+      MTA_OUT_RELAY_USERNAME: messages
+      MTA_OUT_SMTP_TLS_SECURITY_LEVEL: may
+    secretEnv: &backendSecretEnv
+      - name: DJANGO_SECRET_KEY
+        secretName: messages-secrets
+        secretKey: DJANGO_SECRET_KEY
+      - name: OIDC_RP_CLIENT_SECRET
+        secretName: messages-secrets
+        secretKey: OIDC_RP_CLIENT_SECRET
+      - name: DB_PASSWORD
+        secretName: messages-db
+        secretKey: password
+      - name: REDIS_URL
+        secretName: messages-secrets
+        secretKey: REDIS_URL
+      - name: CELERY_BROKER_URL
+        secretName: messages-secrets
+        secretKey: CELERY_BROKER_URL
+      - name: MDA_API_SECRET
+        secretName: messages-secrets
+        secretKey: MDA_API_SECRET
+      # The worker authenticates to mta-out with the internal SMTP password.
+      - name: MTA_OUT_RELAY_PASSWORD
+        secretName: messages-secrets
+        secretKey: SMTP_INTERNAL_PASSWORD
+      # S3 key/secret are the shared seed-derived pair (one key owns every app bucket).
+      - name: STORAGE_MESSAGE_BLOBS_ACCESS_KEY
+        secretName: s3-credentials
+        secretKey: AWS_S3_ACCESS_KEY_ID
+      - name: STORAGE_MESSAGE_BLOBS_SECRET_KEY
+        secretName: s3-credentials
+        secretKey: AWS_S3_SECRET_ACCESS_KEY
+  worker:
+    env: *backendEnv
+    secretEnv: *backendSecretEnv
+  frontend:
+    env:
+      # Caddy reverse-proxies /api + /__heartbeat__ to the backend Service.
+      MESSAGES_FRONTEND_BACKEND_SERVER: messages-backend:8000
+      PORT: "8080"
+  mta-in:
+    env:
+      MDA_API_BASE_URL: http://messages-backend:8000/api/v1.0/
+      MYHOSTNAME: {{ $mailHost | quote }}
+    secretEnv:
+      - name: MDA_API_SECRET
+        secretName: messages-secrets
+        secretKey: MDA_API_SECRET
+  mta-out:
+    env:
+      MYHOSTNAME: {{ $mailHost | quote }}
+      # Internal submission auth — the worker logs in here with the same credentials.
+      SMTP_USERNAME: messages
+    secretEnv:
+      - name: SMTP_PASSWORD
+        secretName: messages-secrets
+        secretKey: SMTP_INTERNAL_PASSWORD

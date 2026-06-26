@@ -41,9 +41,12 @@ components:
   backend:
     imageSuffix: backend
     port: 8000
+    # TCP, not HTTP: a kube httpGet probe sends Host: <pod-IP>, which Django rejects
+    # via ALLOWED_HOSTS (400). gunicorn accepts the connection once booted, and the
+    # pre-upgrade migrate hook has already run, so TCP-ready is a sound signal (the
+    # same reasoning as the projects chart, ADR-025).
     probe:
-      type: http
-      path: /__heartbeat__/
+      type: tcp
       initialDelaySeconds: 20
     service:
       type: ClusterIP
