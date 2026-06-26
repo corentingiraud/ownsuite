@@ -9,6 +9,15 @@ cluster:
     size: 10Gi
     # Empty -> the cluster's default StorageClass (e.g. local-path on K3s).
     storageClass: ""
+  # Postgres instance sizing — memory limit only (a CPU limit would throttle queries;
+  # the repo convention is request CPU+memory, limit memory). CNPG keeps shared_buffers
+  # conservative, so a 1Gi ceiling is safe on a single server.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      memory: "1Gi"
 
 # One entry per database/app. `name` is both the database and its owner role;
 # `secretName` is the basic-auth Secret (from platform-configuration) holding the

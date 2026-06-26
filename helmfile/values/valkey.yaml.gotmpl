@@ -7,3 +7,12 @@ fullnameOverride: valkey
 # Append `requirepass <derived>` to valkey.conf from a Secret, so the password is
 # never rendered into a ConfigMap or committed.
 extraSecretValkeyConfigs: valkey-extra-config
+
+# Cache/broker sizing — small and bounded (memory limit only, per the repo convention).
+# Storage is ephemeral, so this is the whole footprint.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

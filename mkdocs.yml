@@ -91,6 +91,7 @@ plugins:
           - get-started/install.md: Step 2 — guided installer (suite install), bare server + domain to all-in-HTTPS.
         Operate:
           - operate/users.md: User provisioning with the `suite user` CLI (one Keycloak identity, JIT to all apps).
+          - operate/sizing.md: Server sizing — minimum and recommended VPS specs (RAM/CPU/disk) per enabled app.
           - operate/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
         Understand the stack:
           - understand/overview.md: The stack and its building blocks.
@@ -124,6 +125,7 @@ nav:
       - 2. Install: get-started/install.md
   - Operate:
       - Users: operate/users.md
+      - Server sizing: operate/sizing.md
       - Backups & restore: operate/backups.md
   - Understand the stack:
       - Architecture: understand/overview.md

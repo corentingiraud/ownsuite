@@ -6,6 +6,18 @@ external (CNPG + Valkey + S3), so no volumes — `strategy: Recreate` only matte
 the MTAs' brief in-flight queue. Credentials arrive by secretKeyRef (secretEnv);
 nothing secret is rendered here.
 */}}
+{{- /* The probe action (httpGet/tcpSocket) is identical across startup/readiness/
+liveness, so emit it once. Arg: dict "probe" $c.probe "portName" <name>. */}}
+{{- define "messages.probeAction" -}}
+{{- if eq .probe.type "http" }}
+httpGet:
+  path: {{ .probe.path }}
+  port: {{ .portName }}
+{{- else if eq .probe.type "tcp" }}
+tcpSocket:
+  port: {{ .portName }}
+{{- end }}
+{{- end }}
 {{- range $name, $c := .Values.components }}
 ---
 apiVersion: apps/v1
@@ -58,19 +70,25 @@ spec:
                   key: {{ .secretKey }}
             {{- end }}
           {{- with $c.probe }}
+          {{- $action := dict "probe" . "portName" ($c.portName | default "http") }}
+          {{- $timeout := .timeoutSeconds | default 5 }}
+          {{- /* startupProbe absorbs the first-boot migration (≈5 min budget), so
+                 readiness/liveness need no initialDelay and can fail fast after. */}}
+          startupProbe:
+            {{- include "messages.probeAction" $action | nindent 12 }}
+            periodSeconds: 10
+            timeoutSeconds: {{ $timeout }}
+            failureThreshold: {{ .startupFailureThreshold | default 30 }}
           readinessProbe:
-            {{- if eq .type "http" }}
-            httpGet:
-              path: {{ .path }}
-              port: {{ $c.portName | default "http" }}
-            {{- else if eq .type "tcp" }}
-            tcpSocket:
-              port: {{ $c.portName | default "http" }}
-            {{- end }}
-            initialDelaySeconds: {{ .initialDelaySeconds | default 15 }}
+            {{- include "messages.probeAction" $action | nindent 12 }}
             periodSeconds: {{ .periodSeconds | default 10 }}
-            timeoutSeconds: {{ .timeoutSeconds | default 5 }}
-            failureThreshold: {{ .failureThreshold | default 30 }}
+            timeoutSeconds: {{ $timeout }}
+            failureThreshold: 3
+          livenessProbe:
+            {{- include "messages.probeAction" $action | nindent 12 }}
+            periodSeconds: 20
+            timeoutSeconds: {{ $timeout }}
+            failureThreshold: 3
           {{- end }}
           resources:
             {{- toYaml ($c.resources | default $.Values.resources) | nindent 12 }}
