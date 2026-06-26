@@ -98,13 +98,20 @@ one created by `suite user add`), then send a test message to an external inbox.
 
 ## Tests
 
-The **hermetic half** is proven in the k3d e2e behind the flag: pods converge, the webmail returns
-200, OIDC login works, and a message delivered between two local mailboxes reads back via the API —
-the Docs create-and-read-back analog. Real-internet mail cannot be sent in CI, so real external
-deliverability (SPF/DKIM/DMARC-aligned, **inbox not spam**) is an **off-CI human check** on a real
-domain + relay account, exactly as real ACME issuance was validated off-CI in Phase 4
-([ADR-010](decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)). The `dns_check`
-management command verifies record alignment.
+messages is **template/lint-validated** (`make lint-helm`: `helm lint` the chart standalone +
+kubeconform the rendered manifests, in both relay states), and the installer's DNS/DKIM logic is
+unit-tested (`tests/test_dns.py`, `tests/test_mail.py`). Like Grist and Projects it is **not booted
+in the constrained k3d e2e** — five pods would push the already-tight runner over its memory ceiling
+([ADR-026](decisions.md#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred)).
+
+Two checks remain off the per-PR CI, mirroring how real ACME was validated off-CI in Phase 4:
+
+- **Hermetic loopback** (a beefier/nightly runner): pods converge, the webmail returns 200, OIDC login
+  works, and a message delivered between two local mailboxes reads back via the API — the Docs
+  create-and-read-back analog. No relay account, so mta-out delivers locally only.
+- **Real external deliverability** (a human, on a real domain + relay account): publish the records,
+  `suite user add`, send to an external inbox, and confirm it lands **not in spam** with SPF/DKIM/DMARC
+  aligned. The `dns_check` management command verifies record alignment.
 
 ## Limits
 

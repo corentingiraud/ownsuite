@@ -157,8 +157,9 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 - Mailbox is **`suitenumerique/messages`** — La Suite's own mail app, federated to the
   same Keycloak via OIDC (ADR-021). It is a full provider: its own **Postfix MTA-in**
   receives mail from the internet (MX → port 25), a Django MDA stores/indexes it
-  (Postgres + Redis + OpenSearch), and it ships an **integrated webmail**. No IMAP/POP3
-  by design — users read mail in the messages web UI, not Thunderbird/Apple Mail.
+  (Postgres + Redis; **OpenSearch deferred** — optional upstream, dropped to protect the
+  single-VPS RAM, ADR-026), and it ships an **integrated webmail**. No IMAP/POP3 by
+  design — users read mail in the messages web UI, not Thunderbird/Apple Mail.
 - **Outbound is relayed, never direct.** `MTA_OUT_MODE=relay` points messages' MTA-out at
   a reputable EU SMTP relay (Infomaniak: `mail.infomaniak.com:587`, STARTTLS) so mail
   leaves a reputable IP — not the VPS. Set messages' `THROTTLE_*_OUTBOUND_EXTERNAL_RECIPIENTS`
@@ -166,9 +167,14 @@ The full rationale lives in the [Architecture Decision Records](../understand/de
 - Deliverability reality still applies to the relay path: **MX/SPF/DKIM/DMARC** in the DNS
   flow (SPF must `include` the relay), **rDNS/PTR** at the host. Provisioning wired into
   the Phase 5 `suite` CLI.
-- Trade-off accepted: messages drags OpenSearch (RAM-hungry) + Redis + two Postfix
-  containers — sizing covered in Phase 7; it stays optional and isolated.
-- **Done:** `suite user add` also creates the mailbox; an outbound email lands in the inbox (not spam).
+- Trade-off accepted: messages drags Redis + two Postfix containers (OpenSearch dropped) —
+  sizing covered in Phase 7; it stays optional and isolated, off by default.
+- Like Grist/Projects, it is **template/lint-validated, not CI-booted** (runner memory). The
+  hermetic loopback (a beefier/nightly runner) and the real deliverability check (a human, on a
+  real domain + relay) stay off the per-PR CI, exactly as real ACME was validated off-CI in Phase 4.
+- **Done (build):** the chart, OIDC client, per-app DB/bucket, the installer's DNS/DKIM and the
+  maildomain seed are in and lint-validated; `suite user add` creates the mailbox via JIT.
+  **Remaining:** the off-CI human check that an outbound email lands in the inbox (not spam).
 
 ### Phase 7 — Production hardening & packaging
 
