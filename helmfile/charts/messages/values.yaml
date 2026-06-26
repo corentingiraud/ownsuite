@@ -120,12 +120,18 @@ components:
     imageSuffix: mta-out
     port: 587
     portName: smtp
-    # The 0.8.0 image's entrypoint writes the SASL db to /var/spool/postfix/etc/sasldb2
-    # but its Dockerfile never creates that directory, so saslpasswd2 fails with
-    # "generic failure" and the container crash-loops. Create the dir, then exec the
-    # stock entrypoint. ponytail: drop this once upstream ships the mkdir (the Dockerfile
-    # creates /var/spool/postfix/{private,public} but omits etc).
-    command: ["sh", "-c", "mkdir -p /var/spool/postfix/etc && exec /usr/local/bin/entrypoint.sh"]
+    # Work around two gaps in the 0.8.0 image so postfix actually starts:
+    #   1. The entrypoint writes the SASL db to /var/spool/postfix/etc/sasldb2 but the
+    #      Dockerfile never creates that dir, so saslpasswd2 fails ("generic failure").
+    #   2. The queue dirs are created owned by root, so `postfix start-fg` aborts on
+    #      mis-owned /var/spool/postfix/{private,public}; `postfix set-permissions`
+    #      fixes the ownership before the daemon starts.
+    # Create the dir, fix permissions, then exec the stock entrypoint.
+    # ponytail: drop once upstream ships the mkdir + set-permissions in its image.
+    command:
+      - sh
+      - -c
+      - mkdir -p /var/spool/postfix/etc && postfix set-permissions && exec /usr/local/bin/entrypoint.sh
     probe:
       type: tcp
     # Postfix: lightweight relay process.
