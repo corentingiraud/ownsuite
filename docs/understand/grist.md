@@ -6,11 +6,8 @@ database) is wired to the same shared foundation, with Keycloak SSO so a user pr
 once reaches it on first login (JIT — no per-app step).
 
 !!! note "Off by default"
-    Grist ships **disabled** (`OWNSUITE_APP_GRIST`, default `false`). It is an optional app,
-    not part of the core definition of done, and is **not yet booted in the CI e2e** (the
-    constrained runner is already near its ceiling). It is fully wired and validated by `helm template` +
-    kubeconform; enable it with one flag (below). See
-    [ADR-024](decisions.md#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default).
+    Grist ships **disabled** (`OWNSUITE_APP_GRIST`, default `false`). It's an optional extra,
+    not part of the tested core. It's fully wired and ready; turn it on with one flag (below).
 
 Unlike Docs/Drive, Grist is **not** a `suitenumerique`/impress app: it is a single-container
 Node app with **no official Helm chart**, so OwnSuite ships a thin local chart
@@ -30,7 +27,7 @@ on a local volume and its metadata in Postgres.
 ## How it is wired
 
 Three choices differ from the impress apps
-([ADR-024](decisions.md#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)):
+:
 
 - **OIDC by single public issuer.** Grist discovers every endpoint from one
   `GRIST_OIDC_IDP_ISSUER` and has no per-endpoint override, so (unlike Docs/Drive) it points at
@@ -42,7 +39,7 @@ Three choices differ from the impress apps
 - **Documents on a PVC, home DB on CNPG.** Grist's document SQLite files live on the
   `grist-persist` volume (mounted at `/persist`); orgs, users and ACLs live in a dedicated CNPG
   `grist` database via `TYPEORM_*`. The session secret and OIDC client secret are seed-derived
-  ([ADR-012](decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating))
+
   in `grist-secrets`; the home-DB password is the per-app `grist-db` Secret.
 - **Formula sandbox `unsandboxed` by default.** `gvisor` (the image default) needs node
   capabilities stock K3s does not reliably grant; OwnSuite is a single trusted organisation, so
@@ -56,7 +53,7 @@ All of it is in `helmfile/values/grist.yaml.gotmpl`; nothing secret is committed
 ```bash
 set -a && source .env && set +a          # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
 export OWNSUITE_APP_GRIST=true           # opt in (off by default)
-make tunnel                              # in another terminal (ADR-014)
+make tunnel                              # in another terminal
 make sync                                # brings up the infra + enabled apps + Grist
 ```
 
@@ -66,18 +63,15 @@ team-site name with `OWNSUITE_GRIST_ORG`.
 
 ## Tests
 
-Grist is **template/lint-validated** (`make lint-helm`: `helm lint` the chart standalone +
-kubeconform the rendered manifests), but — unlike Docs/Drive — it is **not booted in the k3d
-e2e** (runner footprint; it is outside the DoD). The natural next step before it becomes a
-default app is a targeted boot check: enable Grist on a beefier/nightly runner and assert a
-Keycloak user reaches it
-([ADR-010](decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)).
+Grist's deployment is checked by the static suite (`make lint-helm`), but — unlike Docs and
+Drive — it isn't yet started up in the automated end-to-end tests (it's an optional extra, and
+the test runner is memory-constrained). The next step before it becomes a default app is a
+boot check on a larger runner that confirms a user can reach it.
 
 ## Limits
 
 - **The documents PVC is not yet off-site-backed** — the same pre-existing gap as Drive's bucket
   (`object-backup` copies a single bucket today). Closing it means teaching the off-site copy to
-  cover N buckets / the volume; deferred until Grist graduates from off-by-default
-  ([ADR-024](decisions.md#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)).
+  cover N buckets / the volume; deferred until Grist graduates from off-by-default.
 - **`unsandboxed` formulas trust the document authors** (true for one organisation); switch to
   `gvisor` otherwise.

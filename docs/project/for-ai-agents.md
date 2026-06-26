@@ -6,8 +6,7 @@ file at the repository root) orient AI assistants contributing to the project.
 ## Single source of truth
 
 The documentation **is** the specification. Before writing code, an agent reads the
-docs; after a structural decision, it updates the docs (usually a new
-[ADR](../understand/decisions.md)).
+docs; after a structural decision, it updates the docs in the same change.
 
 ## Endpoints for AI
 
@@ -23,9 +22,9 @@ To load the whole project context at once, fetch `/llms-full.txt`.
 - **Pure Markdown**: no JSX/MDX components (keep the source AI-readable).
 - **One concept per file**, a descriptive `#` title, stable section headings (anchors
   act as entry points).
-- **Relative links** between pages (`../architecture/overview.md`).
+- **Relative links** between pages (`../understand/overview.md`).
 - **Typed code blocks** (always set the language); `!!!` admonitions for notes.
-- Every structural decision → an **ADR** in [`decisions.md`](../understand/decisions.md).
+- Document every structural decision and its rationale in the docs.
 
 ## Code conventions (reminder)
 
@@ -33,12 +32,10 @@ To load the whole project context at once, fetch `/llms-full.txt`.
     **Everything is written in English** — documentation, code comments, identifiers,
     commit messages. This rule overrides any contrary instruction.
 
-- No going back to **Bitnami** or **MinIO** (deprecated — see [ADR-003](../understand/decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3)
-  and [ADR-004](../understand/decisions.md#adr-004-cloudnativepg-valkey-leaving-bitnami)).
+- No going back to **Bitnami** or **MinIO** (both deprecated/archived).
 - **Pinned** versions (charts, images, K3s); never `latest` in production. Don't
   hand-edit a pin to chase the newest release — **Renovate** opens tested bump PRs
-  (`renovate.json`, see [ADR-007](../understand/decisions.md#adr-007-upgrade-model-semver-releases-backup-gated-cli)).
-  Staying current is Renovate's job; staying *tested* is the CI harness's.
+  (`renovate.json`). Staying current is Renovate's job; staying *tested* is the CI harness's.
 - Every secret derives from the `secretSeed` or an explicit override — **never commit a plaintext secret**.
 
 ## Build the docs locally

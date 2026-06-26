@@ -1,8 +1,7 @@
 # Users
 
-Provisioning is **one identity in Keycloak**, just-in-time into every app (ADR-005): create a
-user once and they reach Docs, Drive — and any future app — on their first login. No per-app
-step ([ADR-023](../understand/decisions.md#adr-023-user-provisioning-suite-user-admin-rest-over-the-tunnel-jit)).
+Adding someone is **one command**. You create them once, and they can sign in to Docs, Drive
+— and any other app you've enabled — the first time they log in. There's no per-app setup.
 
 ```bash
 set -a && source .env && set +a       # OWNSUITE_SECRET_SEED + OWNSUITE_SERVER_SSH
@@ -12,18 +11,16 @@ suite user passwd alice@assoc.org     # reset the password
 suite user disable alice@assoc.org    # deactivate (revokes access to all apps at once)
 ```
 
-> **Definition of done:** `suite user add firstname@assoc.org` and that person has
-> Docs **and** Drive immediately — proven at the token level in CI.
+> **The result:** `suite user add firstname@assoc.org` and that person has Docs **and**
+> Drive immediately — tested in CI.
 
-## How it reaches Keycloak
+## How it connects
 
-The CLI talks the Keycloak **admin REST API** to the in-cluster service over the existing SSH
-tunnel ([ADR-014](../understand/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel))
-plus a short-lived `kubectl port-forward` — admin traffic never crosses the public
-`auth.{domain}` endpoint. The admin password is **derived from your seed** (id `keycloak-admin`,
-[ADR-012](../understand/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)),
-so the only secret you need is the `OWNSUITE_SECRET_SEED` you already guard. With a tunnel
-already open (or an ambient `KUBECONFIG`) add `--no-tunnel`.
+The command talks to Keycloak (the login system) privately, over the same SSH tunnel you
+use to manage the server — admin traffic never goes over the public internet. The admin
+password is **derived from your seed**, so the only secret you ever need to guard is your
+`OWNSUITE_SECRET_SEED`. If a tunnel is already open (or you have a working `KUBECONFIG`),
+add `--no-tunnel`.
 
 ## Flags
 

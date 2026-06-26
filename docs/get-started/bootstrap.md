@@ -3,12 +3,11 @@
 Turn a **bare Debian server** into a ready **single-node K3s** cluster with one
 command — the first step before installing OwnSuite.
 
-> **Definition of done:** `make bootstrap` turns a bare Debian server into a ready
+> **What you get:** `make bootstrap` turns a bare Debian server into a ready
 > single-node K3s cluster.
 
-This is implemented with **Ansible** (see
-[ADR-002](../understand/decisions.md#adr-002-ansible-for-the-host-not-nix)). The
-playbook applies three roles in order: `common` → `security` → `k3s`.
+This step is handled by **Ansible**, which applies three sets of changes in order:
+`common` → `security` → `k3s`.
 
 ## What it does
 
@@ -64,14 +63,12 @@ staging→production certificates — so a bare server + a domain reaches HTTPS 
   `firewall_allowed_tcp_ports`/CIDR vars to match.
 - **Fetched kubeconfig** points at `https://127.0.0.1:6443`. You reach the cluster from
   your workstation through an SSH tunnel (`make tunnel`), so this address is used
-  as-is and the K8s API is never exposed — see
-  [shared infrastructure](../understand/platform.md) and
-  [ADR-014](../understand/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel).
+  as-is and the Kubernetes API is never exposed to the internet — see
+  [how it works](../understand/platform.md).
 
 ## Tests
 
-The bootstrap is covered by an evolving, layered test harness
-([ADR-010](../understand/decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)):
+The bootstrap is covered by a layered, automated test suite:
 
 ```bash
 make lint        # yamllint + ansible-lint + syntax-check

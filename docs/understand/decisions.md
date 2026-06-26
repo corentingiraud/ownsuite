@@ -112,7 +112,7 @@ version}`. Upgrades run through a **`suite` CLI** that is *backup-gated*: snapsh
 **Consequences.** Sustainable maintenance; upgrades = a git operation plus one
 command. GitOps (Flux/ArgoCD) is possible later; deemed overkill for a single server in v1.
 
-**Concrete tooling (Phase 0).** **Renovate** (`renovate.json`), not Dependabot — one
+**Concrete tooling.** **Renovate** (`renovate.json`), not Dependabot — one
 tool that tracks *every* pin we ship: Python tooling (`requirements-*.txt`), **Ansible
 Galaxy collections** (`ansible/requirements.yml`, `molecule/requirements.yml`), GitHub
 Actions, and the **K3s release** in `ansible/group_vars/all.yml` (via a custom manager
@@ -140,7 +140,7 @@ MX/SPF/DKIM/DMARC records added to the DNS flow and provisioning wired into the
 **Why deferred.** Outbound email is the hard part (port 25 often blocked, rDNS/PTR at
 the host, IP reputation). Recommended workaround when the time comes: self-host the
 mailboxes but **relay outbound through a reputable EU SMTP**. Since backups and DNS are
-already shared, the add-on blocks none of the earlier phases.
+already shared, the add-on blocks none of the earlier work.
 
 ---
 
@@ -164,12 +164,12 @@ and a fetchable full-text dump. Per-version docs via `mike`, aligned with releas
 
 **Context.** ADR-002 makes Ansible the host provisioner and ADR-006 promises a CI
 pipeline that replays **install → upgrade → restore** so the backup/restore promise
-stays true over time. We need automated tests from Phase 0 that are cheap enough to run
+stays true over time. We need automated tests from the start that are cheap enough to run
 on every change, yet able to grow into that full pipeline without being rebuilt.
 
-**Decision.** A **three-layer** test harness, established in Phase 0 and extended one
-phase at a time. The *harness* (Molecule + Testinfra + a Debian 12/13 matrix) is the
-stable contract; each phase only adds scenarios and assertions.
+**Decision.** A **three-layer** test harness, established at the outset and extended
+incrementally. The *harness* (Molecule + Testinfra + a Debian 12/13 matrix) is the
+stable contract; each increment only adds scenarios and assertions.
 
 1. **Static** — `yamllint`, `ansible-lint` (production profile),
    `ansible-playbook --syntax-check`. Runs on every PR in seconds (`make lint`).
@@ -186,14 +186,14 @@ stable contract; each phase only adds scenarios and assertions.
 real-cluster check (layer 3) is reserved for what actually affects the cluster. The DoD
 is still machine-verified, just not on every PR.
 
-**How it evolves.** Phase 1 adds a scenario asserting `helmfile sync` brings the shared
-infra up; Phase 3 adds the install → upgrade → **restore** replay ADR-006 mandates. The
-Phase 1 Helmfile layer runs on **k3d** (purpose-built for in-cluster Helm e2e) with the
+**How it evolves.** The shared-infra work adds a scenario asserting `helmfile sync` brings
+the shared infra up; the backup work adds the install → upgrade → **restore** replay ADR-006
+mandates. The Helmfile layer runs on **k3d** (purpose-built for in-cluster Helm e2e) with the
 same pytest-style assertions, kept in a dedicated, cost-aware workflow
 (`helmfile-e2e.yml`) — the layered philosophy holds; only the substrate fits the tool.
 
 **Consequences.** Robust feedback proportional to risk, and a test foundation that the
-later phases inherit instead of reinventing. Cost: Molecule/Testinfra are Python dev
+later work inherits instead of reinventing. Cost: Molecule/Testinfra are Python dev
 dependencies, and the nightly full run consumes CI minutes (bounded to the two Debian
 targets).
 
@@ -257,7 +257,7 @@ override; SOPS/External Secrets remain a possible later evolution if requirement
 
 ## ADR-013 — TLS issuance: cert-manager HTTP-01 per-subdomain (wildcard DNS-01 deferred)
 
-**Context.** Phase 1's definition of done is **Keycloak reachable over HTTPS**. Traefik is
+**Context.** The foundation's goal is **Keycloak reachable over HTTPS**. Traefik is
 bundled with K3s; cert-manager handles certificates. ACME offers HTTP-01 (per host, needs
 port 80 + public DNS) or DNS-01 (wildcards, needs a DNS-provider API credential).
 
@@ -266,12 +266,12 @@ through the Traefik ingress for production, and a **`selfsigned`** ClusterIssuer
 (no public DNS). The Keycloak ingress selects the issuer via `tls.issuer`.
 
 **Why not DNS-01 wildcard now.** A `*.{domain}` certificate needs a chosen DNS provider and
-an API credential — exactly the "domain → DNS" experience **Phase 4** owns. HTTP-01 needs
-nothing but the port 80 the firewall already opens, so it is the right minimum for Phase 1.
+an API credential — exactly the "domain → DNS" experience **the installer** owns. HTTP-01 needs
+nothing but the port 80 the firewall already opens, so it is the right minimum for the foundation.
 
 **Consequences.** HTTPS works on a bare server with no DNS-provider integration, and CI proves
 end-to-end TLS termination with the self-signed issuer (Let's Encrypt cannot be exercised
-without public DNS). DNS-01 wildcard becomes an additive ClusterIssuer in Phase 4 — no
+without public DNS). DNS-01 wildcard becomes an additive ClusterIssuer in the installer — no
 rework of the issuer-selection seam.
 
 ---
@@ -279,7 +279,7 @@ rework of the issuer-selection seam.
 ## ADR-014 — Operator control plane: local workstation + SSH tunnel
 
 **Context.** The Ansible bootstrap (ADR-002) runs remotely (workstation → server over
-SSH). The Phase 1 Helmfile layer needs the Kubernetes API (port 6443), but the
+SSH). The Helmfile layer needs the Kubernetes API (port 6443), but the
 firewall opens only 22/80/443 and the fetched kubeconfig points at
 `https://127.0.0.1:6443`. We must decide where `helmfile`/`kubectl`/the future `suite`
 CLI run, and how they reach the API.
@@ -298,8 +298,8 @@ enlarges the attack surface for no benefit on a single server; a tunnel is free 
 the API private.
 
 **Consequences.** One place to operate from, a minimal server, and a private API. The
-tunnel must be open during `sync` (a manual `make tunnel` for now). The Phase 4
-installer / Phase 5 `suite` CLI will open the tunnel automatically, making this
+tunnel must be open during `sync` (a manual `make tunnel` for now). The
+installer / the `suite` CLI will open the tunnel automatically, making this
 invisible — they implement this model rather than change it.
 
 ---
@@ -307,8 +307,8 @@ invisible — they implement this model rather than change it.
 ## ADR-015 — In-cluster object storage: Garage (single-node), deterministic key
 
 **Context.** [ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3) made
-object storage pluggable — Garage (self-hosted) or external EU S3 — and Phase 1 only
-*derived* the S3 credentials; nothing was deployed. Phase 2's Docs app needs a real
+object storage pluggable — Garage (self-hosted) or external EU S3 — and the foundation only
+*derived* the S3 credentials; nothing was deployed. The Docs app needs a real
 bucket, and the hermetic k3d e2e ([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness))
 needs an S3 backend that exists with no external account. MinIO is banned (ADR-004).
 
@@ -330,21 +330,21 @@ in `external` mode nothing is deployed and Docs points at the configured endpoin
 
 **Consequences.** A real, sovereign object store on one node and a fully hermetic e2e, at a
 tiny footprint (Rust; ~128Mi request). Off-site object backup is still required (ADR-006,
-Phase 3). The bootstrap Job depends on a pinned community `kubectl` image — acceptable, and
+off-site object backup). The bootstrap Job depends on a pinned community `kubectl` image — acceptable, and
 the only non-distroless piece (Garage's own image ships no shell).
 
 ---
 
 ## ADR-016 — Docs (impress) integration: one namespace, Traefik ingress, OIDC split
 
-**Context.** Phase 2 wires the first app — **Docs** (`suitenumerique` / impress) — to the
-whole foundation. Three integration choices were left open by Phase 1: where apps live
+**Context.** The first app wired in is **Docs** (`suitenumerique` / impress) — connected to the
+whole foundation. Three integration choices were left open by the foundation: where apps live
 (namespace), how the upstream chart's **nginx**-oriented ingress maps onto our **Traefik**
 (K3s-bundled), and how a backend inside the cluster talks OIDC to a Keycloak that issues
 browser-facing URLs.
 
 **Decision.**
-- **One workloads namespace.** Docs runs in the same `ownsuite` namespace as the Phase 1
+- **One workloads namespace.** Docs runs in the same `ownsuite` namespace as the foundation
   infra, reusing the secrets already there. No per-app namespaces or cross-namespace secret
   reflector in v1 — unnecessary moving parts for a single server. (Per-app namespaces remain a
   clean later evolution.)
@@ -364,9 +364,9 @@ browser-facing URLs.
 
 **Realm import on an existing install.** `--import-realm` only imports on Keycloak's
 **first** boot, so adding the `docs` client to an *already-imported* realm has no effect on
-upgrade. Acceptable for a fresh install / CI (the path Phase 2 proves). For an existing
+upgrade. Acceptable for a fresh install / CI (the path Docs proves). For an existing
 install the client must be added out-of-band (Keycloak admin API / `kcadm`, or a one-shot
-upsert Job); this is documented and slated for the Phase 4 installer / Phase 5 `suite` CLI,
+upsert Job); this is documented and slated for the installer / the `suite` CLI,
 which own the upgrade flow.
 
 **Consequences.** Docs is reachable over HTTPS with real SSO and persistent storage, proven
@@ -374,14 +374,14 @@ by CI. The DoD is verified at the API level (a Keycloak-issued token creates and
 a document — see [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness)); a full
 browser-driven SSO/collaboration check is deferred to a targeted job. The one-namespace and
 realm-import-on-first-boot choices are explicit simplifications to revisit as the suite
-broadens (Phase 5).
+broadens.
 
 ---
 
 ## ADR-017 — Backups & tested restore: Barman Cloud Plugin, rclone, off-site by design
 
 **Context.** [ADR-006](#adr-006-backups-and-tested-restore) commits to backing up the **three
-sources of state** and to a **tested** restore. Phase 3 implements it on the running stack:
+sources of state** and to a **tested** restore. This ADR implements it on the running stack:
 CNPG (operator **1.29.1**, chart 0.28.3), Keycloak + Docs databases, an object store that is
 in-cluster Garage *or* external S3, and cert-manager already deployed. The decisions left open
 were the PostgreSQL backup mechanism, the object-copy tool, the off-site destination + its
@@ -421,7 +421,7 @@ credentials, the depth of Keycloak backup, and how to prove the cycle hermetical
   external account ([ADR-012](#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)).
 
 **Why not the in-tree barmanObjectStore.** It is deprecated (CNPG 1.26+) and slated for removal;
-building Phase 3 on it would mean migrating immediately. The plugin is the supported path on our
+building the backups on it would mean migrating immediately. The plugin is the supported path on our
 version, its only extra dependency (cert-manager) is already present, and the image is pinned
 inside the vendored manifest (Renovate-tracked, re-vendored on bump).
 
@@ -434,13 +434,13 @@ retention is expressed on the object copy / bucket lifecycle. Full GFS for Postg
 enhancement.
 
 **Tested in CI (the deliverable).** The k3d e2e ([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness))
-runs one hermetic **backup → destroy → restore** cycle: sync with backups on, assert the Phase-2
+runs one hermetic **backup → destroy → restore** cycle: sync with backups on, assert the Docs
 DoD (creating the survivor document), seed a media object, take an on-demand base backup + an
 off-site object copy, **destroy** the primary state (DB + primary store + apps; keep
 `platform-configuration` + `garage-backup` + the operators), `make restore`, then assert the
 document and the Keycloak user **survived** and the media object is back. Kept on the existing
 cost-aware triggers (nightly + on `helmfile/**`), with the same fail-fast watchdog. This is the
-machine-checked Phase-3 definition of done and the seed of the install→upgrade→restore replay
+machine-checked backup/restore definition of done and the seed of the install→upgrade→restore replay
 ADR-006/ADR-010 promise; `make restore` prefigures the backup-gated `suite restore`
 ([ADR-007](#adr-007-upgrade-model-semver-releases-backup-gated-cli)).
 
@@ -451,11 +451,11 @@ Docs are not starved on a single server. Operator guide: [Backups & restore](../
 
 ---
 
-## ADR-018 — Phase 4 guided installer (`suite install`)
+## ADR-018 — Guided installer (`suite install`)
 
-**Context.** Phases 0–3 leave a working stack driven by a **manual sequence** (`make bootstrap`
+**Context.** The earlier work leaves a working stack driven by a **manual sequence** (`make bootstrap`
 → edit/source `.env` → `make tunnel` → `make sync` → curl-check HTTPS — see
-[platform.md](platform.md)). The Phase 4 promise is "bare server + a domain →
+[platform.md](platform.md)). The installer's promise is "bare server + a domain →
 all-in-HTTPS by following the screen". We must decide the installer's form and language, how it
 reaches the cluster, and how it handles the single secret.
 
@@ -473,7 +473,7 @@ against k3d.
 
 **Why Python, standard-library only.** pytest is already the harness (ADR-010), so the
 DNS-record generation and propagation logic are unit-tested with fakes, and Python prefigures the
-Phase 5 `suite` CLI (ADR-007). **No third-party runtime dependency is added**: propagation shells
+`suite` CLI (ADR-007). **No third-party runtime dependency is added**: propagation shells
 out to `dig` (ubiquitous), HTTPS verification uses the standard library's own TLS trust check, and
 everything else is `subprocess` to `ssh`/`helmfile`/`kubectl` — tools the operator already has.
 The installer runs on the operator's workstation, adding nothing to the single server.
@@ -481,15 +481,15 @@ The installer runs on the operator's workstation, adding nothing to the single s
 **Consequences.** One command takes an operator from a bare server to HTTPS, the SSH tunnel becomes
 invisible, and the manual flow stays documented as the fallback. The installer is a thin
 orchestrator with no privileged cluster component. It only *prefigures* the `suite` CLI: a single
-`install` verb, with upgrades/restore (`suite upgrade` / `suite restore`) left to Phase 5.
+`install` verb, with upgrades/restore (`suite upgrade` / `suite restore`) left to later work.
 
 ---
 
-## ADR-019 — Phase 4 TLS: staging-first issuance, DNS-01 deferred
+## ADR-019 — TLS: staging-first issuance, DNS-01 deferred
 
 **Context.** ADR-013 shipped the issuer seam (`tls.issuer` selects a ClusterIssuer **by name**;
 the ingress annotation follows it) with `selfsigned` and `letsencrypt-http01`, and explicitly
-handed the wildcard DNS-01 issuer to Phase 4 "as an additive ClusterIssuer — no rework of the
+handed the wildcard DNS-01 issuer to the installer "as an additive ClusterIssuer — no rework of the
 seam". The installer must issue *real* certificates without burning Let's Encrypt's tight
 **production** rate limits on a misconfiguration.
 
@@ -520,7 +520,7 @@ introduced yet.
 
 **Context.** ADR-016 noted that Keycloak's `--import-realm` only seeds the realm on its **first**
 boot, so adding or changing an OIDC client on an already-imported realm has no effect on upgrade —
-and slated the fix for "the Phase 4 installer / Phase 5 `suite` CLI". Phase 4 ships it.
+and slated the fix for "the installer / the `suite` CLI". This ADR ships it.
 
 **Decision.** A new local chart **`keycloak-config`**, deployed as a Helmfile release ordered
 after Keycloak (`needs: keycloak`), runs an idempotent **`kcadm` upsert Job** (a
@@ -554,7 +554,7 @@ first-boot seed; the Job is the authoritative reconciler thereafter.
 >   "heavier than Stalwart" consequence below stands but is lighter than first feared.
 > - **DKIM key is supplied, not DB-generated.** messages accepts `MESSAGES_DKIM_PRIVATE_KEY_B64`,
 >   so the installer generates the keypair once and treats it as an external override (the S3-creds
->   pattern), publishing the public key as a TXT record up front — no two-phase DNS dance.
+>   pattern), publishing the public key as a TXT record up front — no two-step DNS dance.
 
 **Context.** ADR-008 deferred mail and tentatively recommended Stalwart. Since then,
 **suitenumerique/messages** has become La Suite's own mail app, so adopting it keeps the
@@ -562,7 +562,7 @@ mailbox consistent with the rest of the suite (same look-and-feel, same Keycloak
 of bolting on a foreign server + separate webmail. The earlier "IMAP + generic webmail" path
 (Stalwart + Roundcube) was the lighter option but loses the integrated La Suite UX.
 
-**Decision.** Phase 6's mailbox is **suitenumerique/messages**, federated to the **same
+**Decision.** The mailbox is **suitenumerique/messages**, federated to the **same
 Keycloak** via OIDC. It is a full mail provider, not an IMAP client:
 
 - **Inbound:** its own **Postfix MTA-in** receives directly from the internet (domain MX →
@@ -583,8 +583,8 @@ relay carries SPF/DKIM alignment; messages signs DKIM for the domain and SPF `in
 - Integrated La Suite webmail; SSO and UX consistent with Docs/Drive. No second webmail to run.
 - **No IMAP/POP3** — desktop/mobile mail clients are not supported; the web UI is the only client.
 - **Heavier than the Stalwart path:** adds **OpenSearch** (RAM-hungry on a single VPS) + Redis +
-  two Postfix containers. Phase 7 sizing must budget for it; the mailbox stays **optional and
-  isolated**, blocking no earlier phase.
+  two Postfix containers. Server sizing must budget for it; the mailbox stays **optional and
+  isolated**, blocking no earlier work.
 - **Outbound is rate-capped by the relay** (Infomaniak: 1440 msg/24h, 100 recipients/msg). Set
   messages' `THROTTLE_MAILBOX_OUTBOUND_EXTERNAL_RECIPIENTS` /
   `THROTTLE_MAILDOMAIN_OUTBOUND_EXTERNAL_RECIPIENTS` below that ceiling so it fails gracefully
@@ -596,7 +596,7 @@ relay carries SPF/DKIM alignment; messages signs DKIM for the domain and SPF `in
 
 ## ADR-022 — Drive integration: reuse the Docs seam, per-app buckets
 
-**Context.** Phase 5 broadens the suite, and **Drive** (`suitenumerique` / drive) is the
+**Context.** As the suite broadens, **Drive** (`suitenumerique` / drive) is the
 DoD-critical second app: `suite user add` must grant Docs **and** Drive immediately. Drive
 is a `suitenumerique` sibling of Docs — same Django/Next.js shape, same official Helm chart
 pattern, the same mozilla-django-oidc login — so the question is not *how to integrate a new
@@ -639,19 +639,19 @@ the few shared pieces multi-app instead of forking them:
   can be turned off.
 
 **Consequences.** Drive comes up over HTTPS with real SSO and per-app isolated state, proven
-at the API level by the same kind of token→create→read-back e2e as Docs (Phase 5 DoD). The
+at the API level by the same kind of token→create→read-back e2e as Docs (the DoD). The
 seam now hosts N apps without forking: a future app is another `keycloak.clients` entry, a
 bucket in the list, a database, and a values file. **Deferred:** the media-**preview**
 (thumbnail) ingress — a visual nicety whose upstream rewrite path needs validating against our
 Traefik setup, not part of the DoD; it is left off with a `ponytail:` marker and enabled once
 proven. External-S3 media keeps the same pre-existing limitation as Docs (the media upstream
-points at the in-cluster Garage), out of Phase 5 scope.
+points at the in-cluster Garage), out of scope here.
 
 ---
 
 ## ADR-023 — User provisioning: `suite user`, admin REST over the tunnel, JIT
 
-**Context.** Phase 5's definition of done is `suite user add firstname@assoc.org` → that person
+**Context.** The definition of done is `suite user add firstname@assoc.org` → that person
 immediately has Docs **and** Drive. ADR-005 already decided **one Keycloak identity, JIT into
 every app**, and ADR-018 built the `suite` CLI (pure standard library) that prefigured this
 verb. What was left open: *where* user provisioning runs, *how* it reaches Keycloak, and *how
@@ -701,7 +701,7 @@ default (no password policy); a stricter policy would need the generated passwor
 
 ## ADR-024 — Grist integration: local chart, public-issuer OIDC, PVC storage, off by default
 
-**Context.** Phase 5 broadens the suite beyond the DoD apps. **Grist** (getgrist — spreadsheets
+**Context.** The suite broadens beyond the DoD apps. **Grist** (getgrist — spreadsheets
 that behave like a database) is the next one. Unlike Drive
 ([ADR-022](#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)), Grist is **not** a
 `suitenumerique`/impress sibling: it is a single-container Node app, it ships **no official Helm
@@ -721,8 +721,8 @@ wiring it, which overrode an earlier sketch (internal-discovery + S3 doc storage
    syncs only the Docs media bucket today, so putting Grist documents in a *new* S3 bucket would
    **not** make them off-site-backed without first reworking the restore machinery — defeating the
    one reason ("close the backup gap") to prefer S3 over a volume.
-3. **Grist is not part of the Phase 5 DoD** (Docs + Drive), and the constrained CI runner is
-   already near its ceiling under the existing stack (the restore phase had to shed Drive to stay
+3. **Grist is not part of the DoD** (Docs + Drive), and the constrained CI runner is
+   already near its ceiling under the existing stack (the restore step had to shed Drive to stay
    within the node's memory — see `run-e2e.sh`).
 
 **Decision.** Add Grist as a Helmfile release backed by a **small local chart**
@@ -780,7 +780,7 @@ can reach `auth.{domain}` (DNS + hairpin), which holds on a normal single-server
 
 ## ADR-025 — Projects integration: local chart, public-issuer OIDC, PVC storage, off by default
 
-**Context.** Phase 5 broadens the suite beyond the DoD apps, and **Projects**
+**Context.** The suite broadens beyond the DoD apps, and **Projects**
 (`suitenumerique/projects` — kanban boards / task management, a Sails.js fork of Planka) is the
 last broadening candidate after Drive
 ([ADR-022](#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)) and Grist
@@ -836,7 +836,7 @@ Projects without forking.
 
 ## ADR-026 — Mailbox integration: messages, Django OIDC split, reuse the seam, OpenSearch deferred
 
-**Context.** Phase 6 implements the mailbox decided in
+**Context.** This ADR implements the mailbox decided in
 [ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay): **suitenumerique/messages**,
 La Suite's own mail app, federated to the same Keycloak. Where Grist
 ([ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)) and
@@ -887,7 +887,7 @@ an earlier scout pass wrongly claimed messages publishes no images and had no re
   ([ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default),
   [ADR-025](#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default)),
   it is **not booted in the constrained k3d e2e** — heavier still (five pods), it would push the runner,
-  already shedding Drive during the restore phase, over its memory ceiling. The hermetic loopback below
+  already shedding Drive during the restore step, over its memory ceiling. The hermetic loopback below
   is the natural next step on a beefier/nightly runner.
 
 **Consequences.** A non-profit gets an integrated webmail over HTTPS with real SSO by enabling one
@@ -899,7 +899,7 @@ Drive/Grist's not-yet-off-site backup gap; and messages is **template/lint-valid
 OIDC login works, and a message delivered between two local mailboxes reads back via the API (the Docs
 create-and-read-back analog) — run on a beefier/nightly runner. **Real external deliverability**
 (SPF/DKIM/DMARC-aligned, inbox-not-spam) is an **off-CI human check** on a real domain + relay account,
-exactly as real ACME issuance was validated off-CI in Phase 4.
+exactly as real ACME issuance is validated off-CI.
 
 ---
 

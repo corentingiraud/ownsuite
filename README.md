@@ -19,9 +19,9 @@ Runs on any single server — a cloud VM, a dedicated host, or a home server.
 
 **→ [corentingiraud.github.io/ownsuite](https://corentingiraud.github.io/ownsuite/)** — the full site.
 
-| Get started | Operate | Understand | Project |
+| Get started | Operate | How it works | Project |
 |---|---|---|---|
-| [Prepare the server](https://corentingiraud.github.io/ownsuite/get-started/bootstrap/) · [Install](https://corentingiraud.github.io/ownsuite/get-started/install/) | [Backups & restore](https://corentingiraud.github.io/ownsuite/operate/backups/) | [Architecture](https://corentingiraud.github.io/ownsuite/understand/overview/) · [Decisions (ADR)](https://corentingiraud.github.io/ownsuite/understand/decisions/) | [Roadmap](https://corentingiraud.github.io/ownsuite/project/roadmap/) |
+| [Prepare the server](https://corentingiraud.github.io/ownsuite/get-started/bootstrap/) · [Install](https://corentingiraud.github.io/ownsuite/get-started/install/) | [Add users](https://corentingiraud.github.io/ownsuite/operate/users/) · [Server sizing](https://corentingiraud.github.io/ownsuite/operate/sizing/) · [Backups & restore](https://corentingiraud.github.io/ownsuite/operate/backups/) | [Overview](https://corentingiraud.github.io/ownsuite/understand/overview/) | [What's included](https://corentingiraud.github.io/ownsuite/project/roadmap/) |
 
 ## Install
 

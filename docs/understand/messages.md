@@ -5,15 +5,13 @@ The **optional, advanced** add-on: a mailbox (off by default).
 app — a full provider with its own Postfix MTA, a Django MDA that stores and indexes mail, and an
 **integrated webmail**. It is federated to the same Keycloak, so a user provisioned once reaches it
 on first login (JIT — no per-app step). **There is no IMAP/POP3 by design**: users read mail in the
-messages web UI, not Thunderbird/Apple Mail
-([ADR-021](decisions.md#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay)).
+messages web UI, not Thunderbird/Apple Mail.
 
 !!! warning "Off by default — the hardest part to run"
     The mailbox ships **disabled** (`OWNSUITE_APP_MESSAGES`, default `false`). Mail is the hardest
-    thing to make reliable on a server, so it is kept isolated and blocks none of the earlier
-    phases. It also needs an **external SMTP relay account** and **DNS + rDNS** you control. See
-    [ADR-026](decisions.md#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred)
-    and [ADR-027](decisions.md#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb).
+    thing to run reliably on a server, so it is kept isolated and affects nothing else when off.
+    It also needs an **external SMTP relay account** and **DNS + rDNS** you control — don't enable
+    it unless you're ready for that.
 
 Unlike Grist/Projects, messages **is** a `suitenumerique` Django sibling of Docs, so it reuses the
 existing seam rather than a foreign one. Upstream ships container images
@@ -35,13 +33,12 @@ existing seam rather than a foreign one. Upstream ships container images
 - **OIDC by the external/internal split, like Docs.** messages is `mozilla-django-oidc`, so it takes
   per-endpoint `OIDC_OP_{AUTHORIZATION,TOKEN,USER,JWKS}_ENDPOINT` + `OIDC_RP_CLIENT_{ID,SECRET}`
   (not Grist/Projects single-issuer discovery): browser-facing endpoints at the public
-  `auth.{domain}`, token/userinfo/jwks hairpinned to the in-cluster Keycloak service
-  ([ADR-016](decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)).
+  `auth.{domain}`, token/userinfo/jwks hairpinned to the in-cluster Keycloak service.
   The `messages` OIDC client is one more `keycloak.clients` entry; the realm-import + upsert Job need
   no template change.
 - **Inbound on port 25, outbound relayed.** The Postfix **MTA-in** receives mail from the internet on
   **port 25**, exposed by a `LoadBalancer` Service that K3s' ServiceLB binds to the host port
-  ([ADR-027](decisions.md#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb)). The
+. The
   **MTA-out** **never** sends directly from the VPS IP: `MTA_OUT_MODE=relay`,
   `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure` to a reputable EU relay (Infomaniak
   `mail.infomaniak.com:587`). `THROTTLE_*_OUTBOUND_EXTERNAL_RECIPIENTS` are set below the relay cap
@@ -49,7 +46,7 @@ existing seam rather than a foreign one. Upstream ships container images
 - **Reuse, per-app instances.** A dedicated CNPG `messages` database; the shared Valkey on DBs 4/5;
   a per-app S3 bucket for mail blobs. The Django `SECRET_KEY`, OIDC client secret and the internal
   `MDA_API_SECRET` (MTA↔MDA) are seed-derived
-  ([ADR-012](decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)); the
+; the
   **relay credentials and the DKIM private key are external overrides**, captured by the installer
   and never committed.
 - **OpenSearch deferred.** Full-text mail search (its heaviest dependency, ~1–2 GB RAM) is optional
@@ -85,7 +82,7 @@ export OWNSUITE_APP_MESSAGES=true           # opt in (off by default)
 export OWNSUITE_MTA_RELAY_USERNAME=...      # your relay account (e.g. Infomaniak)
 export OWNSUITE_MTA_RELAY_PASSWORD=...
 export OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64=... # printed by `suite install` on first run
-make tunnel                                 # in another terminal (ADR-014)
+make tunnel                                 # in another terminal
 make sync                                   # brings up the infra + enabled apps + messages
 ```
 
@@ -101,8 +98,7 @@ one created by `suite user add`), then send a test message to an external inbox.
 messages is **template/lint-validated** (`make lint-helm`: `helm lint` the chart standalone +
 kubeconform the rendered manifests, in both relay states), and the installer's DNS/DKIM logic is
 unit-tested (`tests/test_dns.py`, `tests/test_mail.py`). Like Grist and Projects it is **not booted
-in the constrained k3d e2e** — five pods would push the already-tight runner over its memory ceiling
-([ADR-026](decisions.md#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred)).
+in the constrained k3d e2e** — five pods would push the already-tight runner over its memory ceiling.
 
 Two checks remain off the per-PR CI, mirroring how real ACME is validated off-CI:
 
@@ -115,7 +111,7 @@ Two checks remain off the per-PR CI, mirroring how real ACME is validated off-CI
 
 ## Limits
 
-- **No IMAP/POP3** — the web UI is the only client (ADR-021).
-- **No full-text search** until OpenSearch is re-enabled (ADR-026).
+- **No IMAP/POP3** — the web UI is the only client.
+- **No full-text search** until OpenSearch is re-enabled.
 - **No bulk/newsletter sending** — the relay is rate-capped; that is a separate product.
 - The mail **S3 bucket shares the not-yet-off-site backup gap** of Drive's and Grist's storage.

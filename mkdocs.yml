@@ -93,15 +93,15 @@ plugins:
           - operate/users.md: User provisioning with the `suite user` CLI (one Keycloak identity, JIT to all apps).
           - operate/sizing.md: Server sizing — minimum and recommended VPS specs (RAM/CPU/disk) per enabled app.
           - operate/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
-        Understand the stack:
-          - understand/overview.md: The stack and its building blocks.
-          - understand/platform.md: Helmfile shared infrastructure (cert-manager, CNPG, Valkey, Keycloak over HTTPS).
-          - understand/docs.md: Docs application (SSO, S3 storage, real-time collaboration) wired to the foundation.
-          - understand/drive.md: Drive application (file manager) wired to the same foundation; per-app DB/bucket/OIDC client.
-          - understand/grist.md: Grist application (spreadsheets-as-database) — local chart, public-issuer OIDC, PVC storage; off by default.
-          - understand/projects.md: Projects application (kanban / task boards) — local chart, public-issuer OIDC, PVC uploads; off by default.
-          - understand/messages.md: Mailbox application (suitenumerique/messages) — local chart, Django OIDC split, inbound SMTP, relayed outbound; off by default.
-          - understand/decisions.md: Architecture Decision Records (ADR) and their rationale.
+        How it works:
+          - understand/overview.md: How it works — the moving parts, in plain terms.
+          - understand/platform.md: Under the hood — the shared foundation (HTTPS, database, cache, single sign-on) and the order it comes up in.
+          - understand/docs.md: Docs — collaborative documents with single sign-on and file storage.
+          - understand/drive.md: Drive — the file manager, on the same shared foundation.
+          - understand/grist.md: Grist — spreadsheets that behave like a database; optional, off by default.
+          - understand/projects.md: Projects — kanban boards and task management; optional, off by default.
+          - understand/messages.md: Mailbox — a full mail provider with webmail; advanced, off by default.
+          - understand/decisions.md: Design decisions and their rationale.
         Project:
           - project/roadmap.md: Status board (Shipped / Optional / Planned) and the product vision.
           - project/for-ai-agents.md: Conventions for AI agents and the documentation.
@@ -127,15 +127,15 @@ nav:
       - Users: operate/users.md
       - Server sizing: operate/sizing.md
       - Backups & restore: operate/backups.md
-  - Understand the stack:
-      - Architecture: understand/overview.md
-      - Shared infrastructure: understand/platform.md
-      - Docs application: understand/docs.md
-      - Drive application: understand/drive.md
-      - Grist application: understand/grist.md
-      - Projects application: understand/projects.md
-      - Mailbox application: understand/messages.md
-      - Decisions (ADR): understand/decisions.md
+  - How it works:
+      - Overview: understand/overview.md
+      - Under the hood: understand/platform.md
+      - Docs: understand/docs.md
+      - Drive: understand/drive.md
+      - Grist: understand/grist.md
+      - Projects: understand/projects.md
+      - Mailbox: understand/messages.md
+      - Design decisions: understand/decisions.md
   - Project:
       - Status &amp; roadmap: project/roadmap.md
       - For AI agents: project/for-ai-agents.md

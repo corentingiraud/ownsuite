@@ -1,17 +1,22 @@
-# Architecture — overview
+# How it works
 
-The stack targets **a single server**, without the complexity of a multi-node cluster,
-while staying aligned with La Suite's **official** deployment path (Helm).
+Everything runs on **one server**. You don't need to be a Kubernetes expert to run it —
+the installer and the `suite` commands do the heavy lifting — but here's the picture of
+what's inside, so nothing feels like a black box.
+
+At the centre is **single sign-on**: every app trusts the same login, so a person you add
+once can open all of them. Around it sit the shared pieces every app needs — a database, a
+cache, file storage — plus automatic HTTPS and off-site backups.
 
 ```mermaid
 flowchart TB
     subgraph server["Single server — single-node K3s"]
         T["Traefik (bundled with K3s)\nIngress + TLS"]
         CM["cert-manager\nLet's Encrypt"]
-        subgraph APPS["Applications (official charts, via Helmfile)"]
+        subgraph APPS["Applications"]
             D["Docs"]
             DR["Drive"]
-            P["People"]
+            OPT["Grist · Projects · Mailbox\n(optional)"]
         end
         KC["Keycloak\nSSO OIDC — 1 realm"]
         subgraph INFRA["Shared infrastructure"]
@@ -35,24 +40,24 @@ flowchart TB
     BK --> OFF
 ```
 
-## Building blocks and choices
+## The building blocks
 
-| Layer | Component | Role | Replaces / note |
-|---|---|---|---|
-| Orchestration | **K3s + Helmfile** | Single-node cluster, declarative deploy | Reuses the official Helm charts |
-| Reverse proxy / TLS | **Traefik + cert-manager** | Per-subdomain routing, automatic HTTPS | Bundled with K3s |
-| SSO | **Keycloak** (1 realm, 1 client/app) | Single sign-on, JIT provisioning | — |
-| Database | **CloudNativePG** | PostgreSQL + WAL/PITR backups to S3 | Replaces `bitnami/postgresql` (deprecated) |
-| Cache / broker | **Valkey** | Cache and Celery broker | Replaces `bitnami/redis` (deprecated) |
-| Object storage | **Garage** *or* **external EU S3** | Drive files, Docs media… | Replaces MinIO (archived) |
-| Backups | **CNPG + restic/rclone** | Encrypted off-site backups + tested restore | Missing from existing solutions |
-| Host provisioning | **Ansible** | Server bootstrap + K3s install + patches | See [ADR](decisions.md) |
+| Piece | What it does |
+|---|---|
+| **K3s + Helmfile** | Runs everything on one machine from a single declarative config |
+| **Traefik + cert-manager** | Routes each app to its own subdomain and keeps HTTPS certificates fresh, automatically |
+| **Keycloak** | The single sign-on everyone logs in through |
+| **CloudNativePG** | The PostgreSQL database, with point-in-time backups |
+| **Valkey** | A small cache the apps rely on |
+| **Garage** *or* **external S3** | Where files and media live — self-hosted or a European cloud provider |
+| **Backups** | Encrypted copies kept off-site, with a restore that's regularly tested |
+| **Ansible** | Sets the server up in the first place |
 
-## The principle that makes it "a suite"
+## What makes it "a suite"
 
-Every app points at **the same Keycloak**. The direct consequence: the admin creates
-a user **once**, and that person gets SSO access to **all** apps — their per-app
-account is created automatically on first login (*JIT provisioning*).
+Every app trusts **the same login**. So you add a person **once**, and they get access to
+**all** the apps — their account in each one is created automatically the first time they
+sign in. No per-app setup, no separate passwords.
 
 ## Optional and out-of-scope apps
 
@@ -60,8 +65,5 @@ account is created automatically on first login (*JIT provisioning*).
   ([suitenumerique/messages](https://github.com/suitenumerique/messages)), federated to the
   same Keycloak. Mail is the hardest part to make reliable (deliverability, port 25, rDNS),
   so it ships isolated and disabled by default. See the [Mailbox application](messages.md).
-- **Meet (video)** *(out of scope)*: LiveKit + coturn require direct UDP and a lot of
-  CPU/bandwidth, painful on a single server. Deferred.
-
-The full rationale and the rejected alternatives are in the
-[architecture decisions](decisions.md).
+- **Meet (video)** *(out of scope)*: video calls need a lot of CPU and bandwidth and are
+  painful to run reliably on a single server, so they're left out for now.

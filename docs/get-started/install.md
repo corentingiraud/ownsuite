@@ -1,18 +1,17 @@
 # Guided install (`suite install`)
 
 Take a **bare server + a domain to all-in-HTTPS by following the screen**. The installer
-([ADR-018](../understand/decisions.md#adr-018-phase-4-guided-installer-suite-install))
-wraps what used to be a manual sequence (bootstrap → config → tunnel → sync → verify)
-into one idempotent command.
+rolls the whole sequence (set up → configure → deploy → get certificates → check) into one
+command you can safely re-run.
 
-> **Definition of done:** from a bare server + a domain, the operator runs `make install`,
-> follows the prompts and the "create these DNS records" screen, and every host serves
-> HTTPS with real Let's Encrypt certificates.
+> **What you get:** from a bare server + a domain, you run `make install`, follow the prompts
+> and the "create these DNS records" screen, and every app ends up served over HTTPS with real
+> Let's Encrypt certificates.
 
 ## Before you start
 
-This is **step 2**. Everything runs from **your workstation** — nothing is installed on the
-Server beyond the bootstrap ([ADR-014](../understand/decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).
+This is **step 2**. Everything runs from **your own computer** — nothing extra is installed on
+the server beyond the initial setup.
 
 1. **Do [step 1 — Prepare the server](bootstrap.md) first.** It clones the repo, runs
    `make deps`, sets the inventory, and — importantly — installs your **SSH key before the
@@ -45,9 +44,8 @@ it and re-run `make install` to resume:
    and prints it **once**.
 
     !!! danger "Store the seed now"
-        The seed is shown once and is **never written to the repo**. Every credential
-        derives from it ([ADR-012](../understand/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)).
-        Save it in your password manager. To resume later, re-export it:
+        The seed is shown once and is **never written to the repo**. Every password and key
+        is derived from it. Save it in your password manager. To resume later, re-export it:
         `export OWNSUITE_SECRET_SEED=...` before re-running.
 
 3. **Bootstrap.** Runs `make bootstrap` (Ansible) to provision the server into K3s, unless
@@ -63,8 +61,7 @@ it and re-run `make install` to resume:
 
     The wildcard `A` covers every subdomain (`auth.`, `docs.`, and future apps); `AAAA`
     rows are added when the server has public IPv6. (A wildcard *A record* is not a wildcard
-    *certificate* — certificates are issued per host; see
-    [ADR-019](../understand/decisions.md#adr-019-phase-4-tls-staging-first-issuance-dns-01-deferred).)
+    *certificate* — certificates are still issued per host.)
 
 5. **Propagation gate.** Polls public resolvers until a majority return your server IP,
    **before** triggering ACME (so a typo never burns Let's Encrypt's production rate
@@ -92,11 +89,10 @@ python -m suite install --non-interactive --no-tunnel --skip-bootstrap \
   --skip-dns --skip-propagation --tls-mode selfsigned --domain ownsuite.localhost
 ```
 
-This is exactly the path `make test-platform` drives against a throwaway k3d cluster
-(`helmfile/tests/run-e2e.sh`): the installer **provisions** the cluster — config → sync →
-certificates Ready → HTTPS → the SSO definition of done — and the same run then exercises the
-backup/restore cycle, all hermetically, without public DNS or real ACME. (One cluster proves
-both the installer orchestration and the platform/restore DoD.)
+This is exactly the path the automated test suite drives against a throwaway cluster: the
+installer brings the cluster up — configure → deploy → certificates → HTTPS → a real SSO login
+that creates a document — and the same run then exercises the backup/restore cycle, all
+self-contained, without public DNS or real Let's Encrypt.
 
 ## Real-ACME acceptance (off-CI)
 

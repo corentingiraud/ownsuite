@@ -1,14 +1,14 @@
 # Drive application
 
 **Drive** (the [suitenumerique](https://github.com/suitenumerique/drive) file manager) is
-OwnSuite's second core app, wired to the same shared foundation as Docs, so a user provisioned
-once has Docs **and** Drive (JIT — no per-app step).
+OwnSuite's second core app, wired to the same shared foundation as Docs, so someone you add
+once has Docs **and** Drive — with no extra setup per app.
 
-> **Definition of done:** `suite user add firstname@assoc.org` grants access to
-> `https://drive.{domain}` over SSO, immediately — machine-verified in CI (token level).
+> **What it proves:** `suite user add firstname@assoc.org` gives that person access to
+> `https://drive.{domain}` over single sign-on, immediately — checked automatically in CI.
 
 Drive is a `suitenumerique` sibling of Docs, so it reuses the "add an app" pattern almost
-verbatim ([ADR-022](decisions.md#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)).
+verbatim.
 It is gated on `apps.drive.enabled` and depends, via `needs:`, on the shared infrastructure:
 
 | Needs | For |
@@ -24,10 +24,10 @@ It is gated on `apps.drive.enabled` and depends, via `needs:`, on the shared inf
 ## How it is wired
 
 It is the Docs wiring with two pieces removed and a few names changed
-([ADR-022](decisions.md#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)):
+:
 
 - **Database** — `DB_HOST` points at the CNPG `-rw` service; the `drive` role password comes
-  from the seed-derived `drive-db` Secret ([ADR-012](decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)).
+  from the seed-derived `drive-db` Secret.
 - **Cache / broker** — `REDIS_URL` (db 2) / `DJANGO_CELERY_BROKER_URL` (db 3) embed the
   derived Valkey password. The **separate broker db** keeps Drive's and Docs' Celery queues
   from cross-consuming each other's tasks.
@@ -35,8 +35,7 @@ It is the Docs wiring with two pieces removed and a few names changed
   is Drive's own `drive-media-storage`. The Garage bootstrap creates one bucket per enabled
   app; on external S3 you pre-create the Drive bucket alongside the Docs one.
 - **SSO** — the `drive` confidential OIDC client (secret derived from the same seed id the app
-  reads). Browser → `https://auth.{domain}`; backend → Keycloak in-cluster
-  ([ADR-016](decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)).
+  reads). Browser → `https://auth.{domain}`; backend → Keycloak in-cluster.
 - **No real-time collaboration** — Drive is a file manager, so (unlike Docs) it ships no
   y-provider/websocket server.
 
@@ -46,7 +45,7 @@ All of it is in `helmfile/values/drive.yaml.gotmpl`; nothing secret is committed
 
 ```bash
 set -a && source .env && set +a          # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
-make tunnel                              # in another terminal (ADR-014)
+make tunnel                              # in another terminal
 make sync                                # brings up the infra + Docs + Drive
 ```
 
@@ -55,15 +54,12 @@ Turn an app off independently with `OWNSUITE_APP_DRIVE=false` (or `OWNSUITE_APP_
 
 ## Tests
 
-`make test-platform` extends the k3d e2e to deploy Docs **and** Drive in `garage` mode and
-assert the core DoD: the `drive` database created, Drive pods Ready and answering over
-HTTPS, the `drive` OIDC client wired, and — the definition of done — a user **created through
-the `suite user` CLI path** obtains a Keycloak token and is JIT-provisioned into **both** Docs
-and Drive through their APIs. Heavy/browser checks stay off-CI
-([ADR-010](decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)).
+`make test-platform` brings Docs **and** Drive up together on a throwaway cluster and checks
+the key promise: a person **added with `suite user add`** logs in and lands in **both** Docs
+and Drive automatically, through their APIs — no per-app setup. Heavier browser checks stay
+off-CI.
 
 ## Deferred
 
-The media-**preview** (thumbnail) ingress is left disabled for v1 — a visual nicety, not part
-of the DoD, whose upstream rewrite path needs validating against our Traefik setup
-([ADR-022](decisions.md#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)).
+The media-**preview** (thumbnail) ingress is left disabled for now — a visual nicety whose
+upstream rewrite path still needs validating against our setup.

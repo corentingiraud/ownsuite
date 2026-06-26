@@ -5,8 +5,7 @@
 > everything works. The admin then creates users in a single step.
 
 This is a feature and status board — what is **shipped**, what is **optional**, and what is
-**planned**. The rationale behind every choice lives in the
-[Architecture Decision Records](../understand/decisions.md).
+**planned**.
 
 ## Product vision (the global "definition of done")
 

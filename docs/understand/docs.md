@@ -4,8 +4,8 @@
 *impress*) is OwnSuite's first core app — collaborative documents wired to the whole shared
 foundation, machine-verified end to end in CI.
 
-> **Definition of done:** a Keycloak user logs into `https://docs.{domain}` via **SSO**
-> and creates a **persistent document** — machine-verified in CI.
+> **What it proves:** a user logs into `https://docs.{domain}` with single sign-on and
+> creates a document that's still there afterwards — checked automatically in CI.
 
 Docs is a Helmfile release like any other app (the shared "add an app" pattern). It is
 gated on `apps.docs.enabled` and depends, via `needs:`, on the shared infrastructure:
@@ -22,16 +22,13 @@ gated on `apps.docs.enabled` and depends, via `needs:`, on the shared infrastruc
 ## How it is wired
 
 - **Database** — `DB_HOST` points at the CNPG `-rw` service; the `docs` role password comes
-  from the seed-derived `docs-db` Secret ([ADR-012](decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)).
+  from the seed-derived `docs-db` Secret.
 - **Cache / broker** — `REDIS_URL` / `DJANGO_CELERY_BROKER_URL` embed the derived Valkey
   password and target the in-cluster Valkey service.
 - **Object storage** — `AWS_*` come from `s3-credentials`. In `garage` mode the endpoint is
-  the in-cluster Garage service; in `external` mode it is your configured S3 endpoint
-  ([ADR-003](decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3),
-  [ADR-015](decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key)).
+  the in-cluster Garage service; in `external` mode it is your configured S3 endpoint.
 - **SSO** — the `docs` confidential OIDC client (secret derived from the same seed id the app
-  reads). The browser hits `https://auth.{domain}`; the backend reaches Keycloak in-cluster
-  ([ADR-016](decisions.md#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)).
+  reads). The browser hits `https://auth.{domain}`; the backend reaches Keycloak in-cluster.
 - **Real-time collaboration** — the y-provider websocket server, exposed at
   `/collaboration/ws/` through Traefik; backend and y-provider share a seed-derived secret.
 
@@ -50,14 +47,13 @@ OWNSUITE_S3_ENDPOINT=https://s3.example-eu.com
 
 In `garage` mode a single-node Garage `StatefulSet` is deployed and a post-install Job
 bootstraps the cluster layout, **imports the seed-derived S3 key**, and creates the
-`docs-media-storage` bucket — so a fresh cluster is self-sufficient
-([ADR-015](decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key)).
+`docs-media-storage` bucket — so a fresh cluster is self-sufficient.
 
 ## Run it
 
 ```bash
 set -a && source .env && set +a          # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
-make tunnel                              # in another terminal (ADR-014)
+make tunnel                              # in another terminal
 make sync                                # brings up the infra + Docs
 ```
 
@@ -70,14 +66,12 @@ install (and in CI) the `docs` client is created by the import. On an **already-
 install the `keycloak-config` release keeps clients in sync: an idempotent `kcadm` **upsert
 Job** runs on every `sync` and creates-or-updates each `keycloak.clients` entry (redirect
 URIs, web origins, secret) against the live realm — so adding or changing a client just
-works, with no manual admin-console step
-([ADR-020](decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert)).
+works, with no manual admin-console step.
 
 ## Tests
 
-`make test-platform` extends the k3d e2e to deploy Docs in `garage` mode and assert the DoD:
-Garage bucket reachable, the `docs` database created, the Docs pods Ready and answering over
-HTTPS, the `docs` OIDC client wired, and — the definition of done — a token obtained from
-Keycloak **creates and reads back a document** through the Docs API, proving SSO wiring and
-database persistence. A full browser-driven SSO + collaboration check is deferred to a
-targeted job ([ADR-010](decisions.md#adr-010-testing-ci-strategy-a-layered-evolving-harness)).
+`make test-platform` brings Docs up on a throwaway cluster and checks the whole chain: the
+storage bucket is reachable, the database and login client are created, the pods answer over
+HTTPS, and — the key check — a real login token **creates and reads back a document** through
+the Docs API, proving single sign-on and that data persists. A full browser-driven login +
+collaboration check is left to a separate job.
