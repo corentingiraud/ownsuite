@@ -1,13 +1,13 @@
 # Docs application
 
-Phase 2's deliverable: deploy **Docs** (the [suitenumerique](https://github.com/suitenumerique/docs)
-app, upstream name *impress*) wired to the whole Phase 1 foundation, and prove the
-end-to-end vertical slice.
+**Docs** (the [suitenumerique](https://github.com/suitenumerique/docs) app, upstream name
+*impress*) is OwnSuite's first core app — collaborative documents wired to the whole shared
+foundation, machine-verified end to end in CI.
 
 > **Definition of done:** a Keycloak user logs into `https://docs.{domain}` via **SSO**
 > and creates a **persistent document** — machine-verified in CI.
 
-Docs is a Helmfile release like any other app (the Phase 1 "add an app" pattern). It is
+Docs is a Helmfile release like any other app (the shared "add an app" pattern). It is
 gated on `apps.docs.enabled` and depends, via `needs:`, on the shared infrastructure:
 
 | Needs | For |

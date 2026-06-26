@@ -1,8 +1,8 @@
 # Drive application
 
-Phase 5's DoD-critical app: deploy **Drive** (the [suitenumerique](https://github.com/suitenumerique/drive)
-file manager) wired to the same Phase 1 foundation as Docs, so a user provisioned once has
-Docs **and** Drive (JIT — no per-app step).
+**Drive** (the [suitenumerique](https://github.com/suitenumerique/drive) file manager) is
+OwnSuite's second core app, wired to the same shared foundation as Docs, so a user provisioned
+once has Docs **and** Drive (JIT — no per-app step).
 
 > **Definition of done:** `suite user add firstname@assoc.org` grants access to
 > `https://drive.{domain}` over SSO, immediately — machine-verified in CI (token level).
@@ -56,7 +56,7 @@ Turn an app off independently with `OWNSUITE_APP_DRIVE=false` (or `OWNSUITE_APP_
 ## Tests
 
 `make test-platform` extends the k3d e2e to deploy Docs **and** Drive in `garage` mode and
-assert the Phase 5 DoD: the `drive` database created, Drive pods Ready and answering over
+assert the core DoD: the `drive` database created, Drive pods Ready and answering over
 HTTPS, the `drive` OIDC client wired, and — the definition of done — a user **created through
 the `suite user` CLI path** obtains a Keycloak token and is JIT-provisioned into **both** Docs
 and Drive through their APIs. Heavy/browser checks stay off-CI

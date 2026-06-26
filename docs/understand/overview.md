@@ -54,13 +54,14 @@ Every app points at **the same Keycloak**. The direct consequence: the admin cre
 a user **once**, and that person gets SSO access to **all** apps — their per-app
 account is created automatically on first login (*JIT provisioning*).
 
-## Out of scope for v1
+## Optional and out-of-scope apps
 
-- **Meet (video)**: LiveKit + coturn require direct UDP and a lot of CPU/bandwidth,
-  painful on a single server. Deferred.
-- **Mailbox**: **not part of La Suite numérique**. Feasible as an add-on (a mail
-  server federated to the same Keycloak), but it's the hardest part to make reliable
-  (deliverability, port 25, rDNS). See the [roadmap](../project/roadmap.md) (Phase 6).
+- **Mailbox** *(optional, advanced — off by default)*: La Suite's own mail app
+  ([suitenumerique/messages](https://github.com/suitenumerique/messages)), federated to the
+  same Keycloak. Mail is the hardest part to make reliable (deliverability, port 25, rDNS),
+  so it ships isolated and disabled by default. See the [Mailbox application](messages.md).
+- **Meet (video)** *(out of scope)*: LiveKit + coturn require direct UDP and a lot of
+  CPU/bandwidth, painful on a single server. Deferred.
 
 The full rationale and the rejected alternatives are in the
 [architecture decisions](decisions.md).

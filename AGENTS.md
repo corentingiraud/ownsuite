@@ -10,9 +10,10 @@ companion to the docs site. Keep it short; deep detail lives in `docs/`.
 **non-profit**: single-node K3s + Helmfile, shared Keycloak SSO, CloudNativePG,
 pluggable S3 storage, and backups with tested restore.
 
-The product vision and phases are in [`docs/project/roadmap.md`](docs/project/roadmap.md). The binding
-design decisions are in [`docs/understand/decisions.md`](docs/understand/decisions.md)
-(ADR). **Read those before making changes.**
+The product vision and feature status board are in
+[`docs/project/roadmap.md`](docs/project/roadmap.md). The binding design decisions are in
+[`docs/understand/decisions.md`](docs/understand/decisions.md) (ADR). **Read those before
+making changes.**
 
 ## Source of truth
 
@@ -28,9 +29,9 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `mkdocs.yml` | Docs site config (theme, nav, llms.txt plugin). |
 | `requirements-docs.txt` | Docs toolchain (MkDocs Material + plugins). |
 | `Makefile` | Operator/dev entrypoints: `bootstrap`, `install`, `check`, `lint`, `test`, `test-full`, `test-platform` (installer-provisioned full DoD). |
-| `ansible/` | Server bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles (Phase 0). |
+| `ansible/` | Server bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles. |
 | `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, Garage, the Docs and Drive apps, Grist and Projects (local charts, off by default), and the off-site backups (rclone object copy, `garage-backup`); local charts, values, versions, k3d e2e. |
-| `suite/` | Phase 4 guided installer (`suite install`, ADR-018): config + seed, DNS records, propagation gate, SSH tunnel, ACME (staging→prod), HTTPS verify. Pure standard library; lint with `ruff` (`ruff.toml`). |
+| `suite/` | Guided installer + CLI (`suite install`/`suite user`, ADR-018/023): config + seed, DNS records, propagation gate, SSH tunnel, ACME (staging→prod), HTTPS verify, user provisioning. Pure standard library; lint with `ruff` (`ruff.toml`). |
 | `tests/` | Unit tests for the `suite` installer (pytest; mocked resolvers, no cluster). |
 | `molecule/` | `default` (fast, host-prep roles) and `full` (real K3s) test scenarios + Testinfra. |
 | `requirements-dev.txt` | Dev/CI toolchain (Ansible, ansible-lint, yamllint, Molecule, Testinfra). |
@@ -78,10 +79,10 @@ make lint test   # static checks + Molecule container tests (Docker required)
 The testing approach (layered, evolving) is [ADR-010](docs/understand/decisions.md);
 the operator guide is [docs/get-started/bootstrap.md](docs/get-started/bootstrap.md).
 
-## Deploy & test the shared infrastructure (Phase 1)
+## Deploy & test the shared infrastructure
 
 ```bash
-make install         # Phase 4: guided bare server + domain -> HTTPS (wraps the steps below)
+make install         # guided bare server + domain -> HTTPS (wraps the steps below)
 
 export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required; never committed
 make sync            # helmfile sync — cert-manager, CNPG, Valkey, Keycloak (HTTPS)

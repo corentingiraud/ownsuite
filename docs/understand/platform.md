@@ -1,7 +1,7 @@
 # Shared infrastructure (Helmfile)
 
-Phase 1's deliverable: bring up the **shared infrastructure** on the K3s cluster from
-Phase 0 with one command, and reach **Keycloak over HTTPS**.
+Bring up the **shared infrastructure** on the K3s cluster with one command, and reach
+**Keycloak over HTTPS** — the foundation every app builds on.
 
 > **Definition of done:** `helmfile sync` brings up all shared infra; Keycloak is
 > reachable over HTTPS.
@@ -21,7 +21,7 @@ deploys, in dependency order:
 | 7 | `garage` | In-cluster object store + bucket bootstrap (only in `garage` mode) | [ADR-015](decisions.md#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key) |
 | 8 | `garage-backup` | Off-site object store for backups (only when `backup.s3.target=in-cluster`) | [ADR-017](decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
 | 9 | `object-backup` | rclone off-site media copy CronJob (+ restore Job, when `backup.enabled`) | [ADR-017](decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design) |
-| 10 | `keycloak` | SSO over HTTPS — the Phase 1 DoD | [ADR-011](decisions.md#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator) |
+| 10 | `keycloak` | SSO over HTTPS — the foundation's keystone | [ADR-011](decisions.md#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator) |
 | 11 | `keycloak-config` | Idempotent `kcadm` OIDC-client upsert — realm convergence on every sync | [ADR-020](decisions.md#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert) |
 
 After the shared infrastructure, **apps** are deployed as further releases (each
@@ -91,7 +91,7 @@ The backup/restore knobs (`OWNSUITE_BACKUP_*`, `OWNSUITE_RESTORE`) are documente
     tunnel, the DNS records, propagation, and staging→production certificates
     ([ADR-018](decisions.md#adr-018-phase-4-guided-installer-suite-install)).
     The manual flow stays here as a fallback and to show what the installer does; the
-    Phase 5 `suite` CLI will grow upgrades/restore on top.
+    `suite` CLI also covers user provisioning.
 
 Everything runs from **your workstation** (clone the repo locally once; nothing to
 install on the server beyond the bootstrap — [ADR-014](decisions.md#adr-014-operator-control-plane-local-workstation-ssh-tunnel)).
@@ -124,17 +124,18 @@ curl -s https://auth.assoc.example.org/realms/ownsuite/.well-known/openid-config
 
 - **One workloads namespace.** cert-manager and CNPG run in their own namespaces
   (`cert-manager`, `cnpg-system`); all workloads and their secrets share a single
-  `ownsuite` namespace. Per-app namespaces and cross-namespace secret distribution arrive
-  in Phase 2 (when the first app lands).
+  `ownsuite` namespace. Per-app namespaces and cross-namespace secret distribution are not
+  used — a single node keeps one workloads namespace.
 - **One database per app.** The `databases` list in the environment drives both the
   derived owner secret and the CNPG managed role + `Database` CR, so they always match.
-  Phase 1 provisions only the `keycloak` database.
+  The shared infrastructure alone provisions only the `keycloak` database; each enabled app
+  adds its own.
 - **Pluggable object storage.** S3 credentials are always derived (the seam is ready), but
   no in-cluster storage is deployed by default — the production default is an external EU
   S3 endpoint ([ADR-003](decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3)).
   Garage is wired but off until an app needs it.
 - **Off-site backups, tested restore.** CNPG PITR + an off-site object copy, with a
-  CI-proven restore, are wired in Phase 3 (off by default; enable with `OWNSUITE_BACKUP_ENABLED`)
+  CI-proven restore (off by default; enable with `OWNSUITE_BACKUP_ENABLED`)
   — see [Backups & restore](../operate/backups.md),
   [ADR-006](decisions.md#adr-006-backups-and-tested-restore) and
   [ADR-017](decisions.md#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design).
@@ -153,7 +154,7 @@ make test-platform   # full DoD on a throwaway k3d cluster (heavy)
 `make test-platform` provisions a real K3s with **k3d**, runs `helmfile sync` with the
 self-signed issuer, asserts cert-manager / CNPG / Valkey / Keycloak / Docs are up (incl. the
 SSO document DoD), then runs a full **backup → destroy → restore** cycle and asserts the
-document, the Keycloak user and the media object survived (Phase 3 — see
+document, the Keycloak user and the media object survived (see
 [Backups & restore](../operate/backups.md)). It is heavy, so it runs nightly and on Helmfile changes
 (`helmfile-e2e.yml`), not on every PR.
 

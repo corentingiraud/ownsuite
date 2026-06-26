@@ -12,7 +12,7 @@ suite user passwd alice@assoc.org     # reset the password
 suite user disable alice@assoc.org    # deactivate (revokes access to all apps at once)
 ```
 
-> **Definition of done (Phase 5):** `suite user add firstname@assoc.org` and that person has
+> **Definition of done:** `suite user add firstname@assoc.org` and that person has
 > Docs **and** Drive immediately — proven at the token level in CI.
 
 ## How it reaches Keycloak

@@ -1,7 +1,7 @@
 # Guided install (`suite install`)
 
-Phase 4's deliverable: take a **bare server + a domain to all-in-HTTPS by following the
-screen**. The installer ([ADR-018](../understand/decisions.md#adr-018-phase-4-guided-installer-suite-install))
+Take a **bare server + a domain to all-in-HTTPS by following the screen**. The installer
+([ADR-018](../understand/decisions.md#adr-018-phase-4-guided-installer-suite-install))
 wraps what used to be a manual sequence (bootstrap → config → tunnel → sync → verify)
 into one idempotent command.
 
@@ -95,7 +95,7 @@ python -m suite install --non-interactive --no-tunnel --skip-bootstrap \
 This is exactly the path `make test-platform` drives against a throwaway k3d cluster
 (`helmfile/tests/run-e2e.sh`): the installer **provisions** the cluster — config → sync →
 certificates Ready → HTTPS → the SSO definition of done — and the same run then exercises the
-Phase 3 backup/restore, all hermetically, without public DNS or real ACME. (One cluster proves
+backup/restore cycle, all hermetically, without public DNS or real ACME. (One cluster proves
 both the installer orchestration and the platform/restore DoD.)
 
 ## Real-ACME acceptance (off-CI)

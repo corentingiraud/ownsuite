@@ -34,16 +34,32 @@ make install     # guided: bare server + domain -> all-in-HTTPS
 Then follow the screen. Prerequisites and the full step-by-step flow are in the
 **[install guide](https://corentingiraud.github.io/ownsuite/get-started/install/)**.
 
+## Apps
+
+One identity in Keycloak reaches every enabled app (single sign-on, just-in-time). **Core**
+apps are on by default; **optional** and **advanced** apps are off until you set their flag.
+
+| App | What it is | Default | Flag | Status |
+|---|---|---|---|---|
+| **Docs** | Collaborative documents (suitenumerique/impress) | on | `OWNSUITE_APP_DOCS` | core |
+| **Drive** | File manager (suitenumerique/drive) | on | `OWNSUITE_APP_DRIVE` | core |
+| **Grist** | Spreadsheets that behave like a database (getgrist) | off | `OWNSUITE_APP_GRIST` | optional |
+| **Projects** | Kanban boards / task management (suitenumerique/projects) | off | `OWNSUITE_APP_PROJECTS` | optional |
+| **Mailbox** | Mail provider + webmail (suitenumerique/messages) | off | `OWNSUITE_APP_MESSAGES` | advanced |
+
+See the [status board](https://corentingiraud.github.io/ownsuite/project/roadmap/) for the
+full feature list and what's planned.
+
 ## What's built
 
-Production pillars, implemented and **proven in CI** (Phases 0–4):
+Production essentials, implemented and **proven in CI**:
 
 - ✅ **One-command bootstrap** — Ansible turns a bare Debian box into a hardened single-node K3s.
 - ✅ **Shared foundation** — Traefik + cert-manager (HTTPS), CloudNativePG, Valkey, Keycloak SSO.
-- ✅ **First app** — Docs (impress) wired to SSO, Postgres, and S3 storage.
-- ✅ **Backups + tested restore** — off-site, encrypted; CI replays *backup → destroy → restore* nightly.
+- ✅ **Core apps** — Docs and Drive wired to SSO, Postgres, and S3 storage.
+- ✅ **One-command user provisioning** — `suite user add` grants every enabled app at once (JIT).
 - ✅ **Guided installer** — DNS records, propagation gate, Let's Encrypt staging → production.
-- ⏭️ **Next** — more apps (Drive, Grist…), one-command user provisioning, hardening. See the [roadmap](https://corentingiraud.github.io/ownsuite/project/roadmap/).
+- ✅ **Backups + tested restore** — off-site, encrypted; CI replays *backup → destroy → restore* nightly.
 
 ## Stack
 
