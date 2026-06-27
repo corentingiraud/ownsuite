@@ -100,6 +100,10 @@ test-platform: ## Full DoD on a throwaway k3d cluster — installer-provisioned 
 test-app: ## Boot ONE optional app on its own throwaway k3d cluster (APP=grist|projects|messages)
 	helmfile/tests/run-app-e2e.sh $(APP)
 
+.PHONY: test-pvc-backup
+test-pvc-backup: ## Fast, isolated ADR-032 PVC backup/restore round-trip (off-site store only, ~3 min)
+	helmfile/tests/run-pvc-backup-e2e.sh
+
 # --- Backups & tested restore (ADR-006, ADR-017) -----------------------------
 PG_CLUSTER ?= ownsuite-pg
 WORKLOADS_NS ?= ownsuite
