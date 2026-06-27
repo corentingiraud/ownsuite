@@ -264,8 +264,10 @@ pvc_backup_apply restore
 wait_job pvc-restore-${GRIST_PVC} 180
 
 echo "==> ADR-032: asserting the Grist document SURVIVED the PVC backup/restore"
+# No double quotes in the snippet: it is concatenated into the kubectl --overrides
+# JSON, where a literal " would break the payload (-> "Invalid JSON Patch").
 grist_pvc_exec grist-verify \
-  "test \"\$(cat /persist/${GRIST_DOC})\" = '${GRIST_DOC_CONTENT}' && echo 'GRIST DOCUMENT SURVIVED' || { echo 'MISSING/CORRUPT'; exit 1; }"
+  "grep -qxF '${GRIST_DOC_CONTENT}' /persist/${GRIST_DOC} && echo 'GRIST DOCUMENT SURVIVED' || { echo 'MISSING/CORRUPT'; exit 1; }"
 
 echo "==> DESTROYING the primary state (DB + primary object store + apps)"
 # Keep platform-configuration (secrets), garage-backup (the off-site backups!), the
