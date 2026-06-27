@@ -28,7 +28,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `docs/` | MkDocs (Material) documentation — the spec. Pure Markdown. |
 | `mkdocs.yml` | Docs site config (theme, nav, llms.txt plugin). |
 | `requirements-docs.txt` | Docs toolchain (MkDocs Material + plugins). |
-| `Makefile` | Operator/dev entrypoints: `bootstrap`, `install`, `check`, `lint`, `test`, `test-full`, `test-platform` (installer-provisioned full DoD). |
+| `Makefile` | Operator/dev entrypoints: `bootstrap`, `install`, `check`, `lint`, `test`, `test-full`, `test-platform` (installer-provisioned full DoD), `test-pvc-backup` (isolated ADR-032 PVC backup/restore, ~3 min), `test-app` (one optional app per cluster). |
 | `ansible/` | Server bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles. |
 | `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, Garage, the Docs and Drive apps, Grist and Projects (local charts, off by default), and the off-site backups (rclone object copy, `garage-backup`); local charts, values, versions, k3d e2e. |
 | `suite/` | Guided installer + CLI (`suite install`/`suite user`, ADR-018/023): config + seed, DNS records, propagation gate, SSH tunnel, ACME (staging→prod), HTTPS verify, user provisioning. Pure standard library; lint with `ruff` (`ruff.toml`). |
@@ -39,7 +39,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `.github/workflows/ci.yml` | Ansible lint + Molecule (Debian 12/13) on every PR. |
 | `.github/workflows/bootstrap-e2e.yml` | Full real-K3s bootstrap, nightly + on K3s changes. |
 | `.github/workflows/helmfile-ci.yml` | Helm/Helmfile lint + kubeconform on every `helmfile/` change. |
-| `.github/workflows/helmfile-e2e.yml` | Full `helmfile sync` on real K3s (k3d), nightly + on Helmfile changes. |
+| `.github/workflows/helmfile-e2e.yml` | Two jobs: `pvc-backup` (isolated ADR-032 backup/restore) gates every PR in ~3 min; `full` (`make test-platform`, the heavy suite) runs nightly / on `main` / on demand only — not on PRs. |
 
 ## Hard rules
 
@@ -88,7 +88,8 @@ export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required; never commit
 make sync            # helmfile sync — cert-manager, CNPG, Valkey, Keycloak (HTTPS)
 make diff            # preview pending changes
 make lint-helm       # helm lint + helmfile template + kubeconform
-make test-platform   # full DoD on a throwaway k3d cluster (heavy) — incl. backup→restore
+make test-pvc-backup # isolated ADR-032 PVC backup→wipe→restore on k3d (~3 min) — the PR gate
+make test-platform   # full DoD on a throwaway k3d cluster (heavy, nightly/main) — incl. backup→restore
 make backup          # on-demand backup (CNPG base backup + off-site object copy)
 make restore         # rebuild a CLEAN cluster from off-site backups (ADR-006, ADR-017)
 ```
