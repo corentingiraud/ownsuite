@@ -193,6 +193,14 @@ same pytest-style assertions, kept in a dedicated, cost-aware workflow
 (`helmfile-e2e.yml`) — the layered philosophy holds; only the substrate fits the tool. The
 optional apps that don't fit alongside the core on one runner get their own per-app nightly
 matrix ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)) — one app per fresh cluster.
+The same reasoning applies *within* the Helmfile layer: the full suite e2e (`make test-platform`,
+~15 images, 20–45 min, prone to shared-runner flakiness) is too heavy and slow to gate every PR,
+so a change to one component gets an **isolated, fast component e2e** that boots only that
+component's dependencies and runs the **same shared assertion code** as the full suite. The first
+is the PVC backup/restore round-trip ([ADR-032](#adr-032-standardised-reusable-off-site-pvc-backup)),
+which gates PRs in ~3 min via `make test-pvc-backup`; the full suite moved to nightly / `main` /
+`workflow_dispatch` only. The shared round-trip lives in `helmfile/tests/lib.sh`, so the fast and
+full harnesses can never drift.
 
 **Consequences.** Robust feedback proportional to risk, and a test foundation that the
 later work inherits instead of reinventing. Cost: Molecule/Testinfra are Python dev
@@ -1005,9 +1013,9 @@ over HTTPS through Traefik, and an app-appropriate read-back:
   is delivered (MTA → delivery agent → mailbox) and reads back via the API, with no external relay,
   so nothing leaves the cluster. This finally exercises the inbound mail path in CI.
 
-The fail-fast watchdog, the cert wait and the failure diagnostics are **factored into a shared
-`helmfile/tests/lib.sh`** sourced by both the combined `run-e2e.sh` and the new `run-app-e2e.sh`,
-so the two harnesses share one implementation. The workflow runs on a schedule (after the combined
+The fail-fast watchdog, the cert wait, the failure diagnostics and the PVC backup/restore round-trip
+are **factored into a shared `helmfile/tests/lib.sh`** sourced by `run-e2e.sh`, `run-app-e2e.sh` and
+`run-pvc-backup-e2e.sh`, so the harnesses share one implementation. The workflow runs on a schedule (after the combined
 e2e) and on demand (`workflow_dispatch`), never on every PR — it is heavy and the Docs+Drive core
 is already proven on every relevant push. Locally: `make test-app APP=<grist|projects|messages>`.
 
@@ -1106,7 +1114,11 @@ bound PVC before the app reads it — symmetric with the object restore.
 
 **Consequences.** Grist's documents are now backed up off-site and restored on recovery, closing the
 last PVC backup gap, and the pattern is ready for any future volume-backed app by adding a list
-entry. An e2e step proves a seeded Grist document survives a PVC backup → wipe → restore. **Trade-off:**
+entry. An e2e proves a seeded Grist document survives a PVC backup → wipe → restore — packaged as
+an **isolated, fast harness** (`make test-pvc-backup` / `run-pvc-backup-e2e.sh`) that boots only a
+single off-site `garage-backup` store and runs the shared `pvc_backup_roundtrip`
+([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness)), so it gates every PR in ~3 min
+instead of waiting on the heavy full suite. **Trade-off:**
 the backup container mounts the live volume rather than a snapshot, so a copy taken mid-write captures
 a crash-consistent (not quiesced) state — acceptable for SQLite documents on a single VPS; snapshotting
 is the upgrade path if needed.
