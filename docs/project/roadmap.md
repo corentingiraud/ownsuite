@@ -52,8 +52,16 @@ Production essentials, implemented and **proven in CI**:
 - **Guided installer** — `suite install` generates the DNS records, gates on propagation, issues
   Let's Encrypt certificates (staging → production), and brings the whole stack up. See
   [Guided install](../get-started/install.md).
-- **Off-site backups + tested restore** — CNPG PITR + an encrypted off-site object copy; CI
-  replays a full **backup → destroy → restore** cycle. See [Backups & restore](../operate/backups.md).
+- **Off-site backups + tested restore** — CNPG PITR plus an encrypted off-site copy of **every
+  enabled app's media bucket and the Grist document volume**; CI replays a full
+  **backup → destroy → restore** cycle. See [Backups & restore](../operate/backups.md).
+- **Tuned for a single small server** — resource requests/limits and liveness/readiness probes on
+  every workload, with a per-app **server-sizing guide** (RAM/CPU/disk). See [Sizing](../operate/sizing.md).
+- **Per-app boot checks in CI** — each optional app boots on its own fresh cluster nightly,
+  including the mailbox local-delivery loopback.
+- **Backup-gated upgrades + health surfacing** — `suite upgrade` (snapshot → diff → apply →
+  health check → rollback on failure) and `suite status`. See [Upgrade](../operate/upgrade.md)
+  and [Status](../operate/status.md).
 
 ## Optional apps (off by default)
 
@@ -69,17 +77,16 @@ Enable each with one `OWNSUITE_APP_*` flag; they reuse the same SSO + JIT seam.
 
 ## Planned
 
-Production hardening so a third-party org can install, operate, upgrade and recover OwnSuite
-**without maintainer help**:
+The production-hardening goal — install, operate, upgrade and recover OwnSuite **without
+maintainer help** — is met: the items once planned here (probes/limits + sizing guide, per-app
+nightly boot checks, full backup coverage, `suite upgrade`/`status`) have all shipped above.
 
-- Tuned resource requests/limits + liveness/readiness probes on every workload, and a
-  **server-sizing guide** (RAM/CPU/disk per enabled app).
-- **Per-app nightly boot checks** — each app on its own fresh cluster, including the mailbox
-  local-delivery loopback.
-- **Backup coverage** — off-site copy of every media bucket, plus off-site backup of the Grist
-  document volume.
-- **`suite upgrade`** (backup-gated: snapshot → diff → apply → health check → rollback on
-  failure) and **`suite status`** health surfacing.
+What remains is the one thing CI cannot stand in for:
+
+- **Real external mail deliverability** — on a real domain + relay account, confirm mail lands
+  **not in spam** with SPF/DKIM/DMARC aligned. The installer already emits the records and the
+  `dns_check` command verifies alignment, but the final proof needs a human, a real domain and a
+  real external inbox. See [Mailbox application](../understand/messages.md).
 
 **Out of scope / deferred:** Meet (video — LiveKit/coturn, painful on a single server);
 OpenSearch full-text search for the mailbox (deferred to protect single-VPS RAM — note the cost
