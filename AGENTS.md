@@ -40,6 +40,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `.github/workflows/bootstrap-e2e.yml` | Full real-K3s bootstrap, nightly + on K3s changes. |
 | `.github/workflows/helmfile-ci.yml` | Helm/Helmfile lint + kubeconform on every `helmfile/` change. |
 | `.github/workflows/helmfile-e2e.yml` | Two jobs: `pvc-backup` (isolated ADR-032 backup/restore) gates every PR in ~3 min; `full` (`make test-platform`, the heavy suite) runs nightly / on `main` / on demand only — not on PRs. |
+| `.github/workflows/apps-e2e.yml` | Per-app boot e2e (Grist/Projects/messages), one app per fresh k3d cluster (ADR-029). A PR touching one app's chart/values boots only that app (fast `detect`-driven matrix); the full three-app sweep runs nightly / on demand. |
 
 ## Hard rules
 

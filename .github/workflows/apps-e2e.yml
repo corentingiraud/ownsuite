@@ -1,0 +1,130 @@
+name: apps-e2e
+
+# Per-app end-to-end boot check for the OPTIONAL apps (Grist, Projects, messages).
+# Each app runs on its OWN fresh k3d cluster in a matrix — one app per job — so they
+# never compete for RAM (the reason they are kept out of the combined
+# helmfile-e2e.yml). Per job: bring up the platform + that one app (Docs/Drive off),
+# assert it converges, its UI is reachable over HTTPS with SSO wired, and — for
+# messages — a message delivered to a local mailbox reads back via the API.
+#
+# Split like helmfile-e2e.yml (ADR-029):
+#   * On a PR that touches an optional app's chart/values, the `detect` job builds a
+#     matrix of ONLY the changed app(s) — a fast, fail-fast gate that gives a
+#     meaningful per-app signal in minutes instead of waiting on the nightly.
+#   * A shared-harness or workflow change (lib.sh / run-app-e2e.sh / test_apps.py /
+#     this file) selects all three, since it can affect any of them.
+#   * Nightly + on demand it boots all three regardless — the standing full sweep.
+# No `push: [main]` trigger: the PR gate already booted the changed app before merge,
+# and the nightly re-proves all three — a per-merge re-run would only add cost.
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  pull_request:
+    # Per-app chart/values changes drive the per-app gate; shared-harness/workflow
+    # changes (matched here too) fan out to all three in the `detect` job below.
+    paths:
+      - "helmfile/charts/grist/**"
+      - "helmfile/charts/projects/**"
+      - "helmfile/charts/messages/**"
+      - "helmfile/values/grist.yaml.gotmpl"
+      - "helmfile/values/projects.yaml.gotmpl"
+      - "helmfile/values/messages.yaml.gotmpl"
+      - "helmfile/tests/run-app-e2e.sh"
+      - "helmfile/tests/lib.sh"
+      - "helmfile/tests/test_apps.py"
+      - ".github/workflows/apps-e2e.yml"
+  workflow_dispatch:
+
+# Least privilege: e2e only reads the repo (spins up an ephemeral k3d cluster).
+permissions:
+  contents: read
+
+env:
+  # Pinned CLI tools (tracked by Renovate via the workflow customManager).
+  HELM_VERSION: "v4.2.2" # renovate: datasource=github-releases depName=helm/helm
+  HELMFILE_VERSION: "v1.6.0" # renovate: datasource=github-releases depName=helmfile/helmfile
+  KUBECONFORM_VERSION: "v0.8.0" # renovate: datasource=github-releases depName=yannh/kubeconform
+  K3D_VERSION: "v5.9.0" # renovate: datasource=github-releases depName=k3d-io/k3d
+  KUBECTL_VERSION: "v1.36.2" # renovate: datasource=github-releases depName=kubernetes/kubernetes
+
+jobs:
+  # Decide which apps this run must boot. For a PR, diff against the base and keep
+  # only the apps whose chart/values changed; a shared-harness/workflow change selects
+  # all three. Any other event (schedule / dispatch) boots all three. GitHub `paths:`
+  # filters gate the WORKFLOW but cannot map "changed app -> only that matrix entry",
+  # so this job does the mapping and emits a JSON matrix.
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      apps: ${{ steps.pick.outputs.apps }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Need the base commit to diff a PR's changed files.
+          fetch-depth: 0
+      - id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          all='["grist","projects","messages"]'
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          # A shared-harness or workflow change can affect any app -> run all three.
+          if grep -qE '^(helmfile/tests/(run-app-e2e\.sh|lib\.sh|test_apps\.py)|\.github/workflows/apps-e2e\.yml)$' <<<"$changed"; then
+            echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          picked=()
+          for app in grist projects messages; do
+            if grep -qE "^helmfile/(charts/$app/|values/$app\.yaml\.gotmpl$)" <<<"$changed"; then
+              picked+=("$app")
+            fi
+          done
+          # Empty only if the diff missed a path the `paths:` filter matched (e.g. a
+          # rename); skip the matrix rather than emit a bogus entry.
+          if [ ${#picked[@]} -eq 0 ]; then
+            echo "apps=[]" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          apps="$(printf '%s\n' "${picked[@]}" | jq -R . | jq -s -c .)"
+          echo "apps=$apps" >> "$GITHUB_OUTPUT"
+
+  app-e2e:
+    needs: detect
+    if: needs.detect.outputs.apps != '[]'
+    runs-on: ubuntu-latest
+    # One app on one cluster (no backup/restore cycle), so ~15-20 min; cap above that
+    # so a wedged API/sync fails in bounded time, never the GitHub default of 6h. The
+    # in-script provision_with_watchdog turns most failures into ~15s fail-fast.
+    timeout-minutes: 35
+    strategy:
+      # One app's failure must not cancel the others — each is independent.
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.detect.outputs.apps) }}
+    name: app-e2e (${{ matrix.app }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - run: pip install pytest==9.1.1
+      - name: Install helm, helmfile, kubeconform, k3d (pinned)
+        # Extract in a clean temp dir: the repo root has a `helmfile/` directory,
+        # which would collide with `tar x helmfile` (the binary).
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo install linux-amd64/helm /usr/local/bin/helm
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION#v}_linux_amd64.tar.gz" | tar xz helmfile
+          sudo install helmfile /usr/local/bin/helmfile
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar xz kubeconform
+          sudo install kubeconform /usr/local/bin/kubeconform
+          curl -fsSL "https://github.com/k3d-io/k3d/releases/download/${K3D_VERSION}/k3d-linux-amd64" -o k3d
+          sudo install k3d /usr/local/bin/k3d
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
+          sudo install kubectl /usr/local/bin/kubectl
+      - name: Boot ${{ matrix.app }} and assert its definition of done
+        run: make test-app APP=${{ matrix.app }}

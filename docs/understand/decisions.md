@@ -1001,7 +1001,7 @@ messages alone is five pods. So the optional apps were lint/template-validated b
 booted in CI, and the messages mail loopback stayed an off-CI manual check. That is the last
 coverage gap before any of them could graduate to on-by-default.
 
-**Decision.** A **separate nightly workflow** (`nightly-apps-e2e.yml`) with a **matrix, one app per
+**Decision.** A **dedicated workflow** (`apps-e2e.yml`) with a **matrix, one app per
 job, each on its own fresh k3d cluster**. Because each job holds only the platform plus one app,
 none competes for RAM. Per job it brings the app up, asserts it converges, that its UI is reachable
 over HTTPS through Traefik, and an app-appropriate read-back:
@@ -1015,16 +1015,31 @@ over HTTPS through Traefik, and an app-appropriate read-back:
 
 The fail-fast watchdog, the cert wait, the failure diagnostics and the PVC backup/restore round-trip
 are **factored into a shared `helmfile/tests/lib.sh`** sourced by `run-e2e.sh`, `run-app-e2e.sh` and
-`run-pvc-backup-e2e.sh`, so the harnesses share one implementation. The workflow runs on a schedule (after the combined
-e2e) and on demand (`workflow_dispatch`), never on every PR — it is heavy and the Docs+Drive core
-is already proven on every relevant push. Locally: `make test-app APP=<grist|projects|messages>`.
+`run-pvc-backup-e2e.sh`, so the harnesses share one implementation. Locally: `make test-app
+APP=<grist|projects|messages>`.
+
+The workflow is **split like `helmfile-e2e.yml`** (the same cost-aware pattern as the
+[ADR-032 PVC backup gate](#adr-032-standardised-reusable-off-site-pvc-backup)): the full
+three-app matrix runs nightly and on demand, but a **PR that touches an optional app's chart or
+values boots only *that* app** as a fast, fail-fast gate, so a change to one app gets a real boot
+signal in minutes — not just lint/template — without waiting on (or paying for) the other two. A
+change to the shared harness (`lib.sh`, `run-app-e2e.sh`, `test_apps.py`) or the workflow itself
+fans out to all three, since it can affect any of them.
+
+GitHub `paths:` filters gate a *workflow*, not a matrix entry — they cannot say "this app changed,
+run only its job". Two ways to bridge that, and we rejected both: **(a) one workflow file per app**,
+each with its own `paths:` filter, duplicates the tool-install boilerplate three ways and drifts;
+**(b) a single matrix that boots all three on any app change** wastes two clusters' runner time
+whenever one app changes. Instead a tiny `detect` job diffs the PR against its base and emits a JSON
+matrix of only the changed app(s) — one file, no duplication, no wasted clusters. The cost is one
+extra ~30 s job and a small amount of shell; cheap next to a 15–20 min app boot.
 
 **Consequences.** Every shipped app is now actually booted in CI, the messages mail loopback is
 automated rather than manual, and the optional apps have the boot evidence they need to graduate
-later. The split matrix keeps each run within the runner's budget at the cost of more total CI
-minutes (three clusters instead of one) — acceptable for a nightly. Real external mail
-deliverability ([ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay)) remains
-the one check a hermetic cluster cannot stand in for: it needs a real domain, relay and inbox.
+later. A PR that changes one app now gets that app's boot signal pre-merge at the cost of a single
+cluster; the full three-app sweep stays nightly. Real external mail deliverability
+([ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay)) remains the one check a
+hermetic cluster cannot stand in for: it needs a real domain, relay and inbox.
 
 ---
 
