@@ -195,10 +195,15 @@ GRIST_DOC_CONTENT="ownsuite-e2e-grist-document-fixture"
 # A tiny pod that mounts the PVC, so we can write/read the sentinel without Grist.
 grist_pvc_exec() {
   local name="$1" snippet="$2"
+  # The snippet is concatenated raw into this JSON, so a stray " in it would yield
+  # invalid JSON and a cryptic "Invalid JSON Patch" from kubectl, 8 min into the run.
+  # Validate up front so a bad snippet fails instantly with a clear, named message.
+  local overrides='{"spec":{"containers":[{"name":"sh","image":"busybox:1.37","command":["/bin/sh","-ceu"],"args":["'"$snippet"'"],"volumeMounts":[{"name":"d","mountPath":"/persist"}]}],"volumes":[{"name":"d","persistentVolumeClaim":{"claimName":"'"$GRIST_PVC"'"}}]}}'
+  printf '%s' "$overrides" | python3 -c 'import json,sys; json.load(sys.stdin)' \
+    || { echo "BUG: grist_pvc_exec snippet '$name' breaks the pod overrides JSON (no \" allowed): $snippet" >&2; exit 1; }
   kubectl -n "$NS" delete pod "$name" --ignore-not-found >/dev/null 2>&1 || true
   kubectl -n "$NS" run "$name" --restart=Never --image=busybox:1.37 \
-    --overrides='{"spec":{"containers":[{"name":"sh","image":"busybox:1.37","command":["/bin/sh","-ceu"],"args":["'"$snippet"'"],"volumeMounts":[{"name":"d","mountPath":"/persist"}]}],"volumes":[{"name":"d","persistentVolumeClaim":{"claimName":"'"$GRIST_PVC"'"}}]}}' \
-    >/dev/null
+    --overrides="$overrides" >/dev/null
   kubectl -n "$NS" wait --for=condition=Ready pod/"$name" --timeout=60s >/dev/null 2>&1 || true
   kubectl -n "$NS" wait --for=jsonpath='{.status.phase}'=Succeeded pod/"$name" --timeout=60s
   kubectl -n "$NS" logs "$name"
