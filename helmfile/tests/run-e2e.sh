@@ -238,6 +238,10 @@ pvc_backup_apply backup
 kubectl -n "$NS" delete job pvc-backup-e2e --ignore-not-found >/dev/null 2>&1 || true
 kubectl -n "$NS" create job --from=cronjob/pvc-backup-${GRIST_PVC} pvc-backup-e2e >/dev/null
 wait_job pvc-backup-e2e 180
+# The completed backup pod still references the PVC, so the pvc-protection finalizer
+# would hold it in Terminating forever on the wipe below. Drop the job (and its pod)
+# first; --cascade=foreground blocks until the pod is actually gone.
+kubectl -n "$NS" delete job pvc-backup-e2e --cascade=foreground --ignore-not-found
 
 echo "==> ADR-032: WIPING the PVC (simulating server loss), then restoring"
 kubectl -n "$NS" delete pvc "$GRIST_PVC" --ignore-not-found
