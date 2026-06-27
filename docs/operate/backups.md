@@ -8,8 +8,9 @@ destination has to survive losing the whole server, so it's never stored on the 
 
 | State | How | Covers |
 |---|---|---|
-| **PostgreSQL** | CNPG **Barman Cloud Plugin** — continuous WAL archiving + base backups to off-site S3, with PITR. | The `keycloak` and `docs` databases — so **Keycloak realm + users** and **Docs documents/metadata** (Keycloak DR is PITR of its database, no separate export). |
-| **Objects (media)** | **rclone** `sync` of the media bucket to the off-site store, client-side encrypted (rclone `crypt`). | Docs attachments / uploaded media. Required even with external S3 (accidental deletion, lock-in). |
+| **PostgreSQL** | CNPG **Barman Cloud Plugin** — continuous WAL archiving + base backups to off-site S3, with PITR. | Every app database (`keycloak`, `docs`, and any enabled app's database) — so **Keycloak realm + users** and each app's documents/metadata (Keycloak DR is PITR of its database, no separate export). |
+| **Objects (media)** | **rclone** `sync` of **every enabled app's media bucket** to the off-site store, client-side encrypted (rclone `crypt`). | Docs, Drive, Projects and Mailbox media/uploads — each bucket copied to its own encrypted off-site path. Required even with external S3 (accidental deletion, lock-in). |
+| **App volumes (PVCs)** | **rclone** copy of each backed-up volume to the off-site store, encrypted the same way; restored on recovery. | State that lives on a volume rather than S3 — today **Grist's documents** (`/persist`, its SQLite files). Reusable for any future PVC-backed app. |
 
 ## The off-site destination
 
@@ -61,7 +62,9 @@ OWNSUITE_BACKUP_PG_ENCRYPTION=         # e.g. AES256 on AWS; empty for Garage/S3
 
 Enabling backups installs the [Barman Cloud Plugin](https://cloudnative-pg.io/plugin-barman-cloud/)
 into `cnpg-system` (pinned, vendored manifest) and attaches a WAL archiver + `ScheduledBackup`
-to the PostgreSQL cluster, plus the rclone copy CronJob.
+to the PostgreSQL cluster, plus the rclone object-copy CronJob (one pass over every enabled app's
+media bucket) and — when a PVC-backed app such as Grist is enabled — an rclone volume-copy CronJob
+per backed-up volume.
 
 !!! note "Encryption & retention"
     PostgreSQL backups rely on **TLS in transit** + the destination's **at-rest** protection
@@ -89,10 +92,13 @@ make restore
 
 This runs a Helmfile sync in restore mode:
 
-1. **PostgreSQL** bootstraps via CNPG **recovery** from the off-site `ObjectStore` (both the
-   `keycloak` and `docs` databases come back, to the latest backup / PITR).
-2. **Objects** are copied back from the off-site store into the primary bucket (rclone restore Job).
-3. **Apps** (Keycloak, Docs) come up against the restored database + bucket.
+1. **PostgreSQL** bootstraps via CNPG **recovery** from the off-site `ObjectStore` (every backed-up
+   database comes back, to the latest backup / PITR).
+2. **Objects** are copied back from the off-site store into each app's primary bucket (rclone
+   restore Job).
+3. **Volumes** are copied back into each backed-up PVC (e.g. Grist's `/persist`) by the rclone
+   volume restore Job, before the app reads them.
+4. **Apps** come up against the restored databases, buckets and volumes.
 
 ## Tested every night
 

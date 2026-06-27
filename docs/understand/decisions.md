@@ -782,6 +782,11 @@ can reach `auth.{domain}` (DNS + hairpin), which holds on a normal single-server
 
 ## ADR-025 — Projects integration: local chart, public-issuer OIDC, PVC storage, off by default
 
+> **Superseded in part by [ADR-031](#adr-031-projects-uploads-on-s3-eliminating-the-pvc).** The
+> local chart, public-issuer OIDC and off-by-default stance still hold; Projects' uploads now live
+> on **S3** (its own bucket on the shared seam), not the `projects-data` PVC — so the PVC and its
+> not-off-site-backed limitation no longer apply.
+
 **Context.** The suite broadens beyond the DoD apps, and **Projects**
 (`suitenumerique/projects` — kanban boards / task management, a Sails.js fork of Planka) is the
 last broadening candidate after Drive
@@ -1012,6 +1017,99 @@ later. The split matrix keeps each run within the runner's budget at the cost of
 minutes (three clusters instead of one) — acceptable for a nightly. Real external mail
 deliverability ([ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay)) remains
 the one check a hermetic cluster cannot stand in for: it needs a real domain, relay and inbox.
+
+---
+
+## ADR-030 — N-bucket off-site object backup
+
+**Context.** The off-site object copy ([ADR-006](#adr-006-backups-and-tested-restore),
+[ADR-017](#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)) copied a
+**single** bucket — Docs' `docs-media-storage`. As the suite grew per-app buckets (Drive, Mailbox,
+and now Projects on [ADR-031](#adr-031-projects-uploads-on-s3-eliminating-the-pvc)), every bucket
+but Docs' was an unbacked gap: enabling Drive, Projects or the Mailbox meant media that no off-site
+copy covered.
+
+**Decision.** Generalise the `object-backup` chart to copy a **list of buckets** instead of one. The
+Helmfile values drive the list from the **enabled apps' buckets** (`docs`/`drive`/`messages`/
+`projects`), mirroring the Garage `buckets:` list so backup coverage always tracks what is deployed.
+The sync script loops the list, copying each `primary:<bucket>` to its **own sub-path** under the
+existing rclone `crypt` overlay (`offsitecrypt:<bucket>`), so the buckets never collide and the
+restore path stays symmetric (each restored from its own sub-path).
+
+- **Invariants preserved.** The off-site store is still a **different** account/Garage than the
+  primary (the off-site-≠-primary rule), and every copy is still **client-side encrypted** by the
+  same `crypt` remote — only the number of buckets changed.
+- **No new secret, no new image.** The shared seed-derived S3 key still owns every bucket, and the
+  already-pinned rclone image runs the loop.
+
+**Consequences.** Turning on any media-storing app now backs up its bucket with no extra config — the
+single-bucket gap is closed. **Trade-off:** the copy runs the buckets sequentially in one CronJob
+pass (simple, and fine at single-VPS data volumes); a future parallel/per-bucket schedule is a small
+change if data ever outgrows it.
+
+---
+
+## ADR-031 — Projects uploads on S3, eliminating the PVC
+
+**Context.** Projects ([ADR-025](#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default))
+stored its uploads (avatars, project backgrounds, attachments) on the `projects-data` PVC, which
+forced `strategy: Recreate` (a read-write-once volume must never be double-mounted) and — like
+Grist's and Drive's earlier gaps — was **not** off-site-backed. Upstream `suitenumerique/projects`
+ships an **S3 file manager** that activates when `S3_ENDPOINT`/`S3_REGION` are set (verified against
+`server/.env.sample` + `api/hooks/s3`), exposing
+`S3_ENDPOINT`/`S3_REGION`/`S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY`/`S3_BUCKET`/`S3_FORCE_PATH_STYLE`.
+
+**Decision.** Switch Projects' uploads to **S3** on the shared object-storage seam, exactly as Docs,
+Drive and Mailbox do, and **remove the PVC**:
+
+- **Its own bucket** (`projects-media-storage`), provisioned by the Garage bootstrap in `garage` mode
+  (or pre-created on external S3), joining the N-bucket off-site copy
+  ([ADR-030](#adr-030-n-bucket-off-site-object-backup)) — so uploads are now backed up.
+- **Shared credentials, mode-aware endpoint.** The S3 key/secret are the same seed-derived
+  `s3-credentials` pair; the endpoint/region follow the garage-vs-external split used by the other
+  apps.
+- **Chart simplified.** The `projects-data` PVC, its three subPath mounts, `strategy: Recreate` and
+  the storage knobs are gone; the Deployment is now a plain rolling-update single container.
+
+**Consequences.** Projects gains off-site-backed uploads and a simpler chart, and the suite's per-app
+storage is uniformly S3 (no app-specific PVC for uploads). This **supersedes the PVC part of
+ADR-025**. **Trade-off:** Projects now requires the object-storage seam (Garage in `garage` mode, a
+pre-created bucket on external S3) where before it needed only a volume — acceptable, since the seam
+is already mandatory for the core apps.
+
+---
+
+## ADR-032 — Standardised reusable off-site PVC backup
+
+**Context.** Some state lives on a **volume**, not S3: Grist keeps its documents as SQLite files in
+`/persist/docs` (no upstream S3 document store), so the N-bucket object copy
+([ADR-030](#adr-030-n-bucket-off-site-object-backup)) cannot cover it. Rather than bolt a one-off
+backup onto Grist, the volume case deserves the same reusable treatment the object copy gives
+buckets — any future PVC-backed app should get off-site backup by adding one list entry.
+
+**Decision.** Add a small reusable **`pvc-backup`** local chart: a CronJob (and a restore Job)
+**parametrised by a list of `{pvcName, subPath}`**. For each volume it mounts the PVC, and copies the
+subtree to the off-site store with the **same rclone `crypt` overlay and off-site config** the object
+copy uses (off-site-≠-primary, client-side encrypted), under a per-PVC sub-path. The restore Job
+(rendered in restore mode, a `post-install` hook) copies the encrypted copy back into the freshly
+bound PVC before the app reads it — symmetric with the object restore.
+
+- **First consumer: Grist.** `grist-persist` (`/persist`, holding the document SQLite). The release
+  is gated on backups **and** Grist enabled, and `needs` the Grist release so the PVC exists before
+  the Job mounts it; on restore the documents land before any document is opened (Grist reads
+  document files lazily, not on boot).
+- **Reuse, not a new dependency.** The already-pinned rclone image and the existing
+  `backup-s3-credentials` + crypt passphrase are reused; no new image or secret.
+- **Single-node mount.** The backup CronJob mounts the PVC read-only alongside the app pod, which is
+  fine on single-node K3s (same node); a multi-node setup would need a volume-snapshot seam, noted in
+  the chart.
+
+**Consequences.** Grist's documents are now backed up off-site and restored on recovery, closing the
+last PVC backup gap, and the pattern is ready for any future volume-backed app by adding a list
+entry. An e2e step proves a seeded Grist document survives a PVC backup → wipe → restore. **Trade-off:**
+the backup container mounts the live volume rather than a snapshot, so a copy taken mid-write captures
+a crash-consistent (not quiesced) state — acceptable for SQLite documents on a single VPS; snapshotting
+is the upgrade path if needed.
 
 ---
 

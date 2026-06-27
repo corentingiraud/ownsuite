@@ -1,0 +1,54 @@
+{{- if .Values.restore.enabled }}
+{{- /*
+One-shot restore of each configured PVC subtree (ADR-032): copy the encrypted off-site
+copy back into the (freshly bound) PVC. Run during `make restore`; the pvc-backup
+release `needs` the off-site store, so by the time these Jobs start it is up. The Job
+mounts the PVC read-write — on a restore the app pod is not yet running, so it owns the
+volume alone. helm --wait blocks on completion.
+*/}}
+{{- range .Values.volumes }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "pvc-restore-%s" .pvcName }}
+  labels:
+    app.kubernetes.io/name: pvc-backup
+  annotations:
+    # Re-run on every restore sync (name is stable), replacing a prior attempt.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pvc-backup
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: rclone
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          command: ["/bin/sh", "-ceu"]
+          args:
+            - |
+              {{- include "pvc-backup.script" $ | nindent 14 }}
+            - pvc-restore
+            - restore
+            - {{ .pvcName | quote }}
+          env:
+            - name: SUBPATH
+              value: {{ .subPath | quote }}
+            {{- include "pvc-backup.env" $ | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .pvcName | quote }}
+{{- end }}
+{{- end }}

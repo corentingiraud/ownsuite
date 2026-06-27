@@ -1,10 +1,9 @@
 {{- /*
-Projects server (ADR-025). One container, one replica. File uploads (avatars,
-project backgrounds, attachments) live on the `projects-data` PVC, mounted at the
-three fixed paths the app writes to (a Planka heritage) via subPaths of one volume;
-the database is external (CNPG, via DATABASE_URL). `strategy: Recreate` guarantees
-the read-write-once volume is never mounted by two pods during a rollout. All
-credentials arrive by secretKeyRef (secretEnv) — nothing secret is rendered here.
+Projects server (ADR-025, ADR-031). One container, one replica. File uploads
+(avatars, project backgrounds, attachments) live on S3 via the app's S3FileManager
+(activated by the S3_* env), so there is no PVC and no `strategy: Recreate`; the
+database is external (CNPG, via DATABASE_URL). All credentials arrive by secretKeyRef
+(secretEnv) — nothing secret is rendered here.
 */}}
 apiVersion: apps/v1
 kind: Deployment
@@ -14,8 +13,6 @@ metadata:
     app.kubernetes.io/name: projects
 spec:
   replicas: {{ .Values.replicas }}
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: projects
@@ -65,21 +62,7 @@ spec:
               port: http
             periodSeconds: 20
             failureThreshold: 3
-          volumeMounts:
-            - name: data
-              mountPath: /app/public/user-avatars
-              subPath: user-avatars
-            - name: data
-              mountPath: /app/public/project-background-images
-              subPath: project-background-images
-            - name: data
-              mountPath: /app/private/attachments
-              subPath: attachments
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: projects-data

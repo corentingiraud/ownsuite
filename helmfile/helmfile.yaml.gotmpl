@@ -157,6 +157,27 @@ releases:
     values:
       - values/object-backup.yaml.gotmpl
 
+  # --- Off-site PVC copy: rclone (ADR-032) ---------------------------------
+  # Reusable encrypted off-site copy of app PVCs (CronJob per volume + restore Job),
+  # for state that lives on a volume rather than S3. First consumer: grist-persist
+  # (Grist's SQLite documents). Gated on backups AND Grist enabled; reuses the same
+  # off-site store + crypt passphrase as the object copy.
+  - name: pvc-backup
+    namespace: {{ $ns }}
+    chart: ./charts/pvc-backup
+    condition: backup.pvcBackup.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      {{- if .Values.backup.garageBackup.enabled }}
+      - {{ $ns }}/garage-backup
+      {{- end }}
+      # The grist chart owns the grist-persist PVC; it must exist before the CronJob /
+      # restore Job can mount it. On restore the Job repopulates /persist before a doc
+      # is opened (Grist reads document SQLite files lazily, not on boot).
+      - {{ $ns }}/grist
+    values:
+      - values/pvc-backup.yaml.gotmpl
+
   # --- SSO: Keycloak over HTTPS (ADR-005, ADR-011) — the Phase 1 DoD -------
   - name: keycloak
     namespace: {{ $ns }}
@@ -263,10 +284,11 @@ releases:
     values:
       - values/grist.yaml.gotmpl
 
-  # --- App: Projects (suitenumerique/projects) — Phase 5 broadening (ADR-025) ---
+  # --- App: Projects (suitenumerique/projects) — Phase 5 broadening (ADR-025, ADR-031) ---
   # A single-container Sails.js app from a local chart, OFF by default. Like Grist it
-  # reuses CNPG (its own `projects` database) + Keycloak SSO; its uploads live on a
-  # PVC, so it needs neither Valkey nor S3. OIDC is single-issuer discovery.
+  # reuses CNPG (its own `projects` database) + Keycloak SSO; its uploads live on S3
+  # (its own bucket on the shared seam, ADR-031), so it needs Garage in garage mode but
+  # no Valkey. OIDC is single-issuer discovery.
   - name: projects
     namespace: {{ $ns }}
     chart: ./charts/projects
@@ -276,6 +298,9 @@ releases:
       - {{ $ns }}/postgres
       - {{ $ns }}/keycloak
       - cert-manager/issuers
+      {{- if .Values.garage.enabled }}
+      - {{ $ns }}/garage
+      {{- end }}
     values:
       - values/projects.yaml.gotmpl
 

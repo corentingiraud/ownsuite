@@ -53,8 +53,8 @@ Credentials come from secretKeyRef; endpoints/regions/buckets are plain config.
   value: crypt
 - name: RCLONE_CONFIG_OFFSITECRYPT_REMOTE
   value: {{ printf "offsite:%s/%s" .Values.offsite.bucket .Values.offsite.mediaPrefix | quote }}
-- name: PRIMARY_BUCKET
-  value: {{ .Values.primary.bucket | quote }}
+- name: PRIMARY_BUCKETS
+  value: {{ .Values.primary.buckets | join " " | quote }}
 - name: OWNSUITE_CRYPT_PASSPHRASE
   valueFrom:
     secretKeyRef:
@@ -64,19 +64,22 @@ Credentials come from secretKeyRef; endpoints/regions/buckets are plain config.
 
 {{/*
 The sync script. $1 = direction (backup|restore). Obscures the crypt passphrase into
-the form rclone expects, then syncs between primary:<bucket> and the crypt overlay.
+the form rclone expects, then syncs each primary bucket (PRIMARY_BUCKETS) against its
+own sub-path under the crypt overlay, so every app's media is covered (ADR-030).
 */}}
 {{- define "object-backup.script" -}}
 set -euo pipefail
 RCLONE_CONFIG_OFFSITECRYPT_PASSWORD="$(rclone obscure "$OWNSUITE_CRYPT_PASSPHRASE")"
 export RCLONE_CONFIG_OFFSITECRYPT_PASSWORD
 direction="$1"
-case "$direction" in
-  backup)  src="primary:$PRIMARY_BUCKET"; dst="offsitecrypt:" ;;
-  restore) src="offsitecrypt:"; dst="primary:$PRIMARY_BUCKET" ;;
-  *) echo "usage: sync.sh backup|restore" >&2; exit 2 ;;
-esac
-echo "==> rclone $direction: $src -> $dst"
-rclone sync "$src" "$dst" --s3-no-check-bucket --create-empty-src-dirs -v
+for bucket in $PRIMARY_BUCKETS; do
+  case "$direction" in
+    backup)  src="primary:$bucket"; dst="offsitecrypt:$bucket" ;;
+    restore) src="offsitecrypt:$bucket"; dst="primary:$bucket" ;;
+    *) echo "usage: sync.sh backup|restore" >&2; exit 2 ;;
+  esac
+  echo "==> rclone $direction: $src -> $dst"
+  rclone sync "$src" "$dst" --s3-no-check-bucket --create-empty-src-dirs -v
+done
 echo "==> done"
 {{- end -}}

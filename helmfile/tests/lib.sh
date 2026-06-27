@@ -114,3 +114,97 @@ wait_job() {
     sleep 3
   done
 }
+
+# --- ADR-032: PVC off-site backup/restore round-trip --------------------------
+# Proves a document on a PVC survives backup -> wipe -> restore through the REAL
+# pvc-backup chart (CronJob + restore Job) and the crypt off-site store, WITHOUT
+# booting the heavy Grist pod: a fixture `grist-persist` PVC stands in for Grist's
+# /persist, holding a sentinel under /persist/docs. Shared by run-e2e.sh (full
+# suite) and run-pvc-backup-e2e.sh (isolated, fast). The caller sets $NS + KUBECONFIG
+# and ensures the off-site store + backup-s3-credentials secret exist; OFFSITE_* env
+# vars select the store (default: the in-cluster garage-backup).
+GRIST_PVC="${GRIST_PVC:-grist-persist}"
+GRIST_DOC="${GRIST_DOC:-docs/e2e-grist-doc.txt}"
+GRIST_DOC_CONTENT="${GRIST_DOC_CONTENT:-ownsuite-e2e-grist-document-fixture}"
+
+grist_pvc_make() {
+  # (Re)create the fixture PVC the round-trip mounts.
+  kubectl -n "$NS" apply -f - <<EOF >/dev/null
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ${GRIST_PVC}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+EOF
+}
+
+# A tiny pod that mounts the PVC, so we can write/read the sentinel without Grist.
+grist_pvc_exec() {
+  local name="$1" snippet="$2"
+  # The snippet is concatenated raw into this JSON, so a stray " in it would yield
+  # invalid JSON and a cryptic "Invalid JSON Patch" from kubectl, 8 min into the run.
+  # Validate up front so a bad snippet fails instantly with a clear, named message.
+  local overrides='{"spec":{"containers":[{"name":"sh","image":"busybox:1.37","command":["/bin/sh","-ceu"],"args":["'"$snippet"'"],"volumeMounts":[{"name":"d","mountPath":"/persist"}]}],"volumes":[{"name":"d","persistentVolumeClaim":{"claimName":"'"$GRIST_PVC"'"}}]}}'
+  printf '%s' "$overrides" | python3 -c 'import json,sys; json.load(sys.stdin)' \
+    || { echo "BUG: grist_pvc_exec snippet '$name' breaks the pod overrides JSON (no \" allowed): $snippet" >&2; exit 1; }
+  kubectl -n "$NS" delete pod "$name" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl -n "$NS" run "$name" --restart=Never --image=busybox:1.37 \
+    --overrides="$overrides" >/dev/null
+  kubectl -n "$NS" wait --for=condition=Ready pod/"$name" --timeout=60s >/dev/null 2>&1 || true
+  kubectl -n "$NS" wait --for=jsonpath='{.status.phase}'=Succeeded pod/"$name" --timeout=60s
+  kubectl -n "$NS" logs "$name"
+  kubectl -n "$NS" delete pod "$name" --ignore-not-found >/dev/null 2>&1 || true
+}
+
+# Render the pvc-backup chart for the fixture PVC and apply only its batch objects
+# (CronJob for $1=backup, restore Job for $1=restore — gated by restore.enabled).
+pvc_backup_apply() {
+  local mode="$1"
+  helm template pvc-backup-e2e helmfile/charts/pvc-backup \
+    --namespace "$NS" \
+    --set image.tag="$(sed -nE 's/^[[:space:]]*rclone:[[:space:]]*"([^"]+)".*/\1/p' helmfile/versions/versions.yaml | head -1)" \
+    --set restore.enabled="$([ "$mode" = restore ] && echo true || echo false)" \
+    --set offsite.endpoint="${OFFSITE_ENDPOINT:-http://garage-backup.${NS}.svc.cluster.local:3900}" \
+    --set offsite.region="${OFFSITE_REGION:-garage}" \
+    --set offsite.bucket="${OFFSITE_BUCKET:-ownsuite-backups}" \
+    --set 'volumes[0].pvcName='"$GRIST_PVC" --set 'volumes[0].subPath=' \
+    | kubectl -n "$NS" apply -f -
+}
+
+# The full round-trip: seed -> backup -> wipe -> restore -> assert byte-identical.
+pvc_backup_roundtrip() {
+  echo "==> ADR-032: creating a fixture ${GRIST_PVC} PVC + seeding a document sentinel"
+  grist_pvc_make
+  grist_pvc_exec grist-seed \
+    "mkdir -p /persist/docs && printf '%s' '${GRIST_DOC_CONTENT}' > /persist/${GRIST_DOC} && ls -l /persist/docs"
+
+  echo "==> ADR-032: backing the PVC up off-site (encrypted, via the pvc-backup chart)"
+  pvc_backup_apply backup
+  kubectl -n "$NS" delete job pvc-backup-e2e --ignore-not-found >/dev/null 2>&1 || true
+  kubectl -n "$NS" create job --from=cronjob/pvc-backup-${GRIST_PVC} pvc-backup-e2e >/dev/null
+  wait_job pvc-backup-e2e 180
+  # The completed backup pod still references the PVC, so the pvc-protection finalizer
+  # would hold it in Terminating forever on the wipe below. Drop the job (and its pod)
+  # first; --cascade=foreground blocks until the pod is actually gone.
+  kubectl -n "$NS" delete job pvc-backup-e2e --cascade=foreground --ignore-not-found
+
+  echo "==> ADR-032: WIPING the PVC (simulating server loss), then restoring"
+  kubectl -n "$NS" delete pvc "$GRIST_PVC" --ignore-not-found
+  grist_pvc_make
+  # Confirm the wipe took: the sentinel must be gone before the restore proves anything.
+  grist_pvc_exec grist-check-empty "test ! -e /persist/${GRIST_DOC} && echo 'PVC is empty (sentinel gone)'"
+  # The chart's restore Job is a helm post-install hook (annotations), which `kubectl
+  # apply` keeps as a plain Job — so it runs immediately here.
+  pvc_backup_apply restore
+  wait_job pvc-restore-${GRIST_PVC} 180
+
+  echo "==> ADR-032: asserting the Grist document SURVIVED the PVC backup/restore"
+  # No double quotes in the snippet: it is concatenated into the kubectl --overrides
+  # JSON, where a literal " would break the payload (-> "Invalid JSON Patch").
+  grist_pvc_exec grist-verify \
+    "grep -qxF '${GRIST_DOC_CONTENT}' /persist/${GRIST_DOC} && echo 'GRIST DOCUMENT SURVIVED' || { echo 'MISSING/CORRUPT'; exit 1; }"
+}

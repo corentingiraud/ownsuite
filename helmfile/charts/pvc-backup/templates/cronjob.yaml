@@ -1,0 +1,58 @@
+{{- if .Values.schedule }}
+{{- /*
+Scheduled off-site copy of each configured PVC subtree (ADR-032), encrypted client-side
+via the rclone crypt remote. One CronJob per volume, each mounting its PVC read-only.
+On single-node K3s a RWO PVC mounts fine alongside the app pod (same node); a multi-node
+setup would need a snapshot/ReadOnlyMany seam instead.
+ponytail: read-only same-node mount; snapshot CSI if this ever runs multi-node.
+The e2e triggers an immediate run with `kubectl create job --from=cronjob/<name>`.
+*/}}
+{{- range .Values.volumes }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ printf "pvc-backup-%s" .pvcName }}
+  labels:
+    app.kubernetes.io/name: pvc-backup
+spec:
+  schedule: {{ $.Values.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: pvc-backup
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: rclone
+              image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+              command: ["/bin/sh", "-ceu"]
+              args:
+                - |
+                  {{- include "pvc-backup.script" $ | nindent 18 }}
+                - pvc-backup
+                - backup
+                - {{ .pvcName | quote }}
+              env:
+                - name: SUBPATH
+                  value: {{ .subPath | quote }}
+                {{- include "pvc-backup.env" $ | nindent 16 }}
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+              resources:
+                {{- toYaml $.Values.resources | nindent 16 }}
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ .pvcName | quote }}
+                readOnly: true
+{{- end }}
+{{- end }}

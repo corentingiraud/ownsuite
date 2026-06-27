@@ -182,6 +182,12 @@ kubectl -n "$NS" delete job object-backup-e2e --ignore-not-found >/dev/null 2>&1
 kubectl -n "$NS" create job --from=cronjob/object-backup object-backup-e2e >/dev/null
 wait_job object-backup-e2e 180
 
+# --- ADR-032: prove a Grist document SURVIVES a PVC-backup -> restore ------------
+# Exercises the reusable pvc-backup chart end to end WITHOUT booting the heavy Grist
+# pod (kept out of this constrained runner). The round-trip lives in lib.sh so the
+# isolated, fast harness (run-pvc-backup-e2e.sh) runs the exact same code path.
+pvc_backup_roundtrip
+
 echo "==> DESTROYING the primary state (DB + primary object store + apps)"
 # Keep platform-configuration (secrets), garage-backup (the off-site backups!), the
 # barman plugin and the operators — they stand in for what survives the server.

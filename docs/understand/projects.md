@@ -21,8 +21,9 @@ a subset of the shared infrastructure:
 | `keycloak` | SSO — the `projects` OIDC client |
 | `issuers` | The `projects-tls` certificate (cert-manager) |
 
-It needs **neither Valkey nor S3**: on a single node, Projects keeps its file uploads on a local
-volume and its data in Postgres.
+It needs **no Valkey**: on a single node, Projects keeps its data in Postgres and its file
+uploads on S3 (its own bucket on the shared object-storage seam — so the off-site backup covers
+them, no separate PVC).
 
 ## How it is wired
 
@@ -40,8 +41,11 @@ with two Projects-specific details:
 - **Single `DATABASE_URL`, built with the derived password.** Projects wants one connection string,
   so `platform-configuration` assembles `postgresql://projects:<derived>@<cnpg-rw-host>:5432/projects`
   into the `projects-secrets` Secret — the password never lands in the rendered values.
-- **Uploads on a PVC.** Avatars, project backgrounds and attachments live on the `projects-data`
-  volume (three subPaths). `SECRET_KEY` and the OIDC client secret are seed-derived.
+- **Uploads on S3.** Avatars, project backgrounds and attachments are written to Projects' own
+  bucket via its built-in S3 file manager (`S3_ENDPOINT`/`S3_REGION`/`S3_BUCKET` +
+  `S3_FORCE_PATH_STYLE`, pointed at the in-cluster Garage or the external S3 like Docs/Drive). The
+  S3 key/secret are the shared seed-derived pair; `SECRET_KEY` and the OIDC client secret are
+  seed-derived too. Keeping uploads on S3 means the off-site object copy backs them up — no PVC.
 
 All of it is in `helmfile/values/projects.yaml.gotmpl`; nothing secret is committed.
 
@@ -55,7 +59,8 @@ make sync                                # brings up the infra + enabled apps + 
 ```
 
 When it finishes, Projects answers at `https://projects.{domain}`; log in with a Keycloak user
-(e.g. one created by `suite user add`). Tune the upload volume with `OWNSUITE_PROJECTS_STORAGE`.
+(e.g. one created by `suite user add`). Uploads land in the `projects-media-storage` bucket
+(`OWNSUITE_PROJECTS_S3_BUCKET`), created automatically in Garage mode and pre-created on external S3.
 
 ## Tests
 
@@ -68,8 +73,9 @@ the first production deployment.
 
 ## Limits
 
-- **The uploads PVC is not yet off-site-backed** — the same pre-existing gap as Grist's PVC and
-  Drive's bucket (`object-backup` copies a single bucket today).
 - **Browser login unverified in CI** — the nightly check boots Projects and confirms its UI is
   reachable, but the full browser single sign-on flow still wants a human pass on the first real
   deployment.
+
+Uploads are covered by the off-site object backup (Projects' bucket joins the other media buckets
+in the off-site copy), so there is no backup gap.

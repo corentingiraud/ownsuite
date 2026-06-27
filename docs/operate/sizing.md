@@ -53,7 +53,6 @@ limits total **~11 GB** — which is why 12 GB is the recommended all-in figure.
 | OS + K3s + container images | ~20 GB |
 | PostgreSQL volume (`OWNSUITE_PG_STORAGE`, default 10 Gi) | 10 GB |
 | Grist documents PVC (`OWNSUITE_GRIST_STORAGE`, default 5 Gi) | 5 GB (if enabled) |
-| Projects uploads PVC (`OWNSUITE_PROJECTS_STORAGE`, default 5 Gi) | 5 GB (if enabled) |
 | In-cluster Garage data (+ off-site copy if in-cluster) | +10 GB each (if used) |
 
 User files and mail blobs live in **object storage**, not on the disk, when you use external

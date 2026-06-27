@@ -8,18 +8,14 @@ image:
   repository: lasuite/projects
   tag: ""
 
-# Single instance: the uploads PVC is read-write-once, never double-mounted.
+# Single instance is plenty for a single trusted org. Uploads live on S3 (ADR-031),
+# so there is no read-write-once volume forcing a single replica.
 replicas: 1
 
 # Container port Projects listens on (BASE_URL embeds it; the Dockerfile EXPOSEs it).
 port: 1337
 
-persistence:
-  size: 5Gi
-  # Empty => cluster default StorageClass (local-path on K3s).
-  storageClass: ""
-
-# Projects' image runs as uid/gid 1000 (node); fsGroup makes the volume writable.
+# Projects' image runs as uid/gid 1000 (node).
 podSecurityContext:
   fsGroup: 1000
 

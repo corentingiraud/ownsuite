@@ -1,0 +1,44 @@
+---
+# Overridden by Helmfile (values/pvc-backup.yaml.gotmpl). Listed for `helm lint`.
+
+# Tag is NOT pinned here — versions.yaml is the single source of truth, injected by
+# the Helmfile values. Reuses the rclone image the object copy already pins (ADR-032).
+image:
+  repository: rclone/rclone
+  tag: ""
+
+# Cron schedule for the off-site copy (5-field). Empty disables the CronJobs.
+schedule: "0 3 * * *"
+
+# Restore mode: when true, render the one-shot restore Jobs (offsite -> PVC).
+restore:
+  enabled: false
+
+# Volumes to back up. Each entry mounts its PVC and copies one subtree off-site:
+#   - pvcName: the PersistentVolumeClaim to mount (must be ReadWriteOnce-mountable)
+#     subPath: directory inside the volume to copy (relative; "" = the whole volume)
+# Each gets its own CronJob/restore Job and its own encrypted off-site sub-path.
+volumes:
+  - pvcName: grist-persist
+    subPath: ""
+
+# Off-site backup store (destination). NEVER the primary (ADR-006 #4). Same off-site
+# config the object copy uses; the crypt overlay lands under offsite:<bucket>/<prefix>.
+offsite:
+  endpoint: "http://garage-backup.ownsuite.svc.cluster.local:3900"
+  region: garage
+  bucket: ownsuite-backups
+  # Prefix within the off-site bucket where the encrypted PVC copies live (one
+  # sub-folder per pvcName underneath, so they never collide with the media copy).
+  pvcPrefix: pvc
+  secret: backup-s3-credentials
+  accessKeyIdKey: ACCESS_KEY_ID
+  secretAccessKeyKey: ACCESS_SECRET_KEY
+  cryptPassphraseKey: RCLONE_CRYPT_PASSWORD
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "128Mi"
+  limits:
+    memory: "256Mi"

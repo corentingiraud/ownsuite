@@ -1,0 +1,10 @@
+apiVersion: v2
+name: pvc-backup
+description: >-
+  Reusable off-site PVC backup via rclone (ADR-032). For each {pvcName, subPath} in
+  the list a CronJob mounts the volume and copies the subtree to the off-site store,
+  client-side encrypted with an rclone `crypt` remote; a one-shot Job copies it back
+  during `make restore`. The off-site store + crypt passphrase are the same off-site
+  config the object copy uses (ADR-006, ADR-017), so any app's PVC reuses one pattern.
+type: application
+version: 0.1.0
