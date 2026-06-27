@@ -38,8 +38,10 @@ make install              # python -m suite install
 The installer walks these steps; each is **idempotent**, so if anything stops you, fix
 it and re-run `make install` to resume:
 
-1. **Config.** Prompts for the domain, admin email, server SSH target, object-storage mode
-   and backups, and writes the non-secret values to a git-ignored `.env`.
+1. **Config.** Prompts for the domain, admin email, server SSH target, object-storage mode,
+   backups, and **which apps to enable** (every app is off by default; Docs + Drive are
+   presented as the recommended first pair), and writes the non-secret values to a
+   git-ignored `.env`.
 2. **Secret seed.** Generates `OWNSUITE_SECRET_SEED` (`openssl rand -hex 24` equivalent)
    and prints it **once**.
 
@@ -69,8 +71,9 @@ it and re-run `make install` to resume:
 6. **Tunnel + sync.** Opens the SSH tunnel to the K8s API and runs `helmfile sync`.
 7. **Certificates (staging → production).** Issues against **Let's Encrypt staging**
    first, then promotes to **production**, waiting for each certificate to go Ready.
-8. **Verify.** Fetches `https://auth.{domain}` and `https://docs.{domain}` and checks the
-   served certificate is publicly trusted.
+8. **Verify.** Fetches the public host of **Keycloak always, plus each enabled app**
+   (e.g. `https://auth.{domain}`, and `https://docs.{domain}` only when Docs is enabled)
+   and checks the served certificate is publicly trusted.
 
 ## TLS modes
 
@@ -101,8 +104,8 @@ CI cannot exercise Let's Encrypt (no public DNS). Validate real issuance on a se
 1. `make install --tls-mode staging` (or run `make install` and let it do staging first)
    → confirm the staging certificates are issued (browser shows an untrusted
    `(STAGING) Let's Encrypt` leaf). No production rate limits are touched.
-2. Let the installer promote to production → confirm `auth.{domain}` and `docs.{domain}`
-   serve a **publicly trusted** certificate.
+2. Let the installer promote to production → confirm `auth.{domain}` (and `docs.{domain}`
+   when Docs is enabled) serves a **publicly trusted** certificate.
 
 ## Manual fallback
 

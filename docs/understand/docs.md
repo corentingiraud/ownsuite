@@ -1,8 +1,9 @@
 # Docs application
 
 **Docs** (the [suitenumerique](https://github.com/suitenumerique/docs) app, upstream name
-*impress*) is OwnSuite's first core app — collaborative documents wired to the whole shared
-foundation, machine-verified end to end in CI.
+*impress*) is OwnSuite's recommended first core app — collaborative documents wired to the
+whole shared foundation, machine-verified end to end in CI. It is **opt-in / off by default**;
+enable it with `OWNSUITE_APP_DOCS=true` (or via the installer prompt).
 
 > **What it proves:** a user logs into `https://docs.{domain}` with single sign-on and
 > creates a document that's still there afterwards — checked automatically in CI.

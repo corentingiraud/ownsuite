@@ -90,10 +90,12 @@ def test_summarise_app_pods_matches_release_prefixed_names():
 
 
 def test_enabled_apps_honours_env_then_defaults(monkeypatch):
-    monkeypatch.delenv("OWNSUITE_APP_GRIST", raising=False)
+    for app in ("DOCS", "DRIVE", "GRIST", "PROJECTS"):
+        monkeypatch.delenv(f"OWNSUITE_APP_{app}", raising=False)
     monkeypatch.setenv("OWNSUITE_APP_MESSAGES", "true")
-    # docs/drive default true, grist default false, messages on via env
-    assert set(status.enabled_apps({})) == {"docs", "drive", "messages"}
+    # All apps default OFF (ADR-035): messages is on via env, drive via .env (cfg),
+    # docs/grist/projects stay at their off default.
+    assert set(status.enabled_apps({"OWNSUITE_APP_DRIVE": "true"})) == {"drive", "messages"}
 
 
 def test_render_smoke():

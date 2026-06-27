@@ -44,7 +44,10 @@ export OWNSUITE_KC_DIRECT_GRANTS="${OWNSUITE_KC_DIRECT_GRANTS:-true}"
 # Phase 5: prove the DoD with a user created through the `suite user` CLI (not the
 # seeded realm user) — JIT into BOTH Docs and Drive. A PERMANENT password lets the
 # e2e mint a token via the direct-access grant (a temporary one would force a reset
-# before any token is issued). Drive is enabled by default (apps.drive.enabled).
+# before any token is issued).
+# Apps are OFF by default (ADR-035): explicitly enable the Docs+Drive core this full
+# DoD asserts. The installer then issues + verifies docs/drive certs alongside Keycloak.
+export OWNSUITE_APP_DOCS=true OWNSUITE_APP_DRIVE=true
 export OWNSUITE_E2E_USER="${OWNSUITE_E2E_USER:-phase5-tester@ownsuite.localhost}"
 export OWNSUITE_E2E_USER_PW="${OWNSUITE_E2E_USER_PW:-$(openssl rand -hex 16)}"
 # Phase 3: backups ON to a SECOND in-cluster Garage (`garage-backup`) standing in for
@@ -117,11 +120,11 @@ k3d cluster create "$CLUSTER" \
 KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
 export KUBECONFIG
 
-# The installer verifies HTTPS for auth.{domain} + docs.{domain} with Python's TLS
-# stack (urllib honours /etc/hosts); point them at the k3d loadbalancer so that step
-# runs hermetically. The pytest below resolves per-request with `curl --resolve`, so
-# it needs no hosts entry (that path also covers drive.{domain}).
-echo "127.0.0.1 auth.${OWNSUITE_DOMAIN} docs.${OWNSUITE_DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
+# The installer verifies HTTPS for auth.{domain} + each ENABLED app (ADR-035) with
+# Python's TLS stack (urllib honours /etc/hosts); point auth + the enabled apps
+# (docs, drive) at the k3d loadbalancer so that step runs hermetically. The pytest
+# below resolves per-request with `curl --resolve`, so it needs no hosts entry.
+echo "127.0.0.1 auth.${OWNSUITE_DOMAIN} docs.${OWNSUITE_DOMAIN} drive.${OWNSUITE_DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
 
 # --- Phase 1+2+5: bring the stack up VIA THE INSTALLER and assert the SSO DoD ----
 # `suite install` (ADR-018) is the provisioning path, so this single e2e proves the

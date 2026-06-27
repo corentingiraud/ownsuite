@@ -11,8 +11,9 @@ suite user passwd alice@assoc.org     # reset the password
 suite user disable alice@assoc.org    # deactivate (revokes access to all apps at once)
 ```
 
-> **The result:** `suite user add firstname@assoc.org` and that person has Docs **and**
-> Drive immediately — tested in CI.
+> **The result:** `suite user add firstname@assoc.org` and that person can reach every app
+> you've enabled the first time they log in — with the recommended core (Docs **and** Drive)
+> enabled, that's Docs and Drive immediately. Tested in CI.
 
 ## How it connects
 

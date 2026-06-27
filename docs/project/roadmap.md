@@ -43,9 +43,9 @@ Production essentials, implemented and **proven in CI**:
   [server bootstrap](../get-started/bootstrap.md).
 - **Shared foundation** — Traefik + cert-manager (HTTPS), CloudNativePG, Valkey, Keycloak SSO,
   pluggable Garage / external EU S3. See [shared infrastructure](../understand/platform.md).
-- **Docs** *(core, on by default)* — collaborative documents wired to SSO, Postgres and S3.
+- **Docs** *(recommended core, off until enabled)* — collaborative documents wired to SSO, Postgres and S3.
   See [Docs application](../understand/docs.md).
-- **Drive** *(core, on by default)* — file manager on the same foundation; one identity reaches
+- **Drive** *(recommended core, off until enabled)* — file manager on the same foundation; one identity reaches
   Docs **and** Drive. See [Drive application](../understand/drive.md).
 - **Shared SSO + JIT user provisioning** — one Keycloak identity, just-in-time into every app;
   `suite user add/passwd/disable`. See [Users](../operate/users.md).

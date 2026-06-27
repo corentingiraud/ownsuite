@@ -82,13 +82,16 @@ keycloak:
     email: {{ env "OWNSUITE_KC_TEST_EMAIL" | default "docs-tester@example.org" | quote }}
 
 # Per-app toggles. Each app is a Helmfile release gated on its flag (ADR-001).
-# Docs and Drive are both core to the Phase 5 DoD (a user gets both immediately);
-# each can still be turned off independently. Grist/Projects arrive later.
+# EVERY app is OFF by default (ADR-035): only Keycloak and the shared platform come
+# up unattended; the operator opts each app in (the installer prompts, or set
+# OWNSUITE_APP_*=true). Docs+Drive are still the recommended first pair.
 apps:
+  # Docs (suitenumerique/docs) — collaborative documents. Enable with OWNSUITE_APP_DOCS=true.
   docs:
-    enabled: {{ env "OWNSUITE_APP_DOCS" | default "true" }}
+    enabled: {{ env "OWNSUITE_APP_DOCS" | default "false" }}
+  # Drive (suitenumerique/drive) — file storage. Enable with OWNSUITE_APP_DRIVE=true.
   drive:
-    enabled: {{ env "OWNSUITE_APP_DRIVE" | default "true" }}
+    enabled: {{ env "OWNSUITE_APP_DRIVE" | default "false" }}
   # Grist (getgrist) — OFF by default (ADR-024): outside the Phase 5 DoD and not yet
   # booted in the constrained CI e2e. Fully wired; enable with OWNSUITE_APP_GRIST=true.
   grist:

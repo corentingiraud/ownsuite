@@ -14,11 +14,11 @@ import shutil
 from . import config, dns, ip, mail, propagation, tunnel, verify
 from .errors import SuiteError
 from .process import run
+from .status import enabled_apps
 
 HELMFILE = "helmfile/helmfile.yaml.gotmpl"
 NS = "ownsuite"
 REALM = "ownsuite"
-CERTS = ("keycloak-tls", "docs-tls")
 # OWNSUITE_TLS_ISSUER value per mode; "prod" issues staging first, then this.
 PROD_ISSUER = "letsencrypt-http01"
 STAGING_ISSUER = "letsencrypt-staging"
@@ -57,6 +57,10 @@ def install(args):
         _dns_and_propagation(args, domain, ssh, mail_dns)
 
     env = {**cfg, "OWNSUITE_SECRET_SEED": seed}
+    # Which apps the operator turned on (env > .env > defaults — all off by default,
+    # ADR-035). Keycloak is always issued/verified; each enabled app is checked at its
+    # own cert + public HTTPS host, so a platform-only install never waits on an app.
+    enabled = enabled_apps(cfg)
     tunnel_ctx = (
         contextlib.nullcontext()
         if args.no_tunnel or not ssh
@@ -64,14 +68,14 @@ def install(args):
     )
     with tunnel_ctx:
         if args.tls_mode == "selfsigned":
-            _issue(env, "selfsigned")
-            _verify(domain, trusted=False)
+            _issue(env, "selfsigned", enabled)
+            _verify(domain, enabled, trusted=False)
         else:
-            _issue(env, STAGING_ISSUER)
-            _verify(domain, trusted=False)  # staging leaf is intentionally untrusted
+            _issue(env, STAGING_ISSUER, enabled)
+            _verify(domain, enabled, trusted=False)  # staging leaf is intentionally untrusted
             if args.tls_mode == "prod":
-                _issue(env, PROD_ISSUER)
-                _verify(domain, trusted=True)
+                _issue(env, PROD_ISSUER, enabled)
+                _verify(domain, enabled, trusted=True)
 
     print("\n==> Done. OwnSuite is serving over HTTPS.")
 
@@ -137,7 +141,12 @@ def _dkim_banner(private_b64):
     )
 
 
-def _issue(env, issuer):
+def _certs(enabled):
+    """Certificates to wait on: Keycloak always, plus `<app>-tls` per enabled app."""
+    return ["keycloak-tls", *(f"{app}-tls" for app in enabled)]
+
+
+def _issue(env, issuer, enabled):
     print(f"\n==> Syncing the stack with TLS issuer '{issuer}'")
     full = {**env, "OWNSUITE_TLS_ISSUER": issuer}
     try:
@@ -145,7 +154,7 @@ def _issue(env, issuer):
     except SuiteError:
         run(["kubectl", "get", "pods", "-A"], check=False)  # diagnostics on failure
         raise
-    for cert in CERTS:
+    for cert in _certs(enabled):
         run(
             ["kubectl", "wait", "--for=condition=Ready", f"certificate/{cert}",
              "-n", NS, "--timeout=300s"],
@@ -153,13 +162,14 @@ def _issue(env, issuer):
         )
 
 
-def _verify(domain, *, trusted):
-    targets = {
-        f"https://auth.{domain}/realms/{REALM}/.well-known/openid-configuration": "Keycloak",
-        f"https://docs.{domain}/": "Docs",
-    }
+def _verify(domain, enabled, *, trusted):
+    # Keycloak underpins every app's SSO, so it is always checked; each enabled app is
+    # verified at its public HTTPS host (same shape as upgrade._health_check).
+    targets = {"Keycloak": f"https://auth.{domain}/realms/{REALM}/.well-known/openid-configuration"}
+    for app in enabled:
+        targets[app.capitalize()] = f"https://{app}.{domain}/"
     failed = []
-    for url, name in targets.items():
+    for name, url in targets.items():
         ok = verify.https_ok(url, verify=trusted)
         print(f"  {'OK ' if ok else 'FAIL'} {name}: {url}")
         if not ok:

@@ -18,9 +18,15 @@ PROMPTS = [
     ("OWNSUITE_SERVER_SSH", "Server SSH target (user@host)", ""),
     ("OWNSUITE_OBJECT_STORAGE_MODE", "Object storage [external|garage]", "external"),
     ("OWNSUITE_BACKUP_ENABLED", "Enable off-site backups [true|false]", "true"),
-    # Advanced, optional add-on (ADR-026). If enabled, the installer also generates a
-    # DKIM key and prints MX/SPF/DKIM/DMARC + the rDNS/port-25 manual steps; export the
-    # relay account (OWNSUITE_MTA_RELAY_USERNAME/PASSWORD) before sync.
+    # App toggles — every app is off by default (ADR-035); the operator opts each in
+    # here (or via OWNSUITE_APP_*). Docs+Drive are the recommended first pair.
+    ("OWNSUITE_APP_DOCS", "Enable Docs (collaborative documents) [true|false]", "false"),
+    ("OWNSUITE_APP_DRIVE", "Enable Drive (file storage) [true|false]", "false"),
+    ("OWNSUITE_APP_GRIST", "Enable Grist (spreadsheets/tables) [true|false]", "false"),
+    ("OWNSUITE_APP_PROJECTS", "Enable Projects (kanban) [true|false]", "false"),
+    # The mailbox (ADR-026) is more involved: if enabled, the installer also generates
+    # a DKIM key and prints MX/SPF/DKIM/DMARC + the rDNS/port-25 manual steps; export
+    # the relay account (OWNSUITE_MTA_RELAY_USERNAME/PASSWORD) before sync.
     ("OWNSUITE_APP_MESSAGES", "Enable the mailbox [true|false]", "false"),
 ]
 
