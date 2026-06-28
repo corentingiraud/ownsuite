@@ -191,8 +191,10 @@ the shared infra up; the backup work adds the install → upgrade → **restore*
 mandates. The Helmfile layer runs on **k3d** (purpose-built for in-cluster Helm e2e) with the
 same pytest-style assertions, kept in a dedicated, cost-aware workflow
 (`helmfile-e2e.yml`) — the layered philosophy holds; only the substrate fits the tool. The
-optional apps that don't fit alongside the core on one runner get their own per-app nightly
-matrix ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)) — one app per fresh cluster.
+apps — every one of them — get their boot definition of done in a per-app
+matrix ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)), one app per fresh cluster,
+which is the **single source** of each app's boot DoD. The full suite e2e therefore asserts **no
+application**: it is platform + `suite install` + backup/restore only.
 The same reasoning applies *within* the Helmfile layer: the full suite e2e (`make test-platform`,
 ~15 images, 20–45 min, prone to shared-runner flakiness) is too heavy and slow to gate every PR,
 so a change to one component gets an **isolated, fast component e2e** that boots only that
@@ -444,14 +446,20 @@ retention is expressed on the object copy / bucket lifecycle. Full GFS for Postg
 enhancement.
 
 **Tested in CI (the deliverable).** The k3d e2e ([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness))
-runs one hermetic **backup → destroy → restore** cycle: sync with backups on, assert the Docs
-DoD (creating the survivor document), seed a media object, take an on-demand base backup + an
-off-site object copy, **destroy** the primary state (DB + primary store + apps; keep
-`platform-configuration` + `garage-backup` + the operators), `make restore`, then assert the
-document and the Keycloak user **survived** and the media object is back. Kept on the existing
-cost-aware triggers (nightly + on `helmfile/**`), with the same fail-fast watchdog. This is the
-machine-checked backup/restore definition of done and the seed of the install→upgrade→restore replay
-ADR-006/ADR-010 promise; `make restore` prefigures the backup-gated `suite restore`
+runs one hermetic **backup → destroy → restore** cycle: sync with backups on, provision a
+`suite user` (the survivor user), seed a media object, exercise a PVC backup round-trip, take an
+on-demand base backup + an off-site object copy, **destroy** the primary state (DB + primary store +
+apps; keep `platform-configuration` + `garage-backup` + the operators), `make restore`, then assert
+all **three storage classes survived**: the Keycloak user (Postgres PITR), the media object (rclone
+object-copy) and the PVC document (`pvc_backup_roundtrip`). The survivor is **app-agnostic** — the
+user is looked up through the Keycloak admin REST API (the path `suite user` uses), not an app's OIDC
+client, so the restore DoD no longer needs any application booted. (It originally read back a Docs
+document; once apps went off-by-default — [ADR-035](#adr-035-every-app-off-by-default-opt-in-install) —
+the survivor was decoupled so the full suite asserts no app. Docs stays enabled in the harness
+*solely* to give the object-copy check a primary bucket — a fixture, not an app DoD.) Kept on the
+existing cost-aware triggers (nightly + on `helmfile/**`), with the same fail-fast watchdog. This is
+the machine-checked backup/restore definition of done and the seed of the install→upgrade→restore
+replay ADR-006/ADR-010 promise; `make restore` prefigures the backup-gated `suite restore`
 ([ADR-007](#adr-007-upgrade-model-semver-releases-backup-gated-cli)).
 
 **Consequences.** Credible, *proven* disaster recovery from off-site backups with one seed and
@@ -1013,6 +1021,19 @@ over HTTPS through Traefik, and an app-appropriate read-back:
 - **messages** — the local mail-delivery loopback: a message injected over SMTP to the inbound MTA
   is delivered (MTA → delivery agent → mailbox) and reads back via the API, with no external relay,
   so nothing leaves the cluster. This finally exercises the inbound mail path in CI.
+- **Docs** — an SSO user (seeded realm user, direct-access grant) creates a document through the API
+  and reads it back, proving OIDC client wiring + DB persistence.
+- **Drive** — a user created through the `suite user` CLI is just-in-time provisioned on its first
+  authenticated call, proven by `/users/me/` echoing its email.
+
+**Update (Docs/Drive folded in).** Docs and Drive originally kept their boot DoD in the full suite
+([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness)) because that suite already booted
+them as the restore survivor. Once apps went off-by-default ([ADR-035](#adr-035-every-app-off-by-default-opt-in-install))
+they are optional like the rest, so they now get the **same fast per-app PR gate** here — making this
+workflow the single source of **all five** apps' boot DoD. The full suite (`run-e2e.sh`) keeps Docs
+enabled only as the object-bucket vehicle for the object-copy restore check (a fixture, not an app
+DoD) and asserts no application; its restore survivor is decoupled accordingly (see
+[ADR-006](#adr-006-backups-and-tested-restore)/[ADR-017](#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
 
 The fail-fast watchdog, the cert wait, the failure diagnostics and the PVC backup/restore round-trip
 are **factored into a shared `helmfile/tests/lib.sh`** sourced by `run-e2e.sh`, `run-app-e2e.sh` and
@@ -1021,16 +1042,18 @@ APP=<grist|projects|messages>`.
 
 The workflow is **split like `helmfile-e2e.yml`** (the same cost-aware pattern as the
 [ADR-032 PVC backup gate](#adr-032-standardised-reusable-off-site-pvc-backup)): the full
-three-app matrix runs nightly and on demand, but a **PR that touches an optional app's chart or
+five-app matrix runs nightly and on demand, but a **PR that touches an app's chart or
 values boots only *that* app** as a fast, fail-fast gate, so a change to one app gets a real boot
-signal in minutes — not just lint/template — without waiting on (or paying for) the other two. A
+signal in minutes — not just lint/template — without waiting on (or paying for) the other four. A
 change to the shared harness (`lib.sh`, `run-app-e2e.sh`, `test_apps.py`) or the workflow itself
-fans out to all three, since it can affect any of them.
+fans out to all five, since it can affect any of them. Docs and Drive have no `charts/<app>/`
+directory (they are upstream charts + a local `*-ingress` chart + a values file), so the `detect`
+mapping watches `charts/docs-ingress/**` + `values/docs.yaml.gotmpl` (and the drive equivalents).
 
 GitHub `paths:` filters gate a *workflow*, not a matrix entry — they cannot say "this app changed,
 run only its job". Two ways to bridge that, and we rejected both: **(a) one workflow file per app**,
-each with its own `paths:` filter, duplicates the tool-install boilerplate three ways and drifts;
-**(b) a single matrix that boots all three on any app change** wastes two clusters' runner time
+each with its own `paths:` filter, duplicates the tool-install boilerplate five ways and drifts;
+**(b) a single matrix that boots all five on any app change** wastes four clusters' runner time
 whenever one app changes. Instead a tiny `detect` job diffs the PR against its base and emits a JSON
 matrix of only the changed app(s) — one file, no duplication, no wasted clusters. The cost is one
 extra ~30 s job and a small amount of shell; cheap next to a 15–20 min app boot.
@@ -1038,7 +1061,7 @@ extra ~30 s job and a small amount of shell; cheap next to a 15–20 min app boo
 **Consequences.** Every shipped app is now actually booted in CI, the messages mail loopback is
 automated rather than manual, and the optional apps have the boot evidence they need to graduate
 later. A PR that changes one app now gets that app's boot signal pre-merge at the cost of a single
-cluster; the full three-app sweep stays nightly. Real external mail deliverability
+cluster; the full five-app sweep stays nightly. Real external mail deliverability
 ([ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay)) remains the one check a
 hermetic cluster cannot stand in for: it needs a real domain, relay and inbox.
 

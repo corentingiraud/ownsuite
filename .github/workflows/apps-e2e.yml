@@ -1,21 +1,23 @@
 name: apps-e2e
 
-# Per-app end-to-end boot check for the OPTIONAL apps (Grist, Projects, messages).
-# Each app runs on its OWN fresh k3d cluster in a matrix — one app per job — so they
-# never compete for RAM (the reason they are kept out of the combined
-# helmfile-e2e.yml). Per job: bring up the platform + that one app (Docs/Drive off),
-# assert it converges, its UI is reachable over HTTPS with SSO wired, and — for
-# messages — a message delivered to a local mailbox reads back via the API.
+# Per-app end-to-end boot check for the optional apps (Grist, Projects, messages,
+# Docs, Drive). Each app runs on its OWN fresh k3d cluster in a matrix — one app per
+# job — so they never compete for RAM (the reason they are kept out of the combined
+# helmfile-e2e.yml). Per job: bring up the platform + that one app (every other app
+# off), assert it converges, its UI/API is reachable over HTTPS with SSO wired, and an
+# app-appropriate read-back (messages: local mail loopback; Docs: SSO create/read-back;
+# Drive: JIT /users/me). This is the single source of each app's boot definition of
+# done — the full suite (run-e2e.sh) is platform + installer + backup/restore only.
 #
 # Split like helmfile-e2e.yml (ADR-029):
-#   * On a PR that touches an optional app's chart/values, the `detect` job builds a
-#     matrix of ONLY the changed app(s) — a fast, fail-fast gate that gives a
-#     meaningful per-app signal in minutes instead of waiting on the nightly.
+#   * On a PR that touches an app's chart/values, the `detect` job builds a matrix of
+#     ONLY the changed app(s) — a fast, fail-fast gate that gives a meaningful per-app
+#     signal in minutes instead of waiting on the nightly.
 #   * A shared-harness or workflow change (lib.sh / run-app-e2e.sh / test_apps.py /
-#     this file) selects all three, since it can affect any of them.
-#   * Nightly + on demand it boots all three regardless — the standing full sweep.
+#     this file) selects all five, since it can affect any of them.
+#   * Nightly + on demand it boots all five regardless — the standing full sweep.
 # No `push: [main]` trigger: the PR gate already booted the changed app before merge,
-# and the nightly re-proves all three — a per-merge re-run would only add cost.
+# and the nightly re-proves all five — a per-merge re-run would only add cost.
 on:
   schedule:
     - cron: "0 5 * * *"
@@ -26,9 +28,15 @@ on:
       - "helmfile/charts/grist/**"
       - "helmfile/charts/projects/**"
       - "helmfile/charts/messages/**"
+      # Docs/Drive are upstream charts + a local *-ingress chart + a values file —
+      # there is no charts/docs|drive directory, so the ingress chart is the local code.
+      - "helmfile/charts/docs-ingress/**"
+      - "helmfile/charts/drive-ingress/**"
       - "helmfile/values/grist.yaml.gotmpl"
       - "helmfile/values/projects.yaml.gotmpl"
       - "helmfile/values/messages.yaml.gotmpl"
+      - "helmfile/values/docs.yaml.gotmpl"
+      - "helmfile/values/drive.yaml.gotmpl"
       - "helmfile/tests/run-app-e2e.sh"
       - "helmfile/tests/lib.sh"
       - "helmfile/tests/test_apps.py"
@@ -50,7 +58,7 @@ env:
 jobs:
   # Decide which apps this run must boot. For a PR, diff against the base and keep
   # only the apps whose chart/values changed; a shared-harness/workflow change selects
-  # all three. Any other event (schedule / dispatch) boots all three. GitHub `paths:`
+  # all five. Any other event (schedule / dispatch) boots all five. GitHub `paths:`
   # filters gate the WORKFLOW but cannot map "changed app -> only that matrix entry",
   # so this job does the mapping and emits a JSON matrix.
   detect:
@@ -68,18 +76,25 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          all='["grist","projects","messages"]'
+          all='["grist","projects","messages","docs","drive"]'
           if [ "$EVENT" != "pull_request" ]; then
             echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
           fi
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          # A shared-harness or workflow change can affect any app -> run all three.
+          # A shared-harness or workflow change can affect any app -> run all five.
           if grep -qE '^(helmfile/tests/(run-app-e2e\.sh|lib\.sh|test_apps\.py)|\.github/workflows/apps-e2e\.yml)$' <<<"$changed"; then
             echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
           fi
           picked=()
-          for app in grist projects messages; do
-            if grep -qE "^helmfile/(charts/$app/|values/$app\.yaml\.gotmpl$)" <<<"$changed"; then
+          for app in grist projects messages docs drive; do
+            # Grist/Projects/messages own a charts/<app>/ dir; Docs/Drive have no such
+            # dir — their only local chart is charts/<app>-ingress/ (upstream chart +
+            # values file otherwise). Match the right one per app.
+            case "$app" in
+              docs|drive) chart="charts/$app-ingress/" ;;
+              *) chart="charts/$app/" ;;
+            esac
+            if grep -qE "^helmfile/($chart|values/$app\.yaml\.gotmpl$)" <<<"$changed"; then
               picked+=("$app")
             fi
           done

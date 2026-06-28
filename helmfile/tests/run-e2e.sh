@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
-# Full Phase 1-5 definition-of-done on a throwaway k3d cluster:
+# Full platform + installer + backup/restore definition-of-done on a throwaway k3d
+# cluster:
 #   create single-node K3s (Traefik kept) -> `suite install` brings the stack up
 #   (self-signed issuer, backups ON to a second in-cluster Garage as the off-site
-#   store) -> assert the shared infra + Docs/Drive SSO DoD (incl. a user created via
-#   the `suite user` CLI, JIT into both apps) -> seed a media object -> back up
-#   (PostgreSQL base backup + off-site object copy) -> DESTROY the primary state ->
-#   `make restore` -> assert the Docs document, the Keycloak user, and the media
-#   object all SURVIVED the cycle (ADR-006) -> destroy.
+#   store) -> assert the shared infra DoD + provision a user via the `suite user` CLI
+#   -> seed a media object -> back up (PostgreSQL base backup + off-site object copy)
+#   -> DESTROY the primary state -> `make restore` -> assert all THREE storage classes
+#   SURVIVED (ADR-006): the Keycloak user (Postgres PITR), the media object (rclone
+#   object-copy, ADR-030) and a PVC document (pvc_backup_roundtrip, ADR-032) -> destroy.
+#
+# This asserts NO application: each app's boot DoD lives in apps-e2e.yml / test_apps.py.
+# Docs is the one app kept enabled here, SOLELY to provide a primary object bucket for
+# the object-copy survival check (Garage only creates buckets for enabled apps) — a
+# restore fixture, not an app DoD.
 #
 # Provisioning goes through the installer (ADR-018), so this ONE cluster proves the
 # `suite install` orchestration AND the platform/restore DoD — there is no second
@@ -35,20 +41,21 @@ fi
 export OWNSUITE_DOMAIN="${OWNSUITE_DOMAIN:-ownsuite.localhost}"
 export OWNSUITE_TLS_ISSUER="selfsigned"
 export OWNSUITE_SECRET_SEED="${OWNSUITE_SECRET_SEED:-$(openssl rand -hex 24)}"
-# Phase 2: deploy the Docs vertical slice on a hermetic in-cluster Garage S3, and
-# seed a realm user (+ enable the direct-access grant) so the DoD test can mint a
-# token and create a document without a browser.
+# Hermetic in-cluster Garage S3 for the object store. The direct-access grant lets the
+# restore survival check mint a Keycloak admin token without a browser.
 export OWNSUITE_OBJECT_STORAGE_MODE="${OWNSUITE_OBJECT_STORAGE_MODE:-garage}"
-export OWNSUITE_KC_SEED_TEST_USER="${OWNSUITE_KC_SEED_TEST_USER:-true}"
 export OWNSUITE_KC_DIRECT_GRANTS="${OWNSUITE_KC_DIRECT_GRANTS:-true}"
-# Phase 5: prove the DoD with a user created through the `suite user` CLI (not the
-# seeded realm user) — JIT into BOTH Docs and Drive. A PERMANENT password lets the
-# e2e mint a token via the direct-access grant (a temporary one would force a reset
-# before any token is issued).
-# Apps are OFF by default (ADR-035): explicitly enable the Docs+Drive core this full
-# DoD asserts. The installer then issues + verifies docs/drive certs alongside Keycloak.
-export OWNSUITE_APP_DOCS=true OWNSUITE_APP_DRIVE=true
-export OWNSUITE_E2E_USER="${OWNSUITE_E2E_USER:-phase5-tester@ownsuite.localhost}"
+# Apps are OFF by default (ADR-035). This suite asserts no app — but it keeps DOCS
+# enabled SOLELY so Garage creates the primary `docs-media-storage` bucket the
+# object-copy backup/restore DoD seeds and reads back (a restore fixture, not an app
+# DoD; that lives in test_apps.py). The installer then issues + verifies the docs cert
+# alongside Keycloak. Drive et al. stay off so this stays lean.
+export OWNSUITE_APP_DOCS=true
+# Provision a user through the `suite user` CLI (admin REST -> realm, runtime). It is
+# in no declarative realm import, so its survival after restore is the genuine proof
+# the keycloak database recovered via PITR. A PERMANENT password is set for parity with
+# real CLI usage (the survival check looks the user up via the admin API, not a login).
+export OWNSUITE_E2E_USER="${OWNSUITE_E2E_USER:-restore-survivor@ownsuite.localhost}"
 export OWNSUITE_E2E_USER_PW="${OWNSUITE_E2E_USER_PW:-$(openssl rand -hex 16)}"
 # Phase 3: backups ON to a SECOND in-cluster Garage (`garage-backup`) standing in for
 # the off-site store. WAL archiving is continuous; the e2e takes an on-demand base
@@ -121,30 +128,31 @@ KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
 export KUBECONFIG
 
 # The installer verifies HTTPS for auth.{domain} + each ENABLED app (ADR-035) with
-# Python's TLS stack (urllib honours /etc/hosts); point auth + the enabled apps
-# (docs, drive) at the k3d loadbalancer so that step runs hermetically. The pytest
-# below resolves per-request with `curl --resolve`, so it needs no hosts entry.
-echo "127.0.0.1 auth.${OWNSUITE_DOMAIN} docs.${OWNSUITE_DOMAIN} drive.${OWNSUITE_DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
+# Python's TLS stack (urllib honours /etc/hosts); point auth + the one enabled app
+# (docs, kept only as the object-bucket vehicle) at the k3d loadbalancer so that step
+# runs hermetically. The pytest below resolves per-request with `curl --resolve`.
+echo "127.0.0.1 auth.${OWNSUITE_DOMAIN} docs.${OWNSUITE_DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
 
-# --- Phase 1+2+5: bring the stack up VIA THE INSTALLER and assert the SSO DoD ----
+# --- Bring the stack up VIA THE INSTALLER and assert the platform DoD ----------
 # `suite install` (ADR-018) is the provisioning path, so this single e2e proves the
 # installer orchestration AND the platform/restore DoD on one cluster. The installer
 # reads OWNSUITE_SECRET_SEED from the environment and inherits the exported OWNSUITE_*
-# (backups on, garage, seeded user, direct grants) through `helmfile sync`; in
-# self-signed mode it syncs once, waits for the keycloak/docs certs, verifies HTTPS.
+# (backups on, garage, direct grants) through `helmfile sync`; in self-signed mode it
+# syncs once, waits for the keycloak/docs certs, verifies HTTPS.
 provision_with_watchdog "domain=$OWNSUITE_DOMAIN, issuer=$OWNSUITE_TLS_ISSUER, backups=on" \
   python3 -m suite install \
     --non-interactive --no-tunnel --skip-bootstrap --skip-dns --skip-propagation \
     --tls-mode selfsigned --domain "$OWNSUITE_DOMAIN" --env-file "$(mktemp)"
 wait_for_certs keycloak-tls docs-tls
 
-echo "==> Phase 5: provisioning a user through the suite CLI (JIT to all apps)"
-# Exercises the real CLI path (ADR-023): admin REST to the in-cluster Keycloak over
-# a kubectl port-forward (no SSH tunnel needed against k3d — ambient KUBECONFIG).
+echo "==> Provisioning the restore-survivor user through the suite CLI"
+# Exercises the real CLI path (ADR-023): admin REST to the in-cluster Keycloak over a
+# kubectl port-forward (no SSH tunnel needed against k3d — ambient KUBECONFIG). This
+# runtime-created user is the Postgres-PITR survivor checked after the restore.
 python3 -m suite user add "$OWNSUITE_E2E_USER" \
   --password "$OWNSUITE_E2E_USER_PW" --permanent --no-tunnel
 
-echo "==> Asserting the Phase 1+2+5 definition of done (Docs + Drive; creates the survivor document)"
+echo "==> Asserting the platform + object-store definition of done"
 OWNSUITE_E2E_STAGE=pre python3 -m pytest helmfile/tests/test_platform.py -v
 
 # --- Phase 3: backup -> destroy -> restore --------------------------------------
@@ -191,11 +199,11 @@ wait_job object-backup-e2e 180
 # isolated, fast harness (run-pvc-backup-e2e.sh) runs the exact same code path.
 pvc_backup_roundtrip
 
-echo "==> DESTROYING the primary state (DB + primary object store + apps)"
+echo "==> DESTROYING the primary state (DB + primary object store + docs)"
 # Keep platform-configuration (secrets), garage-backup (the off-site backups!), the
 # barman plugin and the operators — they stand in for what survives the server.
 helmfile -f "$HELMFILE" \
-  -l name=docs -l name=docs-ingress -l name=drive -l name=drive-ingress \
+  -l name=docs -l name=docs-ingress \
   -l name=keycloak -l name=valkey -l name=postgres -l name=garage \
   destroy
 echo "    deleting leftover PVCs (StatefulSet/CNPG volumes are not removed by uninstall)"
@@ -207,13 +215,10 @@ echo "    primary state destroyed; off-site garage-backup retained:"
 kubectl -n "$NS" get statefulset,cluster 2>/dev/null || true
 
 echo "==> RESTORING from off-site backups (make restore)"
-# Phase 3 proves the Docs document + Keycloak user survive (the restore DoD). Drive's
-# restore-survival is NOT part of any DoD and would only make recovery heavier on the
-# CI runner, so keep it OUT of the restore: it was destroyed above and stays disabled
-# here. Drive's own DoD (JIT into Docs+Drive) is fully proven in the pre stage.
-export OWNSUITE_APP_DRIVE=false
-# Restore is a direct `helmfile sync` (recovery bootstrap), NOT the installer — only
-# the initial provisioning goes through `suite install` (above).
+# Docs stays enabled through the restore so Garage recreates the primary bucket and the
+# object-copy can land the media fixture back in it. Restore is a direct `helmfile sync`
+# (recovery bootstrap), NOT the installer — only the initial provisioning goes through
+# `suite install` (above).
 OWNSUITE_RESTORE=true provision_with_watchdog "RESTORE: CNPG recovery + object copy" \
   helmfile -f "$HELMFILE" sync
 wait_for_certs keycloak-tls docs-tls
@@ -222,5 +227,5 @@ echo "==> Verifying the media object came back into the primary bucket"
 rclone_primary_job e2e-verify-media \
   "rclone lsf \"primary:\$BUCKET/e2e/\" | tee /dev/stderr | grep -qx \"media-fixture.txt\""
 
-echo "==> Asserting the Phase 3 definition of done (document + user SURVIVED)"
+echo "==> Asserting the Phase 3 definition of done (Keycloak user SURVIVED via PITR)"
 OWNSUITE_E2E_STAGE=post-restore python3 -m pytest helmfile/tests/test_platform.py -v

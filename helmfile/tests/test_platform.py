@@ -1,10 +1,16 @@
-"""Phase 1 definition-of-done assertions for the OwnSuite shared infrastructure.
+"""Platform + installer + backup/restore definition-of-done for OwnSuite.
 
-Run against a live cluster after `helmfile sync` (see run-e2e.sh). Each test
-shells out to kubectl/curl using the ambient KUBECONFIG, so there is no extra
-Python dependency beyond pytest.
+Run against a live cluster after `suite install` / restore (see run-e2e.sh). Asserts
+the shared infrastructure (Phase 1), the object store, and that the backup -> destroy
+-> restore cycle preserves all three storage classes (ADR-006). The per-app boot DoD
+lives in test_apps.py — this module no longer asserts any application; it keeps a few
+shared token/HTTP helpers that test_apps imports.
+
+Each test shells out to kubectl/curl using the ambient KUBECONFIG, so there is no
+extra Python dependency beyond pytest.
 """
 
+import base64
 import hashlib
 import json
 import os
@@ -17,11 +23,10 @@ NAMESPACE = "ownsuite"
 REALM = "ownsuite"
 DOMAIN = os.environ.get("OWNSUITE_DOMAIN", "ownsuite.localhost")
 AUTH_HOST = f"auth.{DOMAIN}"
-DOCS_HOST = f"docs.{DOMAIN}"
-DRIVE_HOST = f"drive.{DOMAIN}"
 
-# Phase 5: a user created through the `suite user` CLI (run by run-e2e.sh before the
-# pre-stage), used to prove JIT access into BOTH Docs and Drive (ADR-022, ADR-023).
+# A user created through the `suite user` CLI (run by run-e2e.sh before the pre-stage).
+# Created at runtime via the Keycloak admin REST API — it is in no declarative realm
+# import — so its survival after restore is the genuine proof of Postgres PITR.
 CLI_USER = os.environ.get("OWNSUITE_E2E_USER", "")
 CLI_USER_PW = os.environ.get("OWNSUITE_E2E_USER_PW", "")
 
@@ -30,20 +35,14 @@ GARAGE_MODE = os.environ.get("OWNSUITE_OBJECT_STORAGE_MODE", "external") == "gar
 SEED_TEST_USER = os.environ.get("OWNSUITE_KC_SEED_TEST_USER", "false").lower() == "true"
 DOCS_BUCKET = os.environ.get("OWNSUITE_S3_BUCKET", "docs-media-storage")
 
-# Test stage (set by run-e2e.sh): "pre" runs the Phase 1+2 DoD (and creates the
-# survivor document); "post-restore" re-asserts infra health and proves the
-# document + Keycloak user survived the backup -> destroy -> restore cycle (ADR-006).
+# Test stage (set by run-e2e.sh): "pre" runs the platform + object-store DoD;
+# "post-restore" re-asserts infra health and proves the Keycloak user survived the
+# backup -> destroy -> restore cycle (ADR-006). The media object (object-copy) and the
+# PVC document survival are asserted by run-e2e.sh's own shell steps.
 E2E_STAGE = os.environ.get("OWNSUITE_E2E_STAGE", "pre")
-PRE_ONLY = pytest.mark.skipif(
-    E2E_STAGE != "pre", reason="runs only pre-destroy (creates the survivor document)"
-)
 POST_RESTORE_ONLY = pytest.mark.skipif(
     E2E_STAGE != "post-restore", reason="runs only after restore (survival check)"
 )
-
-# Deterministic title of the document created in the Phase 2 DoD; the Phase 3
-# survival check looks for exactly this document after the restore.
-DOC_TITLE = "OwnSuite e2e — persistent document"
 
 
 def docs_user_token():
@@ -82,6 +81,33 @@ def password_token(client_id, username, password):
         "--data-urlencode", f"username={username}",
         "--data-urlencode", f"password={password}",
         "--data-urlencode", "scope=openid email",
+    )
+    return json.loads(out)["access_token"]
+
+
+def _secret_value(secret, key):
+    """Read one key from a namespace Secret (base64-decoded)."""
+    out = kubectl(
+        "-n", NAMESPACE, "get", "secret", secret, "-o", f"jsonpath={{.data.{key}}}"
+    ).stdout.strip()
+    return base64.b64decode(out).decode()
+
+
+def keycloak_admin_token():
+    """Mint a master-realm admin token (admin-cli) — the same path `suite user` uses.
+
+    Credentials come from the live keycloak-admin Secret, so this works regardless of
+    which apps are enabled: no app OIDC client is involved.
+    """
+    user = _secret_value("keycloak-admin", "username")
+    password = _secret_value("keycloak-admin", "password")
+    token_url = f"https://{AUTH_HOST}/realms/master/protocol/openid-connect/token"
+    out = curl(
+        AUTH_HOST, token_url,
+        "--data-urlencode", "grant_type=password",
+        "--data-urlencode", "client_id=admin-cli",
+        "--data-urlencode", f"username={user}",
+        "--data-urlencode", f"password={password}",
     )
     return json.loads(out)["access_token"]
 
@@ -195,12 +221,16 @@ def test_keycloak_reachable_over_https():
     retry(fetch, attempts=40, delay=3)
 
 
-# --- Phase 2: Docs vertical slice (ADR-015, ADR-016) ------------------------
+# --- Object store (ADR-015) -------------------------------------------------
+# run-e2e.sh keeps Docs enabled SOLELY to provide a primary object bucket for the
+# object-copy backup/restore DoD (ADR-030) — not to assert the Docs app, whose boot
+# DoD lives in test_apps.py. This proves the store + that bucket are up: the fixture
+# the backup -> restore cycle seeds, copies off-site, and reads back lands here.
 
 
 @pytest.mark.skipif(not GARAGE_MODE, reason="object storage is not in garage mode")
 def test_garage_running_and_bucket_ready():
-    """Garage is up and the bootstrap Job created the Docs media bucket (ADR-015)."""
+    """Garage is up and the bootstrap Job created the primary media bucket (ADR-015)."""
     pods = json.loads(kubectl("-n", NAMESPACE, "get", "pods",
                               "-l", "app.kubernetes.io/name=garage", "-o", "json").stdout)["items"]
     assert any(p["status"]["phase"] == "Running" for p in pods), "no Running garage pod"
@@ -213,176 +243,36 @@ def test_garage_running_and_bucket_ready():
     retry(bucket_exists)
 
 
-def test_docs_database_applied():
-    applied = kubectl(
-        "-n", NAMESPACE, "get", "database", "docs", "-o", "jsonpath={.status.applied}"
-    ).stdout.strip()
-    assert applied == "true", f"Database docs not applied ({applied!r})"
-
-
-def test_docs_pods_ready():
-    """All Docs components reach Ready (backend, celery, frontend, y-provider)."""
-    for component in ("backend", "celery-worker", "frontend", "yProvider"):
-        out = kubectl(
-            "-n", NAMESPACE, "get", "pods",
-            "-l", f"app.kubernetes.io/name=docs,app.kubernetes.io/component={component}",
-            "-o", 'jsonpath={.items[*].status.conditions[?(@.type=="Ready")].status}',
-        ).stdout
-        assert "True" in out, f"Docs {component} pod not Ready ({out!r})"
-
-
-def test_docs_reachable_over_https():
-    """Docs answers over HTTPS through Traefik and exposes its OIDC config."""
-    def fetch():
-        out = curl(DOCS_HOST, f"https://{DOCS_HOST}/api/v1.0/config/")
-        data = json.loads(out)
-        # The frontend reads OIDC + collaboration settings from this endpoint.
-        assert isinstance(data, dict) and data, "empty Docs config payload"
-        return data
-
-    retry(fetch, attempts=40, delay=3)
-
-
-@PRE_ONLY
-@pytest.mark.skipif(
-    not (SECRET_SEED and SEED_TEST_USER),
-    reason="needs OWNSUITE_SECRET_SEED and a seeded Keycloak test user",
-)
-def test_dod_sso_user_creates_persistent_document():
-    """The Phase 2 definition of done: a Keycloak user logs in via SSO (OIDC) and
-    creates a persistent document.
-
-    Headless equivalent of the browser flow: obtain an access token from Keycloak
-    with the seeded user (direct-access grant), then create a document through the
-    Docs API as that user and read it back — proving SSO client wiring + DB
-    persistence. Docs validates the bearer token against Keycloak's userinfo
-    endpoint and just-in-time provisions the user (ADR-005, ADR-016). This document
-    is also the survivor checked by the Phase 3 backup/restore test.
-    """
-    token = retry(docs_user_token)
-    auth_header = f"Authorization: Bearer {token}"
-    docs_api = f"https://{DOCS_HOST}/api/v1.0/documents/"
-
-    def create():
-        out = curl(
-            DOCS_HOST, docs_api,
-            "-X", "POST", "-H", auth_header,
-            "-H", "Content-Type: application/json",
-            "--data", json.dumps({"title": DOC_TITLE}),
-        )
-        doc = json.loads(out)
-        assert doc.get("id"), f"no document id returned: {doc}"
-        return doc["id"]
-
-    doc_id = retry(create)
-
-    def read_back():
-        out = curl(DOCS_HOST, f"{docs_api}{doc_id}/", "-H", auth_header)
-        doc = json.loads(out)
-        assert doc["title"] == DOC_TITLE, doc
-        return doc
-
-    retry(read_back)
-
-
 # --- Phase 3: backups & tested restore (ADR-006, ADR-017) -------------------
 
 
 @POST_RESTORE_ONLY
 @pytest.mark.skipif(
-    not (SECRET_SEED and SEED_TEST_USER),
-    reason="needs OWNSUITE_SECRET_SEED and a seeded Keycloak test user",
+    not CLI_USER,
+    reason="needs a CLI-created Keycloak user (OWNSUITE_E2E_USER)",
 )
-def test_restore_preserves_document_and_user():
-    """The Phase 3 definition of done: after backup -> destroy -> restore, the
-    Keycloak user still authenticates (realm + users recovered via CNPG PITR of the
-    `keycloak` database) and the document created before the destroy is still there
-    (the `docs` database recovered too). No document is created here — presence of
-    the pre-destroy document is the proof of a real restore.
+def test_restore_preserves_keycloak_user():
+    """The backup/restore definition of done (Postgres storage class): after
+    backup -> destroy -> restore, the user created at runtime via `suite user add`
+    is still in the realm — proving the `keycloak` database recovered via CNPG PITR.
 
-    The Keycloak user keeps its stable subject (the restored user row's id), so the
-    Docs JIT-provisioned account maps back to the same owner and lists its document.
+    App-agnostic by design: the user is looked up through the Keycloak admin REST API
+    (the same path `suite user` uses), so this does not depend on any app's OIDC
+    client. It is also a genuine PITR proof: the CLI user is created at runtime and is
+    in no declarative realm import, so its presence cannot come from a re-sync.
+
+    The other two storage classes are proven by run-e2e.sh's own shell steps: the
+    media object (rclone object-copy, ADR-030) is read back from the primary bucket,
+    and the PVC document (pvc_backup_roundtrip, ADR-032) survives a wipe -> restore.
     """
-    token = retry(docs_user_token)  # user survived: realm + credentials recovered
-    auth_header = f"Authorization: Bearer {token}"
-    docs_api = f"https://{DOCS_HOST}/api/v1.0/documents/"
-
-    def find_survivor():
-        out = curl(DOCS_HOST, f"{docs_api}?page_size=100", "-H", auth_header)
-        payload = json.loads(out)
-        items = payload.get("results", payload) if isinstance(payload, dict) else payload
-        titles = [d.get("title") for d in items]
-        assert DOC_TITLE in titles, f"restored document not found; got titles={titles}"
-
-    retry(find_survivor)
-
-
-# --- Phase 5: Drive + CLI-driven user provisioning (ADR-022, ADR-023) -------
-# Drive is deployed only in the pre stage; the Phase 3 restore deliberately keeps it
-# out (its restore-survival is not part of any DoD), so these are PRE_ONLY.
-
-
-@PRE_ONLY
-def test_drive_database_applied():
-    applied = kubectl(
-        "-n", NAMESPACE, "get", "database", "drive", "-o", "jsonpath={.status.applied}"
-    ).stdout.strip()
-    assert applied == "true", f"Database drive not applied ({applied!r})"
-
-
-@PRE_ONLY
-def test_drive_pods_ready():
-    """Drive's backend and frontend reach Ready (it has no y-provider, unlike Docs)."""
-    for component in ("backend", "frontend"):
-        out = kubectl(
-            "-n", NAMESPACE, "get", "pods",
-            "-l", f"app.kubernetes.io/name=drive,app.kubernetes.io/component={component}",
-            "-o", 'jsonpath={.items[*].status.conditions[?(@.type=="Ready")].status}',
-        ).stdout
-        assert "True" in out, f"Drive {component} pod not Ready ({out!r})"
-
-
-@PRE_ONLY
-def test_drive_reachable_over_https():
-    """Drive answers over HTTPS through Traefik (its API config endpoint)."""
-    def fetch():
-        out = curl(DRIVE_HOST, f"https://{DRIVE_HOST}/api/v1.0/config/")
-        data = json.loads(out)
-        assert isinstance(data, dict) and data, "empty Drive config payload"
-        return data
-
-    retry(fetch, attempts=40, delay=3)
-
-
-def _assert_app_access(host, client):
-    """A token for `client` (minted for the CLI-created user) is accepted by the app
-    and JIT-provisions that user — proven by /users/me/ echoing their email."""
-    def whoami():
-        token = password_token(client, CLI_USER, CLI_USER_PW)
+    def found():
+        token = keycloak_admin_token()  # realm + admin creds recovered
         out = curl(
-            host, f"https://{host}/api/v1.0/users/me/",
+            AUTH_HOST, f"https://{AUTH_HOST}/admin/realms/{REALM}/users",
             "-H", f"Authorization: Bearer {token}",
+            "-G", "--data-urlencode", f"email={CLI_USER}", "--data-urlencode", "exact=true",
         )
-        data = json.loads(out)
-        assert (data.get("email") or "").lower() == CLI_USER.lower(), data
+        emails = [(u.get("email") or "").lower() for u in json.loads(out)]
+        assert CLI_USER.lower() in emails, f"restored user not found; got {emails}"
 
-    retry(whoami)
-
-
-@PRE_ONLY
-@pytest.mark.skipif(
-    not (SECRET_SEED and CLI_USER and CLI_USER_PW),
-    reason="needs OWNSUITE_SECRET_SEED + a CLI-created user (OWNSUITE_E2E_USER/_PW)",
-)
-def test_dod_cli_user_has_docs_and_drive():
-    """The Phase 5 definition of done: a user created through the `suite user` CLI
-    (Keycloak only — no per-app step) is just-in-time provisioned into BOTH Docs and
-    Drive on its first authenticated call (ADR-005, ADR-022, ADR-023).
-
-    Headless equivalent of "log in and you're in both apps": mint an access token
-    with each app's OIDC client for the CLI-created user (direct-access grant), then
-    call /users/me/ on each — a 200 echoing the user's email proves the token is
-    accepted and the account was JIT-created in that app.
-    """
-    _assert_app_access(DOCS_HOST, "docs")
-    _assert_app_access(DRIVE_HOST, "drive")
+    retry(found)
