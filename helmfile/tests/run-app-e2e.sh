@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Boot ONE optional app (grist | projects | messages) on its OWN throwaway k3d
-# cluster and assert it converges + its UI/SSO works — and, for messages, that a
-# message delivered between two local mailboxes reads back via the API (the local
-# mail-delivery loopback). One app per cluster so they never compete for RAM: that
-# is exactly why the optional apps are kept OUT of the combined run-e2e.sh. The
-# Docs+Drive core stays proven by run-e2e.sh; this fills the optional-app gap.
+# Boot ONE app (grist | projects | messages | docs | drive) on its OWN throwaway k3d
+# cluster and assert its definition of done: it converges, its UI/API is reachable
+# over HTTPS with SSO wired, plus an app-appropriate read-back (messages: local mail
+# loopback; docs: SSO create + read-back; drive: JIT /users/me). One app per cluster
+# so they never compete for RAM — this is the SINGLE source of each app's boot DoD,
+# Docs/Drive included. The full suite (run-e2e.sh) is platform + installer +
+# backup/restore only and no longer re-asserts any app.
 #
-# Runs in nightly-apps-e2e.yml (a matrix, one job per app) and locally via
-# `make test-app APP=<grist|projects|messages>`.
+# Runs in apps-e2e.yml (a matrix, one job per app) and locally via
+# `make test-app APP=<grist|projects|messages|docs|drive>`.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."  # repo root
@@ -15,8 +16,8 @@ cd "$(dirname "$0")/../.."  # repo root
 
 APP="${1:-${OWNSUITE_E2E_APP:-}}"
 case "$APP" in
-  grist|projects|messages) ;;
-  *) echo "usage: $0 <grist|projects|messages>" >&2; exit 2 ;;
+  grist|projects|messages|docs|drive) ;;
+  *) echo "usage: $0 <grist|projects|messages|docs|drive>" >&2; exit 2 ;;
 esac
 
 CLUSTER="${OWNSUITE_E2E_CLUSTER:-ownsuite-app-$APP}"
@@ -44,6 +45,20 @@ export OWNSUITE_E2E_APP="$APP"
 case "$APP" in
   grist) export OWNSUITE_APP_GRIST=true ;;
   projects) export OWNSUITE_APP_PROJECTS=true ;;
+  docs)
+    export OWNSUITE_APP_DOCS=true
+    # Docs' DoD (SSO create + read-back) mints a token for the seeded realm user
+    # `docs-tester` via the direct-access grant — same path run-e2e.sh uses. Seed it.
+    export OWNSUITE_KC_SEED_TEST_USER=true
+    ;;
+  drive)
+    export OWNSUITE_APP_DRIVE=true
+    # Drive's DoD (JIT /users/me) mints a token for a user created through the real
+    # CLI, proving just-in-time provisioning. A PERMANENT password lets the test mint
+    # a token via the direct-access grant (a temporary one forces a reset first).
+    export OWNSUITE_E2E_USER="${OWNSUITE_E2E_USER:-drive-tester@$OWNSUITE_DOMAIN}"
+    export OWNSUITE_E2E_USER_PW="${OWNSUITE_E2E_USER_PW:-$(openssl rand -hex 16)}"
+    ;;
   messages)
     export OWNSUITE_APP_MESSAGES=true
     # A mailbox user created through the real CLI; its mailbox is auto-provisioned on
@@ -82,8 +97,10 @@ provision_with_watchdog "app=$APP, issuer=$OWNSUITE_TLS_ISSUER" \
   helmfile -f "$HELMFILE" sync
 wait_for_certs "$APP-tls"
 
-if [ "$APP" = "messages" ]; then
-  echo "==> Creating a mailbox user via the suite CLI (JIT autojoin on first login)"
+# Apps whose DoD authenticates as a CLI-created user (drive: JIT /users/me; messages:
+# the mailbox autojoins on first login) get that user provisioned through the real CLI.
+if [ -n "${OWNSUITE_E2E_USER:-}" ]; then
+  echo "==> Creating the test user via the suite CLI (JIT provisioning on first login)"
   python3 -m suite user add "$OWNSUITE_E2E_USER" \
     --password "$OWNSUITE_E2E_USER_PW" --permanent --no-tunnel
 fi

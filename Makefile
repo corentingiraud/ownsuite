@@ -93,11 +93,11 @@ test-full: ## Full bootstrap incl. real K3s (Molecule full scenario)
 	molecule test -s full
 
 .PHONY: test-platform
-test-platform: ## Full DoD on a throwaway k3d cluster — installer-provisioned (heavy)
+test-platform: ## Platform + installer + backup/restore DoD on a throwaway k3d cluster — installer-provisioned (heavy)
 	helmfile/tests/run-e2e.sh
 
 .PHONY: test-app
-test-app: ## Boot ONE optional app on its own throwaway k3d cluster (APP=grist|projects|messages)
+test-app: ## Boot ONE app on its own throwaway k3d cluster (APP=grist|projects|messages|docs|drive)
 	helmfile/tests/run-app-e2e.sh $(APP)
 
 .PHONY: test-pvc-backup

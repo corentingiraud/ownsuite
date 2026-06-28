@@ -39,8 +39,8 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `.github/workflows/ci.yml` | Ansible lint + Molecule (Debian 12/13) on every PR. |
 | `.github/workflows/bootstrap-e2e.yml` | Full real-K3s bootstrap, nightly + on K3s changes. |
 | `.github/workflows/helmfile-ci.yml` | Helm/Helmfile lint + kubeconform on every `helmfile/` change. |
-| `.github/workflows/helmfile-e2e.yml` | Two jobs: `pvc-backup` (isolated ADR-032 backup/restore) gates every PR in ~3 min; `full` (`make test-platform`, the heavy suite) runs nightly / on `main` / on demand only — not on PRs. |
-| `.github/workflows/apps-e2e.yml` | Per-app boot e2e (Grist/Projects/messages), one app per fresh k3d cluster (ADR-029). A PR touching one app's chart/values boots only that app (fast `detect`-driven matrix); the full three-app sweep runs nightly / on demand. |
+| `.github/workflows/helmfile-e2e.yml` | Two jobs: `pvc-backup` (isolated ADR-032 backup/restore) gates every PR in ~3 min; `full` (`make test-platform`, the heavy suite — platform + installer + backup/restore, **no app DoD**) runs nightly / on `main` / on demand only — not on PRs. |
+| `.github/workflows/apps-e2e.yml` | Per-app boot e2e for ALL five apps (Grist/Projects/messages/Docs/Drive), one app per fresh k3d cluster (ADR-029) — the single source of each app's boot DoD. A PR touching one app's chart/values boots only that app (fast `detect`-driven matrix); the full five-app sweep runs nightly / on demand. |
 
 ## Hard rules
 
@@ -90,7 +90,8 @@ make sync            # helmfile sync — cert-manager, CNPG, Valkey, Keycloak (H
 make diff            # preview pending changes
 make lint-helm       # helm lint + helmfile template + kubeconform
 make test-pvc-backup # isolated ADR-032 PVC backup→wipe→restore on k3d (~3 min) — the PR gate
-make test-platform   # full DoD on a throwaway k3d cluster (heavy, nightly/main) — incl. backup→restore
+make test-platform   # platform + installer + backup→restore DoD on a throwaway k3d cluster (heavy, nightly/main) — no app DoD
+make test-app APP=docs   # boot ONE app on its own k3d cluster + assert its boot DoD (grist|projects|messages|docs|drive)
 make backup          # on-demand backup (CNPG base backup + off-site object copy)
 make restore         # rebuild a CLEAN cluster from off-site backups (ADR-006, ADR-017)
 ```

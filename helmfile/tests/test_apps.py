@@ -1,10 +1,13 @@
-"""Per-app boot definition-of-done for the optional apps (Grist, Projects, Mailbox).
+"""Per-app boot definition-of-done for every app (Grist, Projects, Mailbox, Docs,
+Drive).
 
 One app per fresh k3d cluster (see run-app-e2e.sh), selected by OWNSUITE_E2E_APP, so
-the heavy optional apps never compete for RAM. The Docs+Drive core stays proven by
-test_platform.py; this closes the optional-app gap: each app converges, its UI is
-reachable through Traefik+TLS with SSO wired, and — for messages — a message
-delivered to a local mailbox reads back via the API.
+the apps never compete for RAM. This is the SINGLE source of each app's boot DoD: each
+app converges, its UI/API is reachable through Traefik+TLS with SSO wired, plus an
+app-appropriate read-back (messages: a local-mailbox message reads back via the API;
+Docs: an SSO user creates a document and reads it back; Drive: a CLI-created user is
+JIT-provisioned, proven by /users/me). The full suite (test_platform.py) is platform +
+installer + backup/restore only and no longer asserts any app.
 
 Shells out to kubectl/curl with the ambient KUBECONFIG; reuses the token/HTTP
 helpers from test_platform (same directory, same conventions).
@@ -21,16 +24,22 @@ from test_platform import (
     AUTH_HOST,
     DOMAIN,
     NAMESPACE,
+    SECRET_SEED,
+    SEED_TEST_USER,
     curl,
+    docs_user_token,
     kubectl,
     password_token,
     retry,
 )
 
 APP = os.environ.get("OWNSUITE_E2E_APP", "")
-# Mailbox user created by run-app-e2e.sh before this runs (CLI-provisioned).
+# CLI-provisioned user created by run-app-e2e.sh before this runs (drive, messages).
 CLI_USER = os.environ.get("OWNSUITE_E2E_USER", "")
 CLI_USER_PW = os.environ.get("OWNSUITE_E2E_USER_PW", "")
+
+# Deterministic title of the document the Docs DoD creates and reads back.
+DOC_TITLE = "OwnSuite e2e — docs SSO document"
 
 
 def only(app):
@@ -237,3 +246,131 @@ def test_messages_local_delivery_loopback():
         assert subject in subjects, f"delivered message not found; got {subjects}"
 
     retry(delivered, attempts=40, delay=3)
+
+
+# --- Docs (suitenumerique/docs, ADR-015, ADR-016) ---------------------------
+
+
+@only("docs")
+def test_docs_database_applied():
+    _db_applied("docs")
+
+
+@only("docs")
+def test_docs_pods_ready():
+    """All Docs components reach Ready (backend, celery, frontend, y-provider)."""
+    for component in ("backend", "celery-worker", "frontend", "yProvider"):
+        _pod_ready("docs", component=component)
+
+
+@only("docs")
+def test_docs_reachable_over_https():
+    """Docs answers over HTTPS through Traefik and exposes its OIDC config."""
+    host = app_host("docs")
+
+    def fetch():
+        out = curl(host, f"https://{host}/api/v1.0/config/")
+        data = json.loads(out)
+        # The frontend reads OIDC + collaboration settings from this endpoint.
+        assert isinstance(data, dict) and data, "empty Docs config payload"
+        return data
+
+    retry(fetch, attempts=40, delay=3)
+
+
+@only("docs")
+@pytest.mark.skipif(
+    not (SECRET_SEED and SEED_TEST_USER),
+    reason="needs OWNSUITE_SECRET_SEED and a seeded Keycloak test user",
+)
+def test_docs_sso_user_creates_and_reads_document():
+    """The Docs definition of done: a Keycloak user logs in via SSO (OIDC) and creates
+    a persistent document, then reads it back.
+
+    Headless equivalent of the browser flow: obtain an access token from Keycloak with
+    the seeded user (direct-access grant), create a document through the Docs API as
+    that user and read it back — proving SSO client wiring + DB persistence. Docs
+    validates the bearer token against Keycloak's userinfo endpoint and just-in-time
+    provisions the user (ADR-005, ADR-016).
+    """
+    host = app_host("docs")
+    token = retry(docs_user_token)
+    auth_header = f"Authorization: Bearer {token}"
+    docs_api = f"https://{host}/api/v1.0/documents/"
+
+    def create():
+        out = curl(
+            host, docs_api,
+            "-X", "POST", "-H", auth_header,
+            "-H", "Content-Type: application/json",
+            "--data", json.dumps({"title": DOC_TITLE}),
+        )
+        doc = json.loads(out)
+        assert doc.get("id"), f"no document id returned: {doc}"
+        return doc["id"]
+
+    doc_id = retry(create)
+
+    def read_back():
+        out = curl(host, f"{docs_api}{doc_id}/", "-H", auth_header)
+        doc = json.loads(out)
+        assert doc["title"] == DOC_TITLE, doc
+
+    retry(read_back)
+
+
+# --- Drive (suitenumerique/drive, ADR-022) ----------------------------------
+
+
+@only("drive")
+def test_drive_database_applied():
+    _db_applied("drive")
+
+
+@only("drive")
+def test_drive_pods_ready():
+    """Drive's backend and frontend reach Ready (it has no y-provider, unlike Docs)."""
+    for component in ("backend", "frontend"):
+        _pod_ready("drive", component=component)
+
+
+@only("drive")
+def test_drive_reachable_over_https():
+    """Drive answers over HTTPS through Traefik (its API config endpoint)."""
+    host = app_host("drive")
+
+    def fetch():
+        out = curl(host, f"https://{host}/api/v1.0/config/")
+        data = json.loads(out)
+        assert isinstance(data, dict) and data, "empty Drive config payload"
+        return data
+
+    retry(fetch, attempts=40, delay=3)
+
+
+@only("drive")
+@pytest.mark.skipif(
+    not (SECRET_SEED and CLI_USER and CLI_USER_PW),
+    reason="needs OWNSUITE_SECRET_SEED + a CLI-created user (OWNSUITE_E2E_USER/_PW)",
+)
+def test_drive_jit_provisions_cli_user():
+    """The Drive definition of done: a user created through the `suite user` CLI
+    (Keycloak only — no per-app step) is just-in-time provisioned into Drive on its
+    first authenticated call (ADR-005, ADR-022, ADR-023).
+
+    Mint an access token with Drive's OIDC client for the CLI-created user
+    (direct-access grant), then call /users/me/ — a 200 echoing the user's email proves
+    the token is accepted and the account was JIT-created in Drive.
+    """
+    host = app_host("drive")
+
+    def whoami():
+        token = password_token("drive", CLI_USER, CLI_USER_PW)
+        out = curl(
+            host, f"https://{host}/api/v1.0/users/me/",
+            "-H", f"Authorization: Bearer {token}",
+        )
+        data = json.loads(out)
+        assert (data.get("email") or "").lower() == CLI_USER.lower(), data
+
+    retry(whoami)
