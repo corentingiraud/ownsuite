@@ -645,8 +645,9 @@ the few shared pieces multi-app instead of forking them:
   ships **no y-provider** — its values are the Docs wiring minus the collaboration server and
   its websocket/api ingresses.
 - **Individually enable-able.** Each app is gated on its own `apps.<name>.enabled` flag
-  (`OWNSUITE_APP_DOCS` / `OWNSUITE_APP_DRIVE`); both default on (the DoD wants both), either
-  can be turned off.
+  (`OWNSUITE_APP_DOCS` / `OWNSUITE_APP_DRIVE`). Both are **off by default** like every other app
+  ([ADR-035](#adr-035-every-app-off-by-default-opt-in-install)); the installer offers them as the
+  recommended first pair and the Docs+Drive DoD enables them explicitly.
 
 **Consequences.** Drive comes up over HTTPS with real SSO and per-app isolated state, proven
 at the API level by the same kind of token→create→read-back e2e as Docs (the DoD). The
@@ -1193,3 +1194,45 @@ version. **Trade-off:** a rollback restores the previous *version*, not the data
 pre-upgrade snapshot is the only undo for data changes, which is exactly why backups are a hard
 precondition. The health check is HTTPS-reachability of each app, not a deep functional test;
 deeper assertions live in the nightly e2e (ADR-010), not in the hot upgrade path.
+
+---
+
+## ADR-035 — Every app off by default; opt-in install
+
+**Context.** Until now Docs and Drive defaulted **on** (the Phase 5 DoD wants both immediately),
+while Grist, Projects and the mailbox defaulted **off**
+([ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default),
+[ADR-025](#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default),
+[ADR-026](#adr-026-mailbox-suitenumeriquemessages)). That split was an accident of sequencing, not
+a principle: a fresh `suite install` brought up two apps the operator might not want, on a
+single-server box where every pod competes for the same RAM (ADR-029). It also made the default
+footprint a moving target as more apps land.
+
+**Decision.** **No app is enabled by default — only Keycloak and the shared platform
+(cert-manager, CNPG, Valkey, Garage, backups) come up unattended.** Every app, Docs and Drive
+included, is now gated the same way: `apps.<name>.enabled` defaults to `false`, flipped per app
+via `OWNSUITE_APP_<NAME>=true`. The operator opts in explicitly:
+
+- The guided installer (ADR-018) **prompts for each app** (Docs and Drive presented as the
+  recommended first pair), all defaulting off.
+- `suite install` now issues and HTTPS-verifies **Keycloak always, plus a cert + public host for
+  each enabled app** — the same "Keycloak + enabled apps" shape `suite upgrade` already used
+  ([ADR-034](#adr-034-suite-upgrade-backup-gated-snapshot--diff--apply--health--rollback)). A
+  platform-only install no longer hangs waiting on a `docs-tls` that was never requested.
+- `suite status` mirrors the new defaults (all off) when reporting which apps are on.
+
+Docs+Drive remain the **recommended** core and the machine-checked DoD: the full platform e2e
+(`run-e2e.sh`, ADR-010/029) enables them explicitly and still asserts the token→create→read-back
+round-trip and the restore survival. The per-app boot gate (ADR-029) is unchanged — Grist,
+Projects and messages each boot on their own cluster.
+
+The always-provisioned `docs`/`drive` databases and S3 buckets are **left in place** even when the
+apps are off: an empty database and an unused bucket name cost nothing, and gating them would add
+surface area (the derived owner secrets, the Garage bootstrap) for no operational gain. Only the
+heavier optional apps' databases (Grist/Projects/messages) stay conditionally provisioned, as before.
+
+**Consequences.** The default install is now the smallest honest thing — SSO and the platform,
+nothing presumed. Operators choose their apps up front, and the resource footprint is whatever
+they switched on rather than a baked-in pair. **Trade-off:** a brand-new operator who expected
+Docs out of the box must now tick it (or set `OWNSUITE_APP_DOCS=true`); the installer prompt and
+the docs make that the obvious first step, so the cost is one keystroke, not a surprise.

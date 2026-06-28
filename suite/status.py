@@ -27,8 +27,9 @@ APPS = {
     "projects": "projects",
     "messages": "messages",
 }
-# Defaults match helmfile/environments/default.yaml.gotmpl.
-APP_DEFAULTS = {"docs": "true", "drive": "true", "grist": "false",
+# Defaults match helmfile/environments/default.yaml.gotmpl: every app is off by
+# default (ADR-035); only the operator's OWNSUITE_APP_* / .env turns one on.
+APP_DEFAULTS = {"docs": "false", "drive": "false", "grist": "false",
                 "projects": "false", "messages": "false"}
 
 

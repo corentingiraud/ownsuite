@@ -1,8 +1,10 @@
 # Drive application
 
 **Drive** (the [suitenumerique](https://github.com/suitenumerique/drive) file manager) is
-OwnSuite's second core app, wired to the same shared foundation as Docs, so someone you add
-once has Docs **and** Drive — with no extra setup per app.
+OwnSuite's recommended second core app, wired to the same shared foundation as Docs, so
+someone you add once has Docs **and** Drive — with no extra setup per app. Like every app
+it is **opt-in / off by default**; enable it with `OWNSUITE_APP_DRIVE=true` (or via the
+installer prompt).
 
 > **What it proves:** `suite user add firstname@assoc.org` gives that person access to
 > `https://drive.{domain}` over single sign-on, immediately — checked automatically in CI.
@@ -46,7 +48,8 @@ All of it is in `helmfile/values/drive.yaml.gotmpl`; nothing secret is committed
 ```bash
 set -a && source .env && set +a          # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
 make tunnel                              # in another terminal
-make sync                                # brings up the infra + Docs + Drive
+make sync                                # brings up the infra + whichever apps are enabled
+                                         # (enable Docs/Drive first: OWNSUITE_APP_DOCS=true OWNSUITE_APP_DRIVE=true)
 ```
 
 When it finishes, Drive answers at `https://drive.{domain}`; log in with a Keycloak user.

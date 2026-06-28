@@ -3,14 +3,15 @@
 How big a server to rent. OwnSuite runs on **one** machine, so the answer is a single VPS
 spec you can buy against. Pick a profile by which apps you enable, then read RAM / CPU / disk.
 
-> **Short answer:** Docs + Drive (the core) run on **4 GB minimum, 8 GB recommended, 2 vCPU**.
-> Add the optional apps or the mailbox and step up as the tables below show.
+> **Short answer:** every app is opt-in (enable it in the installer or with `OWNSUITE_APP_*`).
+> If you enable Docs + Drive (the recommended core), they run on **4 GB minimum, 8 GB
+> recommended, 2 vCPU**. Add the optional apps or the mailbox and step up as the tables below show.
 
 ## What to buy
 
 | Profile | RAM (minimum) | RAM (recommended) | vCPU | Disk |
 |---|---|---|---|---|
-| **Core** — Docs + Drive | 4 GB | 8 GB | 2 | 40 GB |
+| **Recommended core** — Docs + Drive | 4 GB | 8 GB | 2 | 40 GB |
 | **+ Optional** — Grist, Projects | 6 GB | 10 GB | 2–4 | +15 GB |
 | **+ Mailbox** — messages | 8 GB | 12 GB | 4 | +10 GB |
 
@@ -33,11 +34,11 @@ their chart defaults.
 
 ### Per-app footprint
 
-| Component | On by default | CPU request | Memory request | Memory limit |
+| Component | Enabled | CPU request | Memory request | Memory limit |
 |---|---|---|---|---|
-| **Foundation** (Keycloak, PostgreSQL, Valkey, cert-manager + CNPG operators) | always | ~0.4 vCPU | ~1.4 GB | ~2.8 GB |
-| **Docs** (backend, Celery, frontend, y-provider) | yes (core) | 0.25 vCPU | 1.0 GB | 2.5 GB |
-| **Drive** (backend, Celery, frontend) | yes (core) | 0.15 vCPU | 0.65 GB | 1.4 GB |
+| **Foundation** (Keycloak, PostgreSQL, Valkey, cert-manager + CNPG operators) | always on | ~0.4 vCPU | ~1.4 GB | ~2.8 GB |
+| **Docs** (backend, Celery, frontend, y-provider) | opt-in (recommended core) | 0.25 vCPU | 1.0 GB | 2.5 GB |
+| **Drive** (backend, Celery, frontend) | opt-in (recommended core) | 0.15 vCPU | 0.65 GB | 1.4 GB |
 | **Grist** | no (optional) | 0.1 vCPU | 0.25 GB | 1.0 GB |
 | **Projects** | no (optional) | 0.1 vCPU | 0.25 GB | 0.75 GB |
 | **Mailbox** (backend, worker, frontend, 2× MTA) | no (advanced) | 0.45 vCPU | 1.15 GB | 2.3 GB |
