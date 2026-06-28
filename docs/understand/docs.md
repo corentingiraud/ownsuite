@@ -71,8 +71,10 @@ works, with no manual admin-console step.
 
 ## Tests
 
-`make test-platform` brings Docs up on a throwaway cluster and checks the whole chain: the
-storage bucket is reachable, the database and login client are created, the pods answer over
-HTTPS, and — the key check — a real login token **creates and reads back a document** through
-the Docs API, proving single sign-on and that data persists. A full browser-driven login +
-collaboration check is left to a separate job.
+`make test-app APP=docs` boots Docs on its own throwaway cluster and checks the whole chain:
+the storage bucket is reachable, the database and login client are created, the pods answer
+over HTTPS, and — the key check — a real login token **creates and reads back a document**
+through the Docs API, proving single sign-on and that data persists. It runs nightly and on
+any PR that touches Docs (`apps-e2e.yml`); the heavy platform suite (`make test-platform`)
+keeps Docs enabled only as the bucket used by the backup/restore check, not as an app DoD. A
+full browser-driven login + collaboration check is left to a separate job.

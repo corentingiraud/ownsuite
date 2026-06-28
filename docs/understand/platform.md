@@ -38,7 +38,8 @@ helmfile/
     barman-cloud-plugin/      #   vendored CNPG backup/recovery plugin
     garage/                   #   in-cluster object store (primary + off-site backup)
     object-backup/            #   rclone off-site media copy + restore
-  tests/                      # end-to-end check (incl. backup→restore cycle)
+    pvc-backup/               #   rclone off-site volume copy + restore (reusable)
+  tests/                      # end-to-end checks (platform, per-app, PVC backup/restore)
 ```
 
 ## Secrets — one seed, nothing committed
@@ -131,20 +132,28 @@ curl -s https://auth.assoc.example.org/realms/ownsuite/.well-known/openid-config
 
 ## Tests
 
-The Helmfile stack has its own layered checks:
+The Helmfile stack has its own layered checks, sized so every PR gets a real signal fast
+while the heavy run stays off the PR path:
 
 ```bash
-make lint-helm       # helm lint + helmfile template + kubeconform (CRD-aware)
-make test-platform   # full end-to-end check on a throwaway k3d cluster (heavy)
+make lint-helm        # helm lint + helmfile template + kubeconform (CRD-aware)
+make test-pvc-backup  # isolated PVC backup → wipe → restore on k3d (~3 min) — the PR gate
+make test-app APP=docs # boot ONE app on its own k3d cluster + assert its boot DoD
+make test-platform    # platform + installer + backup/restore, on a throwaway k3d cluster (heavy)
 ```
 
-`make lint-helm` runs on every change under `helmfile/` (`helmfile-ci.yml`).
-`make test-platform` provisions a real K3s with **k3d**, runs `helmfile sync` with the
-self-signed issuer, asserts cert-manager / CNPG / Valkey / Keycloak / Docs are up (incl. the
-SSO document check), then runs a full **backup → destroy → restore** cycle and asserts the
-document, the Keycloak user and the media object survived (see
-[Backups & restore](../operate/backups.md)). It is heavy, so it runs nightly and on Helmfile changes
-(`helmfile-e2e.yml`), not on every PR.
+- `make lint-helm` runs on every change under `helmfile/` (`helmfile-ci.yml`), on PRs and on `main`.
+- **PR gate (fast):** `make test-pvc-backup` runs the isolated backup → wipe → restore
+  round-trip in ~3 min (`helmfile-e2e.yml`), and `apps-e2e.yml` boots whichever app a PR
+  touches on its own cluster — so a change gets a real boot/restore signal pre-merge.
+- **Full suite (heavy, off the PR path):** `make test-platform` provisions a real K3s with
+  **k3d**, brings the platform up through `suite install` (self-signed issuer), provisions a
+  user with `suite user`, seeds a media object, then runs a full **backup → destroy →
+  restore** cycle and asserts all three storage classes survived — the **Keycloak user**
+  (Postgres PITR), the **media object** (rclone object copy) and a **PVC document** (the
+  reusable volume copy). It asserts **no application** — each app's boot is checked by the
+  per-app e2e above. It runs nightly, on `main`, and on demand — not on PRs
+  (`helmfile-e2e.yml`).
 
 !!! note "HTTPS in CI"
     CI uses the **self-signed** ClusterIssuer: there is no public DNS to satisfy an ACME
