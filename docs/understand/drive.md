@@ -57,10 +57,12 @@ Turn an app off independently with `OWNSUITE_APP_DRIVE=false` (or `OWNSUITE_APP_
 
 ## Tests
 
-`make test-platform` brings Docs **and** Drive up together on a throwaway cluster and checks
-the key promise: a person **added with `suite user add`** logs in and lands in **both** Docs
-and Drive automatically, through their APIs — no per-app setup. Heavier browser checks stay
-off-CI.
+`make test-app APP=drive` boots Drive on its own throwaway cluster and checks the key promise:
+a person **added with `suite user add`** is just-in-time provisioned on their first
+authenticated call, proven by `/users/me/` echoing their email — no per-app setup. It runs
+nightly and on any PR that touches Drive (`apps-e2e.yml`); Docs is checked the same way
+(`make test-app APP=docs`), so one identity reaching **both** is covered end to end. Heavier
+browser checks stay off-CI.
 
 ## Deferred
 

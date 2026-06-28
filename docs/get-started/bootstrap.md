@@ -20,7 +20,7 @@ This step is handled by **Ansible**, which applies three sets of changes in orde
 ## Requirements
 
 - A server running **Debian 12 (bookworm)** or **13 (trixie)**, reachable over SSH.
-- On your machine: Python 3.12+, then `make deps` (installs Ansible + collections).
+- On your machine: Python 3.10+, then `make deps` (installs Ansible + collections).
 
 ## Run it
 

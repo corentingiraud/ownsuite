@@ -116,4 +116,3 @@ five pods would push the shared runner over its memory ceiling. Run it yourself 
 - **No IMAP/POP3** — the web UI is the only client.
 - **No full-text search** until OpenSearch is re-enabled.
 - **No bulk/newsletter sending** — the relay is rate-capped; that is a separate product.
-- The mail **S3 bucket shares the not-yet-off-site backup gap** of Drive's and Grist's storage.

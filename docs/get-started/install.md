@@ -93,17 +93,18 @@ python -m suite install --non-interactive --no-tunnel --skip-bootstrap \
 ```
 
 This is exactly the path the automated test suite drives against a throwaway cluster: the
-installer brings the cluster up — configure → deploy → certificates → HTTPS → a real SSO login
-that creates a document — and the same run then exercises the backup/restore cycle, all
-self-contained, without public DNS or real Let's Encrypt.
+installer brings the platform up — configure → deploy → certificates → HTTPS-verify — provisions
+a user with `suite user`, then the same run exercises the full backup → destroy → restore cycle,
+all self-contained, without public DNS or real Let's Encrypt. (Each app's boot is checked
+separately; see [Under the hood → Tests](../understand/platform.md#tests).)
 
 ## Real-ACME acceptance (off-CI)
 
 CI cannot exercise Let's Encrypt (no public DNS). Validate real issuance on a server + domain:
 
-1. `make install --tls-mode staging` (or run `make install` and let it do staging first)
-   → confirm the staging certificates are issued (browser shows an untrusted
-   `(STAGING) Let's Encrypt` leaf). No production rate limits are touched.
+1. `python -m suite install --tls-mode staging` (or run `make install`, whose default
+   `prod` mode does staging first) → confirm the staging certificates are issued (browser
+   shows an untrusted `(STAGING) Let's Encrypt` leaf). No production rate limits are touched.
 2. Let the installer promote to production → confirm `auth.{domain}` (and `docs.{domain}`
    when Docs is enabled) serves a **publicly trusted** certificate.
 

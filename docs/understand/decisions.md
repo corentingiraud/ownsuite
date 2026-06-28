@@ -720,6 +720,13 @@ default (no password policy); a stricter policy would need the generated passwor
 
 ## ADR-024 — Grist integration: local chart, public-issuer OIDC, PVC storage, off by default
 
+> **Two "honest limits" below have since been closed.** The documents PVC **is** now backed up
+> off-site (the reusable volume copy of [ADR-032](#adr-032-standardised-reusable-off-site-pvc-backup),
+> built on the N-bucket object copy of [ADR-030](#adr-030-n-bucket-off-site-object-backup)), and
+> Grist **is** now booted in CI on its own cluster
+> ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)). The local chart, public-issuer
+> OIDC and off-by-default decisions still hold.
+
 **Context.** The suite broadens beyond the DoD apps. **Grist** (getgrist — spreadsheets
 that behave like a database) is the next one. Unlike Drive
 ([ADR-022](#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets)), Grist is **not** a
@@ -736,7 +743,7 @@ wiring it, which overrode an earlier sketch (internal-discovery + S3 doc storage
    ([ADR-016](#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split)) is not
    expressible for Grist.
 2. **The off-site object backup copies a single bucket.** `object-backup`
-   ([ADR-017](#adr-017-backups--tested-restore-barman-cloud-plugin-rclone-off-site-by-design))
+   ([ADR-017](#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design))
    syncs only the Docs media bucket today, so putting Grist documents in a *new* S3 bucket would
    **not** make them off-site-backed without first reworking the restore machinery — defeating the
    one reason ("close the backup gap") to prefer S3 over a volume.
@@ -802,7 +809,9 @@ can reach `auth.{domain}` (DNS + hairpin), which holds on a normal single-server
 > **Superseded in part by [ADR-031](#adr-031-projects-uploads-on-s3-eliminating-the-pvc).** The
 > local chart, public-issuer OIDC and off-by-default stance still hold; Projects' uploads now live
 > on **S3** (its own bucket on the shared seam), not the `projects-data` PVC — so the PVC and its
-> not-off-site-backed limitation no longer apply.
+> not-off-site-backed limitation no longer apply. The "not yet CI-booted" limit below is also
+> closed: Projects is now booted in CI on its own cluster
+> ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)).
 
 **Context.** The suite broadens beyond the DoD apps, and **Projects**
 (`suitenumerique/projects` — kanban boards / task management, a Sails.js fork of Planka) is the
@@ -859,6 +868,11 @@ Projects without forking.
 ---
 
 ## ADR-026 — Mailbox integration: messages, Django OIDC split, reuse the seam, OpenSearch deferred
+
+> **The "not yet CI-booted" limit below is closed.** The hermetic mail loopback this ADR
+> describes as the intended boot check now runs in CI on the mailbox's own cluster
+> ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)). OpenSearch and the off-CI
+> external-deliverability check still stand as described.
 
 **Context.** This ADR implements the mailbox decided in
 [ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay): **suitenumerique/messages**,
@@ -1222,11 +1236,11 @@ deeper assertions live in the nightly e2e (ADR-010), not in the hot upgrade path
 
 ## ADR-035 — Every app off by default; opt-in install
 
-**Context.** Until now Docs and Drive defaulted **on** (the Phase 5 DoD wants both immediately),
+**Context.** Until now Docs and Drive defaulted **on** (the core DoD wants both immediately),
 while Grist, Projects and the mailbox defaulted **off**
 ([ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default),
 [ADR-025](#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default),
-[ADR-026](#adr-026-mailbox-suitenumeriquemessages)). That split was an accident of sequencing, not
+[ADR-026](#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred)). That split was an accident of sequencing, not
 a principle: a fresh `suite install` brought up two apps the operator might not want, on a
 single-server box where every pod competes for the same RAM (ADR-029). It also made the default
 footprint a moving target as more apps land.
@@ -1240,7 +1254,7 @@ via `OWNSUITE_APP_<NAME>=true`. The operator opts in explicitly:
   recommended first pair), all defaulting off.
 - `suite install` now issues and HTTPS-verifies **Keycloak always, plus a cert + public host for
   each enabled app** — the same "Keycloak + enabled apps" shape `suite upgrade` already used
-  ([ADR-034](#adr-034-suite-upgrade-backup-gated-snapshot--diff--apply--health--rollback)). A
+  ([ADR-034](#adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback)). A
   platform-only install no longer hangs waiting on a `docs-tls` that was never requested.
 - `suite status` mirrors the new defaults (all off) when reporting which apps are on.
 

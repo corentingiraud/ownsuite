@@ -23,10 +23,10 @@ flowchart TB
             PG["CloudNativePG\nPostgreSQL + PITR"]
             VK["Valkey\ncache / broker"]
         end
-        BK["Backup module\nrestic / rclone"]
+        BK["Backups\nBarman (Postgres) · rclone (files)"]
     end
     S3[("Object storage\nGarage  or  external EU S3")]
-    OFF[("Off-site\nS3 / Backblaze B2")]
+    OFF[("Off-site store\ndifferent-account S3")]
 
     T --> APPS
     T --> KC
@@ -36,7 +36,7 @@ flowchart TB
     APPS --> VK
     APPS --> S3
     PG -- WAL/PITR --> OFF
-    S3 -. replication .-> OFF
+    S3 -. rclone copy .-> OFF
     BK --> OFF
 ```
 
