@@ -2,7 +2,7 @@
 # Defaults for the k3s role. Override in group_vars/all.yml or the inventory.
 
 # Pin an explicit release, never a channel (AGENTS.md: no `latest`).
-k3s_version: "v1.36.1+k3s1"
+k3s_version: "v1.36.2+k3s1"
 # Official installer; pinned by SHA-agnostic URL but the version above is what
 # determines the binary. The script itself is idempotent.
 k3s_install_script_url: "https://get.k3s.io"

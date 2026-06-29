@@ -12,7 +12,7 @@ KUBECTL = "k3s kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
 def test_k3s_binary_pinned(host):
     version = host.check_output("k3s --version")
     # Keep in sync with k3s_version in ansible/group_vars/all.yml.
-    assert "v1.36.1+k3s1" in version
+    assert "v1.36.2+k3s1" in version
 
 
 def test_k3s_service_running(host):
