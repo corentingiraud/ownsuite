@@ -1,0 +1,60 @@
+name: terraform-ci
+
+# Static checks for the Terraform layer: formatting, a provider-resolving
+# validate of each environment, and tflint. No cloud credentials, no apply —
+# this is the PR gate that the authoring machine (no terraform installed) cannot
+# run locally.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-ci.yml"
+  pull_request:
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-ci.yml"
+  workflow_dispatch:
+
+# Least privilege: lint/validate only read the repo.
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: terraform
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.7"
+          terraform_wrapper: false
+
+      - name: Format
+        run: terraform fmt -check -recursive -diff
+
+      # Validate every environment (each resolves the shared module + provider).
+      - name: Validate
+        run: |
+          for env in environments/*/; do
+            echo "==> validate $env"
+            terraform -chdir="$env" init -backend=false -input=false
+            terraform -chdir="$env" validate
+          done
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: "v0.63.1"
+
+      - name: TFLint
+        env:
+          # Apply the root config in every directory --recursive descends into.
+          TFLINT_CONFIG_FILE: ${{ github.workspace }}/terraform/.tflint.hcl
+        run: |
+          tflint --init
+          tflint --recursive --format compact
