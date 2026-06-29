@@ -29,6 +29,11 @@
       "description": "Group Helmfile chart + image bumps into one PR. All pins live in versions.yaml (single source of truth); the local charts' values.yaml carry no versions, so there is nothing to duplicate.",
       "matchFileNames": ["helmfile/versions/versions.yaml"],
       "groupName": "helmfile stack"
+    },
+    {
+      "description": "Group Terraform provider/runtime bumps (the OpenStack provider lives in terraform/**/versions.tf; the built-in terraform manager detects it).",
+      "matchManagers": ["terraform"],
+      "groupName": "terraform providers"
     }
   ],
   "customManagers": [
