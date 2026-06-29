@@ -88,6 +88,7 @@ single-server fit and real value over what the shared foundation already provide
 | **Conversations** | AI chatbot | Early upstream prototype; not integrated yet. |
 | **Calc** | Collaborative spreadsheets | Upstream prototype; overlaps with the shipped **Grist**. |
 | **Hub** | Meet + chat, unified | Depends on **Meet** (above). |
+| **Tchap** | Matrix-based secure messaging | Separate `tchapgouv` org, not part of La Suite's `suitenumerique` catalog. Heavy Synapse stack + its own SSO seam; out of scope like Meet. |
 
 ## Planned
 
