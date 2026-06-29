@@ -5,13 +5,19 @@ from __future__ import annotations
 
 import argparse
 
-from . import restore, status, steps, upgrade, users
+from . import bootstrap, restore, status, steps, upgrade, users
 from .errors import SuiteError
 
 
 def build_parser():
     p = argparse.ArgumentParser(prog="suite", description="OwnSuite installer + admin CLI.")
     sub = p.add_subparsers(dest="command", required=True)
+
+    # Workstation tooling + server provisioning (ADR-037). Flag-free: deps reads the
+    # repo's requirements files; bootstrap/check read the Ansible inventory.
+    sub.add_parser("deps", help="Install Python tooling + Ansible collections.")
+    sub.add_parser("bootstrap", help="Provision a bare server into a single-node K3s cluster.")
+    sub.add_parser("check", help="Dry-run the bootstrap (--check --diff); applies nothing.")
 
     i = sub.add_parser("install", help="Guided install: bare server + domain -> HTTPS.")
     i.add_argument("--env-file", default=".env")
@@ -81,7 +87,13 @@ def build_parser():
 def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
-        if args.command == "user":
+        if args.command == "deps":
+            bootstrap.run_deps(args)
+        elif args.command == "bootstrap":
+            bootstrap.run_bootstrap(args)
+        elif args.command == "check":
+            bootstrap.run_check(args)
+        elif args.command == "user":
             users.run(args)
         elif args.command == "status":
             status.run_status(args)

@@ -11,7 +11,7 @@ import contextlib
 import os
 import shutil
 
-from . import config, dns, ip, mail, propagation, tunnel, verify
+from . import bootstrap, config, dns, ip, mail, propagation, tunnel, verify
 from .errors import SuiteError
 from .process import run
 from .status import enabled_apps
@@ -50,8 +50,7 @@ def install(args):
     mail_dns = _ensure_mail(cfg, domain) if _mailbox_enabled(cfg) else None
 
     if not args.skip_bootstrap:
-        print("\n==> Bootstrapping the server (ansible)")
-        run(["make", "bootstrap"], step="bootstrap")
+        bootstrap.provision()
 
     if args.tls_mode != "selfsigned" and not args.skip_dns:
         _dns_and_propagation(args, domain, ssh, mail_dns)
@@ -181,7 +180,7 @@ def _verify(domain, enabled, *, trusted):
 def _preflight(args, ssh):
     tools = ["helmfile", "kubectl"]
     if not args.skip_bootstrap:
-        tools.append("make")
+        tools.append("ansible-playbook")  # provision() runs the Ansible bootstrap
     if not args.no_tunnel and ssh:
         tools.append("ssh")
     if args.tls_mode != "selfsigned" and not args.skip_dns:

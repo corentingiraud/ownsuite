@@ -1,5 +1,10 @@
-# OwnSuite — developer & operator entrypoints.
-# `make bootstrap` is the Phase 0 definition of done.
+# OwnSuite — developer & CI entrypoints.
+#
+# User-facing operations are `suite` CLI verbs, not make targets (ADR-037):
+#   suite deps / bootstrap / check / install / user / status / upgrade / restore.
+# What stays here is CI/dev shorthand: lint, the Molecule/e2e test harnesses, a few
+# low-level helmfile/ssh helpers the CLI wraps (tunnel/sync/diff/destroy/backup), and
+# `make install` kept as a one-line alias for the canonical `suite install` verb.
 
 ANSIBLE_DIR := ansible
 PLAYBOOK    := $(ANSIBLE_DIR)/bootstrap.yml
@@ -30,19 +35,10 @@ help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: deps
-deps: ## Install Python tooling and Ansible collections (app + test harness)
-	pip install -r requirements-dev.txt
-	ansible-galaxy collection install -r $(ANSIBLE_DIR)/requirements.yml
-	ansible-galaxy collection install -r molecule/requirements.yml
-
-.PHONY: bootstrap
-bootstrap: ## Provision the server into a ready single-node K3s cluster
-	cd $(ANSIBLE_DIR) && ansible-playbook bootstrap.yml
-
-.PHONY: check
-check: ## Dry-run the bootstrap (--check --diff), no changes applied
-	cd $(ANSIBLE_DIR) && ansible-playbook bootstrap.yml --check --diff
+# Workstation tooling + server provisioning are now CLI verbs (ADR-037):
+#   python3 -m suite deps        # install Python tooling + Ansible collections
+#   python3 -m suite bootstrap   # provision the server into a single-node K3s cluster
+#   python3 -m suite check       # dry-run the bootstrap (--check --diff)
 
 .PHONY: lint
 lint: lint-ansible lint-helm lint-py ## Static checks: Ansible + Helm/Helmfile + Python

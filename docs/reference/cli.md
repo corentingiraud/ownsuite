@@ -5,10 +5,14 @@ installs the stack, manages users, reports health, and applies upgrades. Every
 subcommand runs from **your workstation** and reaches the cluster over the SSH tunnel
 (the Kubernetes API is never exposed); it adds no Python dependencies of its own.
 
-Run it as `python -m suite <command>`. Only `suite install` has a `make` wrapper
-(`make install`); run the others as `python -m suite ...`.
+Run it as `python -m suite <command>`. Every operator action is a `suite` verb (ADR-037);
+`make` is now only CI/dev shorthand (lint, the test harnesses, low-level helmfile/ssh helpers).
+`make install` is kept as a one-line alias for `suite install`.
 
 ```text
+suite deps                         Install Python tooling + Ansible collections
+suite bootstrap                    Provision a bare server into a single-node K3s cluster
+suite check                        Dry-run the bootstrap (--check --diff); applies nothing
 suite install                      Guided install: bare server + domain → HTTPS
 suite user add|passwd|disable      Manage Keycloak users (one identity, all apps via JIT)
 suite status                       Read-only health summary (node, DB, certs, backup, apps)
@@ -38,6 +42,37 @@ export OWNSUITE_SECRET_SEED=...        # from your password manager (never writt
 
 See the [configuration reference](configuration.md) for every `OWNSUITE_*` variable.
 
+## `suite deps`
+
+One-time workstation setup: installs the Python tooling and Ansible collections this CLI and
+the bootstrap need (`pip install -r requirements-dev.txt` + the pinned `ansible-galaxy`
+collections). Run it from a fresh checkout — `suite` itself is pure standard library, so no
+dependencies are needed to run `suite deps`. Takes no flags.
+
+```bash
+python -m suite deps
+```
+
+## `suite bootstrap`
+
+Provisions a bare Debian server into a ready **single-node K3s** cluster via the Ansible
+playbook (`common` → `security` → `k3s`), then fetches the kubeconfig back to you. The server
+is read from the Ansible inventory (`ansible/inventory/hosts.yml`); takes no flags. Full
+walkthrough: [Server bootstrap](../get-started/bootstrap.md).
+
+```bash
+python -m suite bootstrap
+```
+
+## `suite check`
+
+Dry-runs the bootstrap (`ansible-playbook --check --diff`): shows what would change and
+**applies nothing**. Use it before `suite bootstrap` to review the plan. Takes no flags.
+
+```bash
+python -m suite check
+```
+
 ## `suite install`
 
 Takes a bare server + a domain to all-in-HTTPS, end to end. Idempotent — re-run it to
@@ -55,7 +90,7 @@ python -m suite install --tls-mode staging     # pass flags via python -m
 | `--public-ip IPV4` | detected over SSH | Override the detected server public IPv4 in the DNS records. |
 | `--tls-mode selfsigned\|staging\|prod` | `prod` | `prod` issues Let's Encrypt staging then production; `staging` stops at staging (untrusted leaf); `selfsigned` skips DNS/ACME (CI / local). |
 | `--non-interactive` | off | No prompts — read config from `.env` + flags (CI). |
-| `--skip-bootstrap` | off | Don't run `make bootstrap` (server already provisioned). |
+| `--skip-bootstrap` | off | Don't run the Ansible bootstrap (server already provisioned). |
 | `--skip-dns` | off | Don't print/handle DNS records. |
 | `--skip-propagation` | off | Don't wait for DNS to propagate before ACME. |
 | `--env-file`, `--no-tunnel` | see [conventions](#common-conventions) | |

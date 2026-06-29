@@ -76,7 +76,7 @@ install on the server beyond the bootstrap).
 
 ```bash
 # 1. Provision the server (Ansible, remote over SSH) — fetches ./kubeconfig
-make bootstrap
+python3 -m suite bootstrap
 
 # 2. Configure (copy the example, edit, load into the shell)
 cp .env.example .env && $EDITOR .env
