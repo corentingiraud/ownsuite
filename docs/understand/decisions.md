@@ -499,7 +499,9 @@ The installer runs on the operator's workstation, adding nothing to the single s
 **Consequences.** One command takes an operator from a bare server to HTTPS, the SSH tunnel becomes
 invisible, and the manual flow stays documented as the fallback. The installer is a thin
 orchestrator with no privileged cluster component. It only *prefigures* the `suite` CLI: a single
-`install` verb, with upgrades/restore (`suite upgrade` / `suite restore`) left to later work.
+`install` verb, with upgrades and restore landing later as
+[`suite upgrade`](#adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback) and
+[`suite restore`](#adr-036-suite-restore-backup-gated-clean-cluster-recovery).
 
 ---
 
@@ -1273,3 +1275,47 @@ nothing presumed. Operators choose their apps up front, and the resource footpri
 they switched on rather than a baked-in pair. **Trade-off:** a brand-new operator who expected
 Docs out of the box must now tick it (or set `OWNSUITE_APP_DOCS=true`); the installer prompt and
 the docs make that the obvious first step, so the cost is one keystroke, not a surprise.
+
+---
+
+## ADR-036 — `suite restore` (backup-gated, clean-cluster recovery)
+
+**Context.** Disaster recovery already worked: `make restore` runs a Helmfile sync in restore
+mode (CNPG recovery + the object/PVC restore Jobs, ADR-006/ADR-017), and the nightly e2e proves
+the full backup → destroy → restore cycle (ADR-010). But the operator-facing surface stopped at
+`install` / `user` / `status` / `upgrade`; restore was a bare `make` target with two sharp edges.
+First, it renders nothing without `OWNSUITE_SECRET_SEED` and means nothing without a backup source,
+yet failed late and opaquely when either was missing. Second — and worse — it assumes a **clean**
+cluster: CNPG recovery and the restore Jobs expect no prior data, so running it over a live install
+can clobber the very data it is meant to protect. ADR-018 anticipated a matching `suite restore`
+verb to close this gap.
+
+**Decision.** Add `suite restore`, the disaster-recovery counterpart of
+[`suite upgrade`](#adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback) and built
+on the same idioms (shared connection flags, the SSH tunnel of ADR-014, `OWNSUITE_SECRET_SEED`
+required up front, reuse of `make`/`helmfile` and `suite.verify` rather than reimplementation):
+
+1. **Require the seed.** Fail clearly if `OWNSUITE_SECRET_SEED` is not exported — Helmfile cannot
+   render without it (ADR-012).
+2. **Require a backup source.** Refuse unless off-site backups are enabled
+   (`OWNSUITE_BACKUP_ENABLED`) and a target store is configured — restoring from nothing is
+   meaningless (ADR-006).
+3. **Safety gate: refuse on a non-clean cluster.** Over the tunnel it probes for prior state (an
+   existing CNPG `Cluster` or bound PVCs in the `ownsuite` namespace). Because this is destructive,
+   the override is an **explicit typed confirmation** ("type `restore`"), not a bare `y/N`;
+   `--yes` skips it for unattended runs.
+4. **Restore + verify.** It runs the restore-mode sync
+   (`OWNSUITE_RESTORE=true OWNSUITE_BACKUP_ENABLED=true helmfile sync`) — exactly what `make restore`
+   runs — then verifies single sign-on and each enabled app over HTTPS, surfacing what came back.
+
+`make restore` stays the **low-level mechanism the CLI wraps**: the nightly e2e keeps driving it
+directly (a clean cluster by construction, no guardrails needed). The gates and the restore-mode
+env handed to Helmfile are unit-tested with mocked subprocess/HTTPS calls, no live cluster.
+
+**Consequences.** Recovery becomes a single guarded command that fails fast on the two ways a
+restore goes wrong silently (no seed, no source) and cannot quietly destroy a live install. **Safety
+gate trade-off:** the clean-cluster check is a heuristic (CNPG cluster + bound PVCs), not a proof of
+emptiness — a partially-provisioned cluster could slip through, and a genuinely fresh one with leftover
+PVCs would prompt unnecessarily. We accept both: the typed confirmation makes the destructive override
+deliberate, and `--yes` keeps automation unblocked. Like `suite upgrade`, verification is HTTPS
+reachability, not a deep functional test — the nightly e2e remains the deep check.
