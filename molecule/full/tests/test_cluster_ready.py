@@ -10,9 +10,11 @@ KUBECTL = "k3s kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
 
 
 def test_k3s_binary_pinned(host):
+    # Read the pin from the single source of truth (group_vars/all.yml) instead
+    # of duplicating the literal here, so a version bump is a one-file change.
+    expected = host.ansible.get_variables()["k3s_version"]
     version = host.check_output("k3s --version")
-    # Keep in sync with k3s_version in ansible/group_vars/all.yml.
-    assert "v1.36.2+k3s1" in version
+    assert expected in version
 
 
 def test_k3s_service_running(host):
