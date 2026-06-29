@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 
-from . import status, steps, upgrade, users
+from . import restore, status, steps, upgrade, users
 from .errors import SuiteError
 
 
@@ -67,6 +67,14 @@ def build_parser():
     up.add_argument("--no-tunnel", action="store_true", help="Use the ambient KUBECONFIG")
     up.add_argument("--yes", action="store_true",
                     help="Skip the diff confirmation (non-interactive)")
+
+    # `suite restore` — disaster recovery onto a CLEAN cluster from off-site backups (ADR-036).
+    rs = sub.add_parser("restore", help="Restore a CLEAN cluster from off-site backups.")
+    rs.add_argument("--env-file", default=".env")
+    rs.add_argument("--ssh", help="Server SSH target user@host (else read from .env)")
+    rs.add_argument("--no-tunnel", action="store_true", help="Use the ambient KUBECONFIG")
+    rs.add_argument("--yes", action="store_true",
+                    help="Skip the not-clean safety confirmation (non-interactive)")
     return p
 
 
@@ -79,6 +87,8 @@ def main(argv=None):
             status.run_status(args)
         elif args.command == "upgrade":
             upgrade.run_upgrade(args)
+        elif args.command == "restore":
+            restore.run_restore(args)
         else:
             steps.install(args)
     except SuiteError as exc:

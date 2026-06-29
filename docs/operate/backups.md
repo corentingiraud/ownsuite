@@ -87,10 +87,22 @@ Restore rebuilds a **clean** instance from the off-site backups. On a cluster wi
 data** (fresh PVCs) and the same `OWNSUITE_SECRET_SEED` + backup configuration:
 
 ```bash
+suite restore
+```
+
+`suite restore` is the operator-facing path: it checks the seed and backup configuration are
+present, **refuses on a cluster that is not clean** (an existing database or bound PVCs would be
+clobbered — confirm explicitly, or pass `--yes`, to override), runs the restore, then verifies
+single sign-on and each enabled app answered. See the [CLI reference](../reference/cli.md#suite-restore).
+
+Under the hood it runs the same Helmfile sync in restore mode that `make restore` runs directly —
+the low-level mechanism, if you need it without the guardrails:
+
+```bash
 make restore
 ```
 
-This runs a Helmfile sync in restore mode:
+Either way the restore-mode sync:
 
 1. **PostgreSQL** bootstraps via CNPG **recovery** from the off-site `ObjectStore` (every backed-up
    database comes back, to the latest backup / PITR).

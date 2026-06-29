@@ -13,6 +13,7 @@ suite install                      Guided install: bare server + domain → HTTP
 suite user add|passwd|disable      Manage Keycloak users (one identity, all apps via JIT)
 suite status                       Read-only health summary (node, DB, certs, backup, apps)
 suite upgrade                      Apply pending chart/image upgrades (backup-gated)
+suite restore                      Restore a CLEAN cluster from off-site backups
 ```
 
 ## Common conventions
@@ -25,9 +26,9 @@ Most subcommands share the same connection and configuration flags:
 | `--ssh user@host` | from `.env` (`OWNSUITE_SERVER_SSH`) | Server SSH target, used to open the tunnel. |
 | `--no-tunnel` | off | Skip the tunnel and use the ambient `KUBECONFIG` (a tunnel is already open, or you have direct API access). |
 
-**The secret seed.** `suite user` and `suite upgrade` need `OWNSUITE_SECRET_SEED`
-exported — the first to re-derive the Keycloak admin password, the second to render the
-deployment. `suite install` generates the seed on a first run (and prints it once);
+**The secret seed.** `suite user`, `suite upgrade` and `suite restore` need
+`OWNSUITE_SECRET_SEED` exported — the first to re-derive the Keycloak admin password, the
+others to render the deployment. `suite install` generates the seed on a first run (and prints it once);
 `suite status` does **not** need it. Load your config and seed before running:
 
 ```bash
@@ -117,3 +118,26 @@ suite upgrade --yes      # skip the confirmation (unattended)
 | `--env-file`, `--ssh`, `--no-tunnel` | see [conventions](#common-conventions) | |
 
 Needs `OWNSUITE_SECRET_SEED` exported (to render the deployment).
+
+## `suite restore`
+
+Disaster recovery: rebuilds an instance from the off-site backups in restore mode (CNPG
+recovery + the object/PVC restore Jobs). It refuses unless backups are configured (there
+must be a source to restore from) and **refuses on a cluster that is not clean** — an
+existing CNPG cluster or bound app PVCs means live data that restore would clobber. On a
+non-clean cluster it asks for an explicit typed confirmation (`--yes` overrides it). After
+the sync it verifies single sign-on and each enabled app over HTTPS. `make restore` is the
+underlying low-level mechanism this wraps. Guide: [Backups & restore](../operate/backups.md).
+
+```bash
+suite restore            # restore onto a fresh cluster, then verify
+suite restore --yes      # skip the not-clean safety confirmation (unattended)
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--yes` | off | Skip the not-clean safety confirmation (non-interactive). |
+| `--env-file`, `--ssh`, `--no-tunnel` | see [conventions](#common-conventions) | |
+
+Needs `OWNSUITE_SECRET_SEED` exported (to render the deployment) and off-site backups
+configured (`OWNSUITE_BACKUP_ENABLED=true` + a target store).
