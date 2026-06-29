@@ -104,6 +104,9 @@ plugins:
           - understand/projects.md: Projects — kanban boards and task management; optional, off by default.
           - understand/messages.md: Mailbox — a full mail provider with webmail; advanced, off by default.
           - understand/decisions.md: Design decisions and their rationale.
+        Reference:
+          - reference/cli.md: The `suite` CLI — every command and flag (install, user, status, upgrade).
+          - reference/configuration.md: Every `OWNSUITE_*` variable, with defaults, and how to choose which apps to deploy.
         Project:
           - project/roadmap.md: Status board (Shipped / Optional / Planned) and the product vision.
           - project/for-ai-agents.md: Conventions for AI agents and the documentation.
@@ -140,6 +143,9 @@ nav:
       - Projects: understand/projects.md
       - Mailbox: understand/messages.md
       - Design decisions: understand/decisions.md
+  - Reference:
+      - suite CLI: reference/cli.md
+      - Configuration: reference/configuration.md
   - Project:
       - Status &amp; roadmap: project/roadmap.md
       - For AI agents: project/for-ai-agents.md

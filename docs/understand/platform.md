@@ -57,26 +57,11 @@ export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required
     credential. Store it in a password manager. Losing it means rotating everything;
     leaking it means leaking all derived secrets.
 
-Other knobs are plain configuration via `OWNSUITE_*` variables (all optional, with
-sensible defaults), e.g.:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `OWNSUITE_DOMAIN` | `ownsuite.localhost` | Base domain; each app is `<name>.{domain}` |
-| `OWNSUITE_TLS_ISSUER` | `selfsigned` | `letsencrypt-staging` / `letsencrypt-http01` for production — `make install` drives staging→prod |
-| `OWNSUITE_ACME_EMAIL` | `admin@example.org` | ACME registration email |
-| `OWNSUITE_ADMIN_EMAIL` | `admin@example.org` | Contact for app admin / superuser accounts |
-| `OWNSUITE_OBJECT_STORAGE_MODE` | `external` | `external` (managed S3) or `garage` (in-cluster) |
-| `OWNSUITE_S3_ENDPOINT` | _(empty)_ | External S3 endpoint URL (`external` mode) |
-| `OWNSUITE_S3_BUCKET` | `docs-media-storage` | Bucket for app media (created by Garage in `garage` mode) |
-| `OWNSUITE_GARAGE_META_STORAGE` | `1Gi` | Garage metadata volume size (`garage` mode) |
-| `OWNSUITE_GARAGE_DATA_STORAGE` | `10Gi` | Garage data volume size (`garage` mode) |
-| `OWNSUITE_PG_STORAGE` | `10Gi` | Postgres volume size |
-| `OWNSUITE_BACKUP_ENABLED` | `false` | Enable off-site backups (see [Backups & restore](../operate/backups.md)) |
-| `OWNSUITE_BACKUP_S3_TARGET` | `in-cluster` | `external` (prod) or `in-cluster` (CI) off-site destination |
-
-The backup/restore knobs (`OWNSUITE_BACKUP_*`, `OWNSUITE_RESTORE`) are documented in full in
-[Backups & restore](../operate/backups.md).
+Everything else is plain configuration via `OWNSUITE_*` variables — the domain, TLS issuer,
+object-storage mode, volume sizes, **which apps to enable**, backups, and more — all
+optional with sensible defaults. The full list, with defaults, is the
+[Configuration reference](../reference/configuration.md); the backup/restore knobs have
+their own guide in [Backups & restore](../operate/backups.md).
 
 ## Run it (manual fallback)
 
