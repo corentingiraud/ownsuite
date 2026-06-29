@@ -10,10 +10,10 @@ walks away with a full collaborative suite (documents, files, directory…) serv
 ## The promise, in 6 steps
 
 1. Get a server — a cloud VM, a dedicated host, or a home server — and a domain name.
-2. Run the **[guided installer](get-started/install.md)**, answer ~5 questions (domain, admin email, apps).
+2. Run the **[guided installer](get-started/install.md)**, answer ~5 questions (domain, admin email, **which apps to enable**).
 3. The installer prints **the exact list of DNS records** to add at the registrar.
-4. DNS propagates → every app responds over HTTPS, with **shared SSO**.
-5. The admin creates `firstname@assoc.org` **once** → instant access to Docs, Drive, etc.
+4. DNS propagates → every app you enabled responds over HTTPS, with **shared SSO**.
+5. The admin creates `firstname@assoc.org` **once** → instant access to every enabled app.
 6. **Backups** are encrypted, off-site, and **restore is tested**.
 
 ## Why this project exists
@@ -27,10 +27,12 @@ cache, storage and — above all — **one SSO** across every app, plus everythi
 production needs: **backups, tested restore, controlled upgrades**.
 
 !!! info "What's ready today"
-    The core is built and tested in CI: server setup, shared single sign-on, the **Docs**
-    and **Drive** apps, off-site backups with a restore that's actually tested, and the
-    guided installer. **Grist**, **Projects** and a **Mailbox** are available as optional
-    extras. See the [feature list](project/roadmap.md).
+    The platform is built and tested in CI: server setup, shared single sign-on, off-site
+    backups with a restore that's actually tested, and the guided installer. **Every app is
+    off by default — you choose which to deploy.** **Docs** and **Drive** are the
+    recommended core; **Grist**, **Projects** and a **Mailbox** are also available. See
+    [Choosing which apps to deploy](reference/configuration.md#choosing-which-apps-to-deploy)
+    and the [feature list](project/roadmap.md).
 
 ## Where to start
 
@@ -39,7 +41,7 @@ production needs: **backups, tested restore, controlled upgrades**.
 <div class="grid cards" markdown>
 
 - :material-server: **[1. Prepare the server](get-started/bootstrap.md)** — one command turns a bare Debian server into a ready K3s cluster.
-- :material-rocket-launch: **[2. Install](get-started/install.md)** — the guided installer takes you from there to every app on HTTPS, by following the screen.
+- :material-rocket-launch: **[2. Install](get-started/install.md)** — the guided installer takes you from there to the apps you choose, on HTTPS, by following the screen.
 
 </div>
 

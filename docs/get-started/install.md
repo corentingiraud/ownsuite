@@ -41,7 +41,8 @@ it and re-run `make install` to resume:
 1. **Config.** Prompts for the domain, admin email, server SSH target, object-storage mode,
    backups, and **which apps to enable** (every app is off by default; Docs + Drive are
    presented as the recommended first pair), and writes the non-secret values to a
-   git-ignored `.env`.
+   git-ignored `.env`. Every prompt — and many more optional knobs — maps to an
+   `OWNSUITE_*` variable; the full list is the [Configuration reference](../reference/configuration.md).
 2. **Secret seed.** Generates `OWNSUITE_SECRET_SEED` (`openssl rand -hex 24` equivalent)
    and prints it **once**.
 
