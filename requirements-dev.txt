@@ -8,4 +8,4 @@ molecule-plugins[docker]==25.8.12
 pytest==9.1.1
 pytest-testinfra==10.2.2
 # Linter/formatter for the `suite` installer package + its tests (Phase 4).
-ruff==0.15.19
+ruff==0.15.20

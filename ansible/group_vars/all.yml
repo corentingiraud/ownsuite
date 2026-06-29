@@ -5,7 +5,7 @@
 # --- K3s ---------------------------------------------------------------------
 # Pin an explicit release, NOT a channel, so a bump is always an intentional diff.
 # Latest stable at time of writing (https://update.k3s.io/v1-release/channels).
-k3s_version: "v1.36.1+k3s1"
+k3s_version: "v1.36.2+k3s1"
 # Default CIDRs baked into K3s/flannel. The firewall must allow these or
 # CoreDNS / pod-to-pod traffic breaks.
 k3s_pod_cidr: "10.42.0.0/16"

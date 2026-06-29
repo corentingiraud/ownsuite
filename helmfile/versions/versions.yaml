@@ -7,7 +7,7 @@
 
 chartVersions:
   # renovate: datasource=helm registryUrl=https://charts.jetstack.io depName=cert-manager
-  certManager: "v1.20.2"
+  certManager: "v1.20.3"
   # renovate: datasource=helm registryUrl=https://cloudnative-pg.github.io/charts depName=cloudnative-pg
   cnpgOperator: "0.28.3"
   # renovate: datasource=helm registryUrl=https://codecentric.github.io/helm-charts depName=keycloakx
@@ -25,7 +25,7 @@ chartVersions:
 
 imageVersions:
   # renovate: datasource=docker depName=quay.io/keycloak/keycloak
-  keycloak: "26.6.3"
+  keycloak: "26.6.4"
   # Docs images — keep these three in lockstep with the chart appVersion.
   # renovate: datasource=docker depName=lasuite/impress-backend
   docsBackend: "v5.3.0"
