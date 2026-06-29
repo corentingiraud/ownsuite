@@ -89,11 +89,24 @@ data "openstack_images_image_v2" "debian" {
   most_recent = true
 }
 
+# Explicit port so the security group attaches at the network layer and the
+# floating IP can target it (the compute-side floatingip helpers were removed in
+# the openstack provider v3).
+resource "openstack_networking_port_v2" "this" {
+  name               = "${var.name}-port"
+  network_id         = openstack_networking_network_v2.this.id
+  admin_state_up     = true
+  security_group_ids = [openstack_networking_secgroup_v2.this.id]
+
+  fixed_ip {
+    subnet_id = openstack_networking_subnet_v2.this.id
+  }
+}
+
 resource "openstack_compute_instance_v2" "this" {
-  name            = var.name
-  flavor_name     = var.flavor_name
-  key_pair        = openstack_compute_keypair_v2.this.name
-  security_groups = [openstack_networking_secgroup_v2.this.name]
+  name        = var.name
+  flavor_name = var.flavor_name
+  key_pair    = openstack_compute_keypair_v2.this.name
 
   # Diskless flavor → boot from a sized volume built from the image.
   block_device {
@@ -106,19 +119,20 @@ resource "openstack_compute_instance_v2" "this" {
   }
 
   network {
-    uuid = openstack_networking_network_v2.this.id
+    port = openstack_networking_port_v2.this.id
   }
-
-  depends_on = [openstack_networking_router_interface_v2.this]
 }
 
 resource "openstack_networking_floatingip_v2" "this" {
   pool = var.external_network_name
 }
 
-resource "openstack_compute_floatingip_associate_v2" "this" {
+resource "openstack_networking_floatingip_associate_v2" "this" {
   floating_ip = openstack_networking_floatingip_v2.this.address
-  instance_id = openstack_compute_instance_v2.this.id
+  port_id     = openstack_networking_port_v2.this.id
+
+  # Outbound routing needs the subnet attached to the router first.
+  depends_on = [openstack_networking_router_interface_v2.this]
 }
 
 # --- Object storage (Swift containers = S3 buckets) -------------------------
