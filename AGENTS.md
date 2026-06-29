@@ -31,7 +31,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `Makefile` | Operator/dev entrypoints: `bootstrap`, `install`, `check`, `lint`, `test`, `test-full`, `test-platform` (installer-provisioned full DoD), `test-pvc-backup` (isolated ADR-032 PVC backup/restore, ~3 min), `test-app` (one optional app per cluster). |
 | `ansible/` | Server bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles. |
 | `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, Garage, the Docs, Drive, Grist and Projects apps (local charts, all off by default), and the off-site backups (rclone object copy, `garage-backup`); local charts, values, versions, k3d e2e. |
-| `suite/` | Guided installer + CLI (`suite install`/`user`/`status`/`upgrade`/`restore`, ADR-018/023/033/034/036): config + seed, DNS records, propagation gate, SSH tunnel, ACME (staging→prod), HTTPS verify, user provisioning, health summary, backup-gated upgrade + clean-cluster restore. Pure standard library; lint with `ruff` (`ruff.toml`). |
+| `suite/` | Guided installer + CLI (`suite deps`/`bootstrap`/`check`/`install`/`user`/`status`/`upgrade`/`restore`, ADR-018/023/033/034/036/037): workstation deps + Ansible bootstrap (and its dry-run), config + seed, DNS records, propagation gate, SSH tunnel, ACME (staging→prod), HTTPS verify, user provisioning, health summary, backup-gated upgrade + clean-cluster restore. Every operator action is a CLI verb; `make` is CI/dev only. Pure standard library; lint with `ruff` (`ruff.toml`). |
 | `tests/` | Unit tests for the `suite` installer (pytest; mocked resolvers, no cluster). |
 | `molecule/` | `default` (fast, host-prep roles) and `full` (real K3s) test scenarios + Testinfra. |
 | `requirements-dev.txt` | Dev/CI toolchain (Ansible, ansible-lint, yamllint, Molecule, Testinfra). |
@@ -71,10 +71,10 @@ mkdocs serve   # http://127.0.0.1:8000
 ## Bootstrap & test the server layer
 
 ```bash
-make deps        # Ansible + collections + test tooling (requirements-dev.txt)
-make check       # dry-run the bootstrap against your inventory
-make bootstrap   # provision a Debian server into a ready single-node K3s cluster
-make lint test   # static checks + Molecule container tests (Docker required)
+python3 -m suite deps        # Ansible + collections + test tooling (requirements-dev.txt)
+python3 -m suite check       # dry-run the bootstrap against your inventory
+python3 -m suite bootstrap   # provision a Debian server into a ready single-node K3s cluster
+make lint test               # static checks + Molecule container tests (CI/dev; Docker required)
 ```
 
 The testing approach (layered, evolving) is [ADR-010](docs/understand/decisions.md);

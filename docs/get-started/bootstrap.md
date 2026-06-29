@@ -3,7 +3,7 @@
 Turn a **bare Debian server** into a ready **single-node K3s** cluster with one
 command — the first step before installing OwnSuite.
 
-> **What you get:** `make bootstrap` turns a bare Debian server into a ready
+> **What you get:** `suite bootstrap` turns a bare Debian server into a ready
 > single-node K3s cluster.
 
 This step is handled by **Ansible**, which applies three sets of changes in order:
@@ -20,17 +20,17 @@ This step is handled by **Ansible**, which applies three sets of changes in orde
 ## Requirements
 
 - A server running **Debian 12 (bookworm)** or **13 (trixie)**, reachable over SSH.
-- On your machine: Python 3.10+, then `make deps` (installs Ansible + collections).
+- On your machine: Python 3.10+, then `python3 -m suite deps` (installs Ansible + collections).
 
 ## Run it
 
 ```bash
 git clone https://github.com/corentingiraud/ownsuite.git && cd ownsuite
-make deps                                   # one-time: tooling + collections
+python3 -m suite deps                       # one-time: tooling + collections
 cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml
 $EDITOR ansible/inventory/hosts.yml         # set ansible_host / ansible_user
-make check                                  # dry-run (--check --diff), applies nothing
-make bootstrap                              # provision the host
+python3 -m suite check                      # dry-run (--check --diff), applies nothing
+python3 -m suite bootstrap                  # provision the host
 ```
 
 When it finishes, a `kubeconfig` is fetched to the repo root:
@@ -39,7 +39,7 @@ When it finishes, a `kubeconfig` is fetched to the repo root:
 KUBECONFIG=./kubeconfig kubectl get nodes   # the node should be Ready
 ```
 
-**Next:** the [guided installer](install.md) (`make install`) wraps bootstrap and
+**Next:** the [guided installer](install.md) (`suite install`) wraps bootstrap and
 everything after it — config, DNS records, the SSH tunnel, `helmfile sync`, and
 staging→production certificates — so a bare server + a domain reaches HTTPS in one flow.
 

@@ -14,9 +14,9 @@ This is **step 2**. Everything runs from **your own computer** — nothing extra
 the server beyond the initial setup.
 
 1. **Do [step 1 — Prepare the server](bootstrap.md) first.** It clones the repo, runs
-   `make deps`, sets the inventory, and — importantly — installs your **SSH key before the
+   `suite deps`, sets the inventory, and — importantly — installs your **SSH key before the
    hardening disables password login** (don't skip its warning, or you can lock yourself
-   out). `make install` *can* run `make bootstrap` for you, but read that page first.
+   out). `suite install` *can* run the bootstrap for you, but read that page first.
 2. **Install these CLI tools** on your workstation (the installer only orchestrates them and
    adds no Python dependencies of its own):
 
@@ -51,8 +51,8 @@ it and re-run `make install` to resume:
         is derived from it. Save it in your password manager. To resume later, re-export it:
         `export OWNSUITE_SECRET_SEED=...` before re-running.
 
-3. **Bootstrap.** Runs `make bootstrap` (Ansible) to provision the server into K3s, unless
-   `--skip-bootstrap`.
+3. **Bootstrap.** Runs the Ansible bootstrap (same as `suite bootstrap`) to provision the
+   server into K3s, unless `--skip-bootstrap`.
 4. **DNS records.** Detects the server public IP over SSH and prints the exact records to
    create at your registrar:
 

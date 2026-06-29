@@ -1,7 +1,7 @@
 ---
 # OwnSuite server bootstrap.
 # Turns a bare Debian host into a ready single-node K3s cluster.
-# Run with: make bootstrap   (i.e. ansible-playbook -i inventory/hosts.yml bootstrap.yml)
+# Run with: python3 -m suite bootstrap   (i.e. ansible-playbook -i inventory/hosts.yml bootstrap.yml)
 - name: Bootstrap a single-node K3s server
   hosts: ownsuite
   become: true

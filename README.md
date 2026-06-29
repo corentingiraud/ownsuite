@@ -27,8 +27,8 @@ Runs on any single server — a cloud VM, a dedicated host, or a home server.
 
 ```bash
 git clone https://github.com/corentingiraud/ownsuite.git && cd ownsuite
-make deps        # one-time: tooling + Ansible collections
-make install     # guided: bare server + domain -> all-in-HTTPS
+python3 -m suite deps       # one-time: tooling + Ansible collections
+python3 -m suite install    # guided: bare server + domain -> all-in-HTTPS
 ```
 
 Then follow the screen. Prerequisites and the full step-by-step flow are in the

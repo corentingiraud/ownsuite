@@ -1319,3 +1319,40 @@ emptiness — a partially-provisioned cluster could slip through, and a genuinel
 PVCs would prompt unnecessarily. We accept both: the typed confirmation makes the destructive override
 deliberate, and `--yes` keeps automation unblocked. Like `suite upgrade`, verification is HTTPS
 reachability, not a deep functional test — the nightly e2e remains the deep check.
+
+---
+
+## ADR-037 — One entrypoint for operators: every action is a `suite` CLI verb
+
+**Context.** The operator surface had drifted across two tools. Setup and provisioning lived as
+`make` targets (`make deps`, `make bootstrap`, `make check`), while the lifecycle lived on the
+`suite` CLI (`install` / `user` / `status` / `upgrade` / `restore`, ADR-018 onward). An operator
+had to know *which* tool a given action lived on, and the installer itself shelled out to
+`make bootstrap` from inside Python — a CLI calling a Makefile calling Ansible. The `make` surface
+also mixed two audiences: genuine CI/dev plumbing (lint, the Molecule/e2e harnesses) and
+operator-facing commands, with nothing signalling which was which.
+
+**Decision.** **Every user-facing operation is a `suite` CLI verb; `make` is CI/dev shorthand
+only.** The three setup/provisioning targets become verbs in a new `suite/bootstrap.py`:
+
+- `suite deps` — install the Python tooling + Ansible collections (pip + `ansible-galaxy`).
+  `suite` is pure standard library, so this runs from a bare checkout with nothing pre-installed.
+- `suite bootstrap` — provision the server via the Ansible playbook (ADR-002), the work
+  `make bootstrap` used to do.
+- `suite check` — the same playbook with `--check --diff`, a no-op dry-run.
+
+`suite install` now calls `bootstrap.provision()` directly instead of shelling out to `make`, so
+the installer no longer depends on a Makefile being present. The remaining `make` targets are
+exactly the CI/dev set — `lint*`, `test*`, and the low-level helmfile/ssh helpers the CLI wraps
+(`tunnel` / `sync` / `diff` / `destroy` / `backup`, plus `restore` as the documented low-level
+mechanism behind [`suite restore`](#adr-036-suite-restore-backup-gated-clean-cluster-recovery)).
+`make install` is kept as a one-line alias to the canonical `suite install`. The new verbs are
+flag-free (they read the repo's requirements files and the Ansible inventory) and unit-tested with
+mocked subprocess/tool-discovery calls, no pip/Ansible/server.
+
+**Consequences.** There is one place to look for anything an operator does (`suite --help`), and the
+docs lead with `python3 -m suite …` throughout. The CLI/Makefile layering inverts cleanly: Python is
+the entrypoint, Ansible/helmfile/kubectl are the tools it drives, and `make` stops being part of the
+operator's mental model. **Trade-off:** the headline commands grow one token longer
+(`make bootstrap` → `python3 -m suite bootstrap`) until a `suite` shim is on `PATH`; CI is unaffected
+because it already invoked `pip`/`ansible-galaxy` directly rather than through `make deps`.
