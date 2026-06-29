@@ -33,9 +33,9 @@
   ],
   "customManagers": [
     {
-      "description": "Track the pinned K3s release in group_vars.",
+      "description": "Track the pinned K3s release in the k3s role default (single source of truth).",
       "customType": "regex",
-      "managerFilePatterns": ["/^ansible/group_vars/all\\.yml$/"],
+      "managerFilePatterns": ["/^ansible/roles/k3s/defaults/main\\.yml$/"],
       "matchStrings": ["k3s_version:\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "k3s-io/k3s",
       "datasourceTemplate": "github-releases",

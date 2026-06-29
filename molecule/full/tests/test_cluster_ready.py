@@ -4,17 +4,28 @@ This is the machine-checked form of the Phase 0 definition of done:
 "`make bootstrap` turns a bare Debian server into a ready single-node K3s cluster."
 """
 
+import os
+from pathlib import Path
+
+import yaml
+
 testinfra_hosts = ["all"]
 
 KUBECTL = "k3s kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml"
 
 
+def _pinned_k3s_version():
+    # Single source of truth: the k3s role default (Renovate-tracked). Read it
+    # straight from the repo so this test can never drift from the pin, and a
+    # version bump stays a one-file change.
+    root = Path(os.environ["MOLECULE_PROJECT_DIRECTORY"])
+    defaults = yaml.safe_load((root / "ansible/roles/k3s/defaults/main.yml").read_text())
+    return defaults["k3s_version"]
+
+
 def test_k3s_binary_pinned(host):
-    # Read the pin from the single source of truth (group_vars/all.yml) instead
-    # of duplicating the literal here, so a version bump is a one-file change.
-    expected = host.ansible.get_variables()["k3s_version"]
     version = host.check_output("k3s --version")
-    assert expected in version
+    assert _pinned_k3s_version() in version
 
 
 def test_k3s_service_running(host):
