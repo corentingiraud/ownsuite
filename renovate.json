@@ -34,6 +34,11 @@
       "description": "Group Terraform provider/runtime bumps (the OpenStack provider lives in terraform/**/versions.tf; the built-in terraform manager detects it).",
       "matchManagers": ["terraform"],
       "groupName": "terraform providers"
+    },
+    {
+      "description": "Group the CI Terraform/tflint binary versions (env vars caught by the CLI-tools custom manager) with the provider bumps.",
+      "matchPackageNames": ["hashicorp/terraform", "terraform-linters/tflint"],
+      "groupName": "terraform providers"
     }
   ],
   "customManagers": [

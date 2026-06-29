@@ -20,6 +20,12 @@ on:
 permissions:
   contents: read
 
+# Pinned tool versions (Renovate-tracked via the CLI-tools custom manager, same
+# pattern as the helmfile workflows).
+env:
+  TERRAFORM_VERSION: "1.15.7" # renovate: datasource=github-releases depName=hashicorp/terraform
+  TFLINT_VERSION: "v0.63.1" # renovate: datasource=github-releases depName=terraform-linters/tflint
+
 defaults:
   run:
     working-directory: terraform
@@ -32,7 +38,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "1.15.7"
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
       - name: Format
@@ -49,7 +55,7 @@ jobs:
 
       - uses: terraform-linters/setup-tflint@v6
         with:
-          tflint_version: "v0.63.1"
+          tflint_version: ${{ env.TFLINT_VERSION }}
 
       - name: TFLint
         env:
