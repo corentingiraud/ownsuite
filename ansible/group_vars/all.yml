@@ -3,9 +3,9 @@
 # Override per host/group in the inventory; never use `latest` here (AGENTS.md).
 
 # --- K3s ---------------------------------------------------------------------
-# Pin an explicit release, NOT a channel, so a bump is always an intentional diff.
-# Latest stable at time of writing (https://update.k3s.io/v1-release/channels).
-k3s_version: "v1.36.1+k3s1"
+# The release pin is the single source of truth in the k3s role default
+# (ansible/roles/k3s/defaults/main.yml, Renovate-tracked). Override it here only
+# to deviate from that default.
 # Default CIDRs baked into K3s/flannel. The firewall must allow these or
 # CoreDNS / pod-to-pod traffic breaks.
 k3s_pod_cidr: "10.42.0.0/16"
