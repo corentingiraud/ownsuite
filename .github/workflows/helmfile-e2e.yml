@@ -25,13 +25,11 @@ on:
 permissions:
   contents: read
 
-env:
-  # Pinned CLI tools (tracked by Renovate via the workflow customManager).
-  HELM_VERSION: "v4.2.2" # renovate: datasource=github-releases depName=helm/helm
-  HELMFILE_VERSION: "v1.6.0" # renovate: datasource=github-releases depName=helmfile/helmfile
-  KUBECONFORM_VERSION: "v0.8.0" # renovate: datasource=github-releases depName=yannh/kubeconform
-  K3D_VERSION: "v5.9.0" # renovate: datasource=github-releases depName=k3d-io/k3d
-  KUBECTL_VERSION: "v1.36.2" # renovate: datasource=github-releases depName=kubernetes/kubernetes
+# Cancel superseded PR runs (a new push to the same PR kills the in-flight one);
+# main / nightly runs (distinct ref) are left to finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Fast, isolated ADR-032 PVC backup/restore round-trip (a single off-site garage +
@@ -47,19 +45,9 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
-      - name: Install helm, helmfile, kubeconform, k3d (pinned)
-        # Extract in a clean temp dir: the repo root has a `helmfile/` directory,
-        # which would collide with `tar x helmfile` (the binary).
-        working-directory: ${{ runner.temp }}
-        run: |
-          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo install linux-amd64/helm /usr/local/bin/helm
-          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION#v}_linux_amd64.tar.gz" | tar xz helmfile
-          sudo install helmfile /usr/local/bin/helmfile
-          curl -fsSL "https://github.com/k3d-io/k3d/releases/download/${K3D_VERSION}/k3d-linux-amd64" -o k3d
-          sudo install k3d /usr/local/bin/k3d
-          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
-          sudo install kubectl /usr/local/bin/kubectl
+      - uses: ./.github/actions/setup-cluster-tools
+        with:
+          cluster: "true"
       - name: ADR-032 PVC backup/restore (isolated)
         run: make test-pvc-backup
 
@@ -80,19 +68,9 @@ jobs:
         with:
           python-version: "3.14"
       - run: pip install pytest==9.1.1
-      - name: Install helm, helmfile, kubeconform, k3d (pinned)
-        working-directory: ${{ runner.temp }}
-        run: |
-          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo install linux-amd64/helm /usr/local/bin/helm
-          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION#v}_linux_amd64.tar.gz" | tar xz helmfile
-          sudo install helmfile /usr/local/bin/helmfile
-          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar xz kubeconform
-          sudo install kubeconform /usr/local/bin/kubeconform
-          curl -fsSL "https://github.com/k3d-io/k3d/releases/download/${K3D_VERSION}/k3d-linux-amd64" -o k3d
-          sudo install k3d /usr/local/bin/k3d
-          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
-          sudo install kubectl /usr/local/bin/kubectl
+      - uses: ./.github/actions/setup-cluster-tools
+        with:
+          cluster: "true"
       # One installer-provisioned cluster proves both the `suite install` path
       # (ADR-018) and the full platform/restore DoD — no second from-scratch build.
       - name: Full e2e (suite install -> Docs/Drive DoD -> backup/restore)
