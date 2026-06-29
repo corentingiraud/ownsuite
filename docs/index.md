@@ -34,6 +34,22 @@ production needs: **backups, tested restore, controlled upgrades**.
     [Choosing which apps to deploy](reference/configuration.md#choosing-which-apps-to-deploy)
     and the [feature list](project/roadmap.md).
 
+## The apps
+
+One Keycloak identity reaches every enabled app (single sign-on, just-in-time). **Every app is
+off by default** — you pick which to deploy. **Docs + Drive** are the recommended first pair.
+
+| App | What it is | Status |
+|---|---|---|
+| **[Docs](understand/docs.md)** | Collaborative documents | recommended core |
+| **[Drive](understand/drive.md)** | File manager | recommended core |
+| **[Grist](understand/grist.md)** | Spreadsheets that behave like a database | optional |
+| **[Projects](understand/projects.md)** | Kanban boards / task management | optional |
+| **[Mailbox](understand/messages.md)** | Mail provider + webmail | advanced |
+
+Some upstream La Suite apps (Meet, People, Calendars…) are deliberately not packaged — see
+[Not supported](project/roadmap.md#not-supported-and-why).
+
 ## Where to start
 
 **Installing it?** Follow the steps in order:

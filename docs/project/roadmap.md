@@ -75,6 +75,20 @@ Enable each with one `OWNSUITE_APP_*` flag; they reuse the same SSO + JIT seam.
   (`OWNSUITE_APP_MESSAGES`). Mail is the hardest part to make reliable, so it ships isolated
   and disabled by default. See [Mailbox application](../understand/messages.md).
 
+## Not supported (and why)
+
+These upstream La Suite apps are deliberately **not** packaged by OwnSuite. The bar is
+single-server fit and real value over what the shared foundation already provides.
+
+| App | What it is | Why not (yet) |
+|---|---|---|
+| **Meet** | Video conferencing (LiveKit + coturn) | Real-time media is heavy and operationally painful on a single VPS. Deferred. |
+| **People** | User & team management | It's an OIDC **client**, not an identity provider — it sits *behind* Keycloak, so it can't replace it. Identity is already covered by Keycloak + `suite user`; People would be one more app, not a simplification. |
+| **Calendars** | Shared calendars | Early upstream; not integrated yet. |
+| **Conversations** | AI chatbot | Early upstream prototype; not integrated yet. |
+| **Calc** | Collaborative spreadsheets | Upstream prototype; overlaps with the shipped **Grist**. |
+| **Hub** | Meet + chat, unified | Depends on **Meet** (above). |
+
 ## Planned
 
 The production-hardening goal — install, operate, upgrade and recover OwnSuite **without
@@ -88,9 +102,9 @@ What remains is the one thing CI cannot stand in for:
   `dns_check` command verifies alignment, but the final proof needs a human, a real domain and a
   real external inbox. See [Mailbox application](../understand/messages.md).
 
-**Out of scope / deferred:** Meet (video — LiveKit/coturn, painful on a single server);
-OpenSearch full-text search for the mailbox (deferred to protect single-VPS RAM — note the cost
-if re-enabled).
+**Out of scope / deferred:** OpenSearch full-text search for the mailbox (deferred to protect
+single-VPS RAM — note the cost if re-enabled). For upstream apps we don't package, see
+[Not supported](#not-supported-and-why) above.
 
 ---
 

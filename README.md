@@ -48,6 +48,8 @@ Drive** are the recommended first pair (the installer presents them as such).
 | **Projects** | Kanban boards / task management (suitenumerique/projects) | off | `OWNSUITE_APP_PROJECTS` | optional |
 | **Mailbox** | Mail provider + webmail (suitenumerique/messages) | off | `OWNSUITE_APP_MESSAGES` | advanced |
 
+Some upstream La Suite apps (Meet, People, Calendars…) are deliberately not packaged — see
+[Not supported](https://corentingiraud.github.io/ownsuite/project/roadmap/#not-supported-and-why).
 See the [status board](https://corentingiraud.github.io/ownsuite/project/roadmap/) for the
 full feature list and what's planned.
 
