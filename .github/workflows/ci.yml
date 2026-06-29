@@ -32,6 +32,12 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded PR runs (a new push to the same PR kills the in-flight one);
+# main / nightly runs (distinct ref) are left to finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     runs-on: ubuntu-latest

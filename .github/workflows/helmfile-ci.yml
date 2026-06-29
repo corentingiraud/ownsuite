@@ -21,27 +21,18 @@ on:
 permissions:
   contents: read
 
-env:
-  # Pinned CLI tools (tracked by Renovate via the workflow customManager).
-  HELM_VERSION: "v4.2.2" # renovate: datasource=github-releases depName=helm/helm
-  HELMFILE_VERSION: "v1.6.0" # renovate: datasource=github-releases depName=helmfile/helmfile
-  KUBECONFORM_VERSION: "v0.8.0" # renovate: datasource=github-releases depName=yannh/kubeconform
+# Cancel superseded PR runs (a new push to the same PR kills the in-flight one);
+# main / nightly runs (distinct ref) are left to finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install helm, helmfile, kubeconform (pinned)
-        # Extract in a clean temp dir: the repo root has a `helmfile/` directory,
-        # which would collide with `tar x helmfile` (the binary).
-        working-directory: ${{ runner.temp }}
-        run: |
-          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo install linux-amd64/helm /usr/local/bin/helm
-          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION#v}_linux_amd64.tar.gz" | tar xz helmfile
-          sudo install helmfile /usr/local/bin/helmfile
-          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar xz kubeconform
-          sudo install kubeconform /usr/local/bin/kubeconform
+      # No cluster needed for static checks -> helm/helmfile/kubeconform only.
+      - uses: ./.github/actions/setup-cluster-tools
       - name: Helm/Helmfile static checks
         run: make lint-helm

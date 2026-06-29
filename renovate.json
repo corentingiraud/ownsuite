@@ -60,9 +60,9 @@
       "datasourceTemplate": "{{{datasource}}}"
     },
     {
-      "description": "Track pinned CLI tool versions (helm/helmfile/kubeconform) in CI workflows.",
+      "description": "Track pinned CLI tool versions (helm/helmfile/kubeconform/k3d/kubectl) in CI workflows and composite actions.",
       "customType": "regex",
-      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "managerFilePatterns": ["/^\\.github/(workflows|actions)/.+\\.ya?ml$/"],
       "matchStrings": [
         "[A-Z_]+_VERSION:\\s*\"?(?<currentValue>[^\"\\s]+)\"?\\s*#\\s*renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)"
       ],
