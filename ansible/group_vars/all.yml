@@ -32,6 +32,9 @@ firewall_allowed_tcp_ports:
   - 22    # SSH
   - 80    # HTTP (Traefik / ACME http-01)
   - 443   # HTTPS
+# Mailbox (messages) is deployed here: open inbound SMTP (port 25) via the
+# gated ufw task. Mirror of the Terraform `enable_mailbox` toggle (ADR-027).
+enable_mailbox: true
 # SSH hardening. Keep true in production; disable only if you bootstrap with a
 # password and have not yet installed an SSH key (you would lock yourself out).
 ssh_harden: true

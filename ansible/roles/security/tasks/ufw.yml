@@ -14,6 +14,13 @@
     proto: tcp
   loop: "{{ firewall_allowed_tcp_ports }}"
 
+- name: Allow inbound SMTP (port 25) for the Mailbox app (ADR-027)
+  community.general.ufw:
+    rule: allow
+    port: "25"
+    proto: tcp
+  when: enable_mailbox | bool
+
 - name: Allow traffic from the K3s pod and service networks
   community.general.ufw:
     rule: allow
