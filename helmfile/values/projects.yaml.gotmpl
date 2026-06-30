@@ -52,10 +52,11 @@ env:
   OIDC_ENFORCED: "true"
   OIDC_USE_DEFAULT_RESPONSE_MODE: "true"
   OIDC_CLAIMS_SOURCE: "userinfo"
-  # Our Keycloak realm client signs the userinfo + ID token with RS256
-  # (client attribute user.info.response.signature.alg), so openid-client must be
-  # told to expect signed responses or it cannot parse them.
-  OIDC_USERINFO_SIGNED_RESPONSE_ALG: "RS256"
+  # Keycloak returns UserInfo UNSIGNED (realm-wide: keycloak-config sets every client's
+  # user.info.response.signature.alg="" — signed RS256 broke Grist's openid-client).
+  # So Projects must NOT expect a signed userinfo JWT, or openid-client rejects the
+  # plain JSON with "Invalid userinfo configuration" (E_UNAUTHORIZED). The ID token is
+  # always RS256-signed by Keycloak, so that expectation stays.
   OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG: "RS256"
   # Claim mapping (Keycloak standard claims); don't sync username/roles from OIDC.
   OIDC_EMAIL_ATTRIBUTE: "email"
