@@ -1,0 +1,22 @@
+# OwnSuite-managed (Ansible) - changes will be overwritten
+# Customises the K3s-bundled Traefik via the helm-controller (k3s auto-applies
+# manifests from /var/lib/rancher/k3s/server/manifests).
+#
+# allowExternalNameServices lets Ingresses target ExternalName Services, which
+# OwnSuite uses to proxy authenticated /media/ requests to the object store
+# (Garage in-cluster, or an external S3 host). K3s Traefik refuses ExternalName
+# by default, so without this every uploaded file/image 404s on /media/.
+#
+# Security note: ExternalName routing is a mild SSRF vector (an Ingress can point
+# Traefik at an arbitrary host). Acceptable here — OwnSuite is single-tenant and
+# only the operator authors Ingresses.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    providers:
+      kubernetesIngress:
+        allowExternalNameServices: true

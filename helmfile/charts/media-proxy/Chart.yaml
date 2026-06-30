@@ -1,0 +1,13 @@
+apiVersion: v2
+name: media-proxy
+description: >-
+  A tiny in-cluster nginx that serves an app's authenticated /media/ downloads on
+  Traefik (ADR-016, findings #20/#21). The suitenumerique apps' media-auth is
+  nginx-coupled — it needs the original URL in X-Original-URL (nginx auth_request
+  $request_uri), an allowed Host, and the S3 endpoint as the upstream Host
+  (upstream-vhost) so the backend-signed SigV4 validates. Traefik's forwardAuth
+  cannot supply X-Original-URL, so this nginx honours that contract: auth_request to
+  the backend media-auth, then proxy the signed request to the in-cluster Garage.
+  Deployed once per app (drive, docs) in garage mode; Traefik routes /media/ here.
+type: application
+version: 0.1.0

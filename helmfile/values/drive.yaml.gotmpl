@@ -100,6 +100,22 @@ backend:
         name: s3-credentials
         key: AWS_S3_SECRET_ACCESS_KEY
     AWS_STORAGE_BUCKET_NAME: {{ .Values.objectStorage.driveBucket | quote }}
+    # S3-compatible stores (Infomaniak/Ceph/MinIO) reject the aws-chunked streaming
+    # checksum that boto3 >=1.36 sends by default ("NotImplemented" on PutObject).
+    AWS_REQUEST_CHECKSUM_CALCULATION: "when_required"
+    AWS_RESPONSE_CHECKSUM_VALIDATION: "when_required"
+    {{- if .Values.garage.enabled }}
+    # Same-origin presigned UPLOAD URLs (#20). Drive hands the browser a presigned
+    # PUT for uploads (generate_upload_policy); by default it signs against
+    # AWS_S3_ENDPOINT_URL, which here is the INTERNAL garage svc — unreachable from the
+    # browser and mixed-content (http on an https page). AWS_S3_DOMAIN_REPLACE overrides
+    # ONLY the host used to sign that upload URL (the backend keeps using the internal
+    # endpoint for its own calls — no hairpin). Pointed at the public Drive host, the
+    # presigned PUT is same-origin (no S3 CORS needed — Infomaniak has none) and
+    # path-style (https://drive.{domain}/<bucket>/<key>), which Traefik proxies to Garage
+    # preserving Host+path so the SigV4 signature still validates (see drive-ingress).
+    AWS_S3_DOMAIN_REPLACE: {{ printf "https://%s" $host | quote }}
+    {{- end }}
     AWS_S3_REGION_NAME: {{ $s3Region | quote }}
     AWS_S3_SIGNATURE_VERSION: s3v4
     STORAGES_STATICFILES_BACKEND: django.contrib.staticfiles.storage.StaticFilesStorage
@@ -169,8 +185,12 @@ ingressAdmin:
 # endpoint, then a path rewrite to the bucket (path-style S3). The two Middleware
 # CRs live in the drive-ingress chart. The path is a clean Traefik prefix (the
 # chart's nginx-style "/media/(.*)" regex is replaced by the rewrite middleware).
+# In garage mode the /media/ route is served by the drive-ingress chart pointed at the
+# in-cluster Garage ClusterIP Service (finding #21): the chart's own media Ingress here
+# targets a portless ExternalName Service that Traefik cannot route. External mode keeps
+# this upstream route (external-S3 media is a separate pre-existing limitation).
 ingressMedia:
-  enabled: true
+  enabled: {{ not .Values.garage.enabled }}
   className: traefik
   host: {{ $host | quote }}
   path: /media/

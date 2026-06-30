@@ -4,11 +4,17 @@ existing tunnel if the port is already open, so re-runs don't stack tunnels."""
 from __future__ import annotations
 
 import contextlib
+import os
 import socket
 import subprocess
 import time
 
 from .errors import SuiteError
+
+# The bootstrap fetches the cluster kubeconfig here (ansible/kubeconfig — the
+# Ansible run's cwd is the `ansible/` dir, ADR-002). It points at 127.0.0.1:6443,
+# which this tunnel forwards.
+FETCHED_KUBECONFIG = os.path.join("ansible", "kubeconfig")
 
 
 def port_open(port, host="127.0.0.1"):
@@ -19,6 +25,12 @@ def port_open(port, host="127.0.0.1"):
 
 @contextlib.contextmanager
 def tunnel(ssh_target, *, port=6443):
+    # Point kubectl/helmfile at the fetched kubeconfig unless the operator already
+    # exported their own. It must be ABSOLUTE: helmfile changes cwd to resolve charts,
+    # so a relative KUBECONFIG resolves wrong and helm falls back to localhost:8080
+    # ("cluster unreachable"). setdefault respects an explicit export (e.g. CI).
+    if os.path.exists(FETCHED_KUBECONFIG):
+        os.environ.setdefault("KUBECONFIG", os.path.abspath(FETCHED_KUBECONFIG))
     if port_open(port):
         print(f"  reusing existing tunnel on :{port}")
         yield

@@ -31,6 +31,27 @@
     mode: "0644"
   notify: Restart k3s
 
+# K3s auto-applies manifests dropped here (the deploy/helm controller). Created
+# before install so the bundled Traefik comes up with our customisations already.
+- name: Create the K3s auto-deploy manifests directory
+  ansible.builtin.file:
+    path: /var/lib/rancher/k3s/server/manifests
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# Allow Ingresses to target ExternalName Services so OwnSuite's /media/ proxy can
+# reach the object store; K3s Traefik refuses ExternalName by default (see template).
+- name: Deploy the Traefik HelmChartConfig (allow ExternalName services)
+  ansible.builtin.template:
+    src: traefik-config.yaml.j2
+    dest: /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart k3s
+
 - name: Download the K3s installer
   ansible.builtin.get_url:
     url: "{{ k3s_install_script_url }}"

@@ -1,0 +1,16 @@
+{{- $ns := .Values.workloadsNamespace -}}
+# Docs authenticated media-download proxy (findings #20/#21). Garage mode only. Same
+# contract as Drive, but the backend media-auth lives under /documents/ and document
+# images are served INLINE (no forced download).
+app: docs
+garageMode: {{ .Values.garage.enabled }}
+image: nginx:{{ .Values.imageVersions.nginx }}
+authUpstream: {{ printf "docs-backend.%s.svc.cluster.local" $ns | quote }}
+authPath: /api/v1.0/documents/media-auth/
+bucket: {{ .Values.objectStorage.bucket | quote }}
+s3Host: {{ printf "garage.%s.svc.cluster.local" $ns | quote }}
+s3Port: 3900
+host: {{ printf "docs.%s" .Values.domain | quote }}
+tlsSecret: docs-tls
+# Docs embeds images inline in documents — do not force a download.
+forceDownload: false

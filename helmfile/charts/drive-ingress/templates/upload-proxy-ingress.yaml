@@ -1,0 +1,43 @@
+{{- /*
+Same-origin presigned-upload proxy for Drive (ADR-022, finding #20). For uploads
+Drive hands the browser a presigned S3 PUT URL; in garage mode it is signed against
+the public Drive host (AWS_S3_DOMAIN_REPLACE=https://drive.<domain>, see
+values/drive.yaml.gotmpl), so it is same-origin (no S3 CORS — Infomaniak's Swift+s3api
+has none) and path-style:
+
+    https://drive.<domain>/<bucket>/<key>?X-Amz-...
+
+This Ingress routes that bucket path to the in-cluster Garage S3 with NO forwardAuth
+and NO path rewrite — presigned URLs carry their own SigV4 auth, and Traefik preserves
+the Host header, so the signature (bound to host + path) still validates at Garage.
+Downloads/display go through the authenticated /media/ proxy + MEDIA_BASE_URL, so only
+uploads need this. Targets the in-cluster Garage ClusterIP Service directly (not the
+chart's ExternalName media Service, which declares no port and so is unroutable by
+Traefik). The more specific bucket path wins over the main `/` route in Traefik.
+*/}}
+{{- if .Values.sameOriginUpload.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: drive-upload-proxy
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: drive
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - {{ .Values.host | quote }}
+      secretName: {{ .Values.tlsSecret | quote }}
+  rules:
+    - host: {{ .Values.host | quote }}
+      http:
+        paths:
+          - path: {{ printf "/%s/" .Values.bucket | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.s3Service | quote }}
+                port:
+                  number: {{ .Values.s3Port }}
+{{- end }}

@@ -54,6 +54,12 @@ Per-app detail: [Docs](../understand/docs.md), [Drive](../understand/drive.md),
 `make install` drives staging → production automatically; set the issuer by hand only for
 the manual flow. See [TLS issuance (ADR-013/019)](../understand/decisions.md#adr-019-tls-staging-first-issuance-dns-01-deferred).
 
+!!! warning "Export the issuer before any manual `make sync`"
+    `OWNSUITE_TLS_ISSUER` defaults to `selfsigned`. `suite install` sets it for you, but a
+    hand-run `make sync` / `helmfile sync` without it re-issues **every** certificate as
+    self-signed (and flips the ingress annotations). Before any manual sync on a live
+    deployment, `export OWNSUITE_TLS_ISSUER=letsencrypt-http01` (or `letsencrypt-staging`).
+
 | Variable | Default | Purpose |
 |---|---|---|
 | `OWNSUITE_TLS_ISSUER` | `selfsigned` | `selfsigned` (CI/dev, no public DNS), `letsencrypt-staging` (untrusted leaf, high rate limits), or `letsencrypt-http01` (production — needs public DNS + port 80). |
@@ -63,16 +69,27 @@ the manual flow. See [TLS issuance (ADR-013/019)](../understand/decisions.md#adr
 
 ## Object storage
 
-Pluggable: `external` (a managed EU S3 — the production default, files live off the box) or
-`garage` (an in-cluster single-node store, deployed and bootstrapped for you). Buckets are
-created by Garage in `garage` mode; in `external` mode pre-create the ones for your enabled
-apps. See [Object storage (ADR-003)](../understand/decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3).
+Pluggable: `external` (a managed EU S3 — files live off the box) or `garage` (an
+in-cluster single-node store, deployed and bootstrapped for you). Buckets are created by
+Garage in `garage` mode; in `external` mode pre-create the ones for your enabled apps. See
+[Object storage (ADR-003)](../understand/decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3).
+
+!!! tip "On Infomaniak, use `garage`"
+    `external` mode needs an S3 endpoint that can serve **CORS** for Drive's browser
+    uploads. Infomaniak's Swift+s3api endpoint cannot, so use `garage` there (it proxies
+    media same-origin). `external` stays valid on CORS-capable RGW providers (AWS,
+    Scaleway, OVH). Details: [Object storage caveat](../get-started/provision.md#object-storage-caveat).
+
+The S3 access/secret keys are **external secrets** (not seed-derived). In `external` mode,
+export them before sync — see [Secrets](#secrets).
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `OWNSUITE_OBJECT_STORAGE_MODE` | `external` | `external` (config-only managed S3) or `garage` (in-cluster). |
+| `OWNSUITE_OBJECT_STORAGE_MODE` | `external` | `external` (config-only managed S3) or `garage` (in-cluster). Use `garage` on Infomaniak. |
 | `OWNSUITE_S3_ENDPOINT` | _(empty)_ | External S3 endpoint URL (`external` mode). |
-| `OWNSUITE_S3_REGION` | `eu-west` | S3 region. |
+| `OWNSUITE_S3_ACCESS_KEY` | _(empty)_ | External S3 access key — **secret**, export before sync (`external` mode). |
+| `OWNSUITE_S3_SECRET_KEY` | _(empty)_ | External S3 secret key — **secret** (`external` mode). |
+| `OWNSUITE_S3_REGION` | `eu-west` | S3 region. Infomaniak reports `us-east-1` (compatibility value; data is in CH). |
 | `OWNSUITE_S3_BUCKET` | `docs-media-storage` | Docs media/attachments bucket. |
 | `OWNSUITE_DRIVE_S3_BUCKET` | `drive-media-storage` | Drive files bucket. |
 | `OWNSUITE_PROJECTS_S3_BUCKET` | `projects-media-storage` | Projects uploads bucket. |
@@ -149,10 +166,20 @@ export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required
     Losing it means rotating every credential; leaking it leaks them all. Store it in a
     password manager.
 
-A few credentials are **external input** that cannot be derived — a real off-site backup
-account, and the mailbox relay account + DKIM key. Override them by id through an untracked
-`secretOverrides` values file (`backup-s3-access` / `backup-s3-secret` / `rclone-crypt`)
-or the `OWNSUITE_MTA_*` secret variables above; see
+A few credentials are **external input** that cannot be derived — the external S3 keys,
+a real off-site backup account, and the mailbox relay account + DKIM key. Supply them by
+exporting the matching variables before sync (read the same way as the seed, never written
+to `.env`):
+
+```bash
+export OWNSUITE_S3_ACCESS_KEY=... OWNSUITE_S3_SECRET_KEY=...           # external S3 mode
+export OWNSUITE_BACKUP_S3_ACCESS_KEY=... OWNSUITE_BACKUP_S3_SECRET_KEY=...   # off-site backup
+export OWNSUITE_RCLONE_CRYPT_PASSWORD=...                             # backup encryption passphrase
+```
+
+(`garage` mode needs none of the primary `OWNSUITE_S3_*` keys — they are seed-derived
+in-cluster.) These map to the `s3-access`/`s3-secret`, `backup-s3-access`/`backup-s3-secret`
+and `rclone-crypt` secret ids; the `OWNSUITE_MTA_*` secret variables above work the same way. See
 [Backups & restore → Credentials](../operate/backups.md#credentials) and
 [Secrets (ADR-012)](../understand/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating).
 

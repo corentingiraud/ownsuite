@@ -24,6 +24,24 @@ secretSeed: {{ requiredEnv "OWNSUITE_SECRET_SEED" | quote }}
 # to the repo. The mailbox's relay account + DKIM key (ADR-026) are captured by the
 # installer and exported as OWNSUITE_MTA_* before `helmfile sync`.
 secretOverrides:
+  {{- /* Primary object-storage keys: external S3 (e.g. Infomaniak) mints its own
+         keys, which cannot be seed-derived. Export them before sync, like the seed. */}}
+  {{- if env "OWNSUITE_S3_ACCESS_KEY" }}
+  s3-access: {{ env "OWNSUITE_S3_ACCESS_KEY" | quote }}
+  {{- end }}
+  {{- if env "OWNSUITE_S3_SECRET_KEY" }}
+  s3-secret: {{ env "OWNSUITE_S3_SECRET_KEY" | quote }}
+  {{- end }}
+  {{- /* Off-site backup account keys + rclone passphrase (prod external target). */}}
+  {{- if env "OWNSUITE_BACKUP_S3_ACCESS_KEY" }}
+  backup-s3-access: {{ env "OWNSUITE_BACKUP_S3_ACCESS_KEY" | quote }}
+  {{- end }}
+  {{- if env "OWNSUITE_BACKUP_S3_SECRET_KEY" }}
+  backup-s3-secret: {{ env "OWNSUITE_BACKUP_S3_SECRET_KEY" | quote }}
+  {{- end }}
+  {{- if env "OWNSUITE_RCLONE_CRYPT_PASSWORD" }}
+  rclone-crypt: {{ env "OWNSUITE_RCLONE_CRYPT_PASSWORD" | quote }}
+  {{- end }}
   {{- if env "OWNSUITE_MTA_RELAY_USERNAME" }}
   messages-relay-user: {{ env "OWNSUITE_MTA_RELAY_USERNAME" | quote }}
   {{- end }}

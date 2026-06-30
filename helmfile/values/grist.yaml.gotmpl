@@ -42,6 +42,18 @@ env:
   GRIST_DEFAULT_EMAIL: {{ .Values.adminEmail | quote }}
   # Require SSO — no anonymous access.
   GRIST_FORCE_LOGIN: "true"
+  # Declare the install "in service" so Grist skips its fresh-install setup gate
+  # (the /boot "Verify that you have access" page that otherwise demands a boot key
+  # pasted from the server logs). Safe here: Grist sits behind Keycloak SSO and is
+  # only reachable through the ingress — the trusted-network case upstream allows.
+  #
+  # Gated on a real (Let's Encrypt prod) TLS issuer: "in service" makes Grist do eager
+  # single-issuer OIDC discovery against the PUBLIC issuer (https://auth.{domain}) at
+  # startup and crash fatally if it can't resolve+trust it. That only holds with a
+  # publicly-resolvable, publicly-trusted host — i.e. prod. With selfsigned (CI/dev) or
+  # the staging issuer, stay in setup-gate mode so Grist boots instead of crashlooping
+  # on an unreachable/untrusted issuer (the install flips to in-service at the prod sync).
+  GRIST_IN_SERVICE: {{ ternary "true" "false" (eq .Values.tls.issuer "letsencrypt-http01") | quote }}
   # Formula sandbox. `unsandboxed` is boot-reliable on stock K3s and acceptable for a
   # single trusted organisation; switch to gvisor on a node set up for it (ADR-024).
   GRIST_SANDBOX_FLAVOR: {{ .Values.apps.grist.sandbox | quote }}

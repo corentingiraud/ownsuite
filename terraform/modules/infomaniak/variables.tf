@@ -20,9 +20,9 @@ variable "flavor_name" {
 }
 
 variable "image_name" {
-  description = "Exact OS image name. The bootstrap playbook asserts Debian 12 (bookworm) or 13 (trixie). Find the exact name with `openstack image list`."
+  description = "Exact OS image name. The bootstrap playbook asserts Debian 12 (bookworm) or 13 (trixie). Find the exact name with `openstack image list` — Infomaniak names it lowercase, no minor."
   type        = string
-  default     = "Debian 13.0 Trixie"
+  default     = "Debian 13 trixie"
 }
 
 variable "volume_size_gb" {
@@ -67,7 +67,7 @@ variable "enable_mailbox" {
 }
 
 variable "bucket_names" {
-  description = "Object-storage buckets to create on THIS account. Typically just the media bucket(s). The off-site BACKUP bucket must live in a DIFFERENT account/provider (ADR-006) — create it from a second module instance, not here."
+  description = "S3 buckets to create via the S3 API on THIS account. Leave empty (the default) in the recommended `garage` object-storage mode — Garage creates the media buckets in-cluster. Set it only for an external-S3 primary, or for the off-site BACKUP store, which must live in a DIFFERENT account/provider (ADR-006) — created from a second module instance, not here."
   type        = list(string)
-  default     = ["docs-media-storage"]
+  default     = []
 }

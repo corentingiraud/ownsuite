@@ -20,10 +20,12 @@ LINT_SEED := OWNSUITE_SECRET_SEED=lint-only-not-a-secret
 KUBECONFORM_SCHEMAS := -schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
 # Everything runs from your workstation (ADR-014). helmfile/kubectl reach the
-# cluster through the kubeconfig fetched by the bootstrap (server 127.0.0.1:6443),
-# via an SSH tunnel to the server — the K8s API is never exposed (firewall keeps only
-# 22/80/443). Open the tunnel with `make tunnel` before `make sync`.
-KUBECONFIG ?= ./kubeconfig
+# cluster through the kubeconfig fetched by the bootstrap to ansible/kubeconfig
+# (server 127.0.0.1:6443), via an SSH tunnel to the server — the K8s API is never
+# exposed (firewall keeps only 22/80/443). Open the tunnel with `make tunnel` before
+# `make sync`. Absolute on purpose: helmfile changes cwd to resolve charts, so a
+# relative KUBECONFIG would fall back to localhost:8080 ("cluster unreachable").
+KUBECONFIG ?= $(CURDIR)/ansible/kubeconfig
 export KUBECONFIG
 # SSH target for the tunnel, e.g. OWNSUITE_SERVER_SSH=root@203.0.113.10
 OWNSUITE_SERVER_SSH ?=

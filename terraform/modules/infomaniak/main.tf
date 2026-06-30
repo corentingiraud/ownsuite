@@ -6,6 +6,11 @@
 locals {
   # 80/443 must be public (web + ACME http-01). SSH is scoped separately.
   web_ports = var.enable_mailbox ? [80, 443, 25] : [80, 443]
+
+  # Infomaniak S3 endpoint + region (the EC2 credential below authenticates here).
+  # `us-east-1` is the compatibility region Infomaniak's S3 reports; data is in CH.
+  s3_endpoint = "https://s3.pub1.infomaniak.cloud"
+  s3_region   = "us-east-1"
 }
 
 # --- Network ----------------------------------------------------------------
@@ -64,19 +69,10 @@ resource "openstack_networking_secgroup_rule_v2" "web" {
   security_group_id = openstack_networking_secgroup_v2.this.id
 }
 
-# A fresh security group has no egress rules — re-add allow-all so the node can
-# pull images, reach S3, and serve ACME.
-resource "openstack_networking_secgroup_rule_v2" "egress_v4" {
-  direction         = "egress"
-  ethertype         = "IPv4"
-  security_group_id = openstack_networking_secgroup_v2.this.id
-}
-
-resource "openstack_networking_secgroup_rule_v2" "egress_v6" {
-  direction         = "egress"
-  ethertype         = "IPv6"
-  security_group_id = openstack_networking_secgroup_v2.this.id
-}
+# Egress is left to Neutron's defaults: creating a security group auto-adds
+# allow-all egress rules (IPv4 + IPv6), so re-declaring them here 409s on
+# Infomaniak ("SecurityGroupRuleExists"). The node can pull images, reach S3,
+# and serve ACME out of the box.
 
 # --- Server -----------------------------------------------------------------
 resource "openstack_compute_keypair_v2" "this" {
@@ -135,11 +131,36 @@ resource "openstack_networking_floatingip_associate_v2" "this" {
   depends_on = [openstack_networking_router_interface_v2.this]
 }
 
-# --- Object storage (Swift containers = S3 buckets) -------------------------
-resource "openstack_objectstorage_container_v1" "this" {
-  for_each = toset(var.bucket_names)
-  name     = each.value
-}
-
+# --- Object storage ---------------------------------------------------------
 # S3 access/secret keys for the apps (rclone, CNPG Barman, app media clients).
 resource "openstack_identity_ec2_credential_v3" "s3" {}
+
+# Buckets are created through the S3 API, NOT as Swift containers: on Infomaniak
+# the two are separate namespaces and a Swift container is invisible to the S3
+# endpoint (list_buckets returns [], GetObject 404s). The aws provider below
+# authenticates to the Infomaniak S3 endpoint with the EC2 credential just minted.
+#
+# `bucket_names` defaults to [] because the recommended Infomaniak mode is `garage`
+# (in-cluster), where Garage creates the media buckets itself. Set it only for an
+# external-S3 primary or for the off-site backup store (a second module instance).
+provider "aws" {
+  access_key = openstack_identity_ec2_credential_v3.s3.access
+  secret_key = openstack_identity_ec2_credential_v3.s3.secret
+  region     = local.s3_region
+
+  # Talk to Infomaniak's S3, not AWS, and skip every AWS-account/STS preflight.
+  s3_use_path_style           = true
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+  skip_region_validation      = true
+
+  endpoints {
+    s3 = local.s3_endpoint
+  }
+}
+
+resource "aws_s3_bucket" "this" {
+  for_each = toset(var.bucket_names)
+  bucket   = each.value
+}

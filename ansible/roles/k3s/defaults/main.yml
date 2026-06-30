@@ -13,6 +13,8 @@ k3s_kubeconfig_mode: "0644"
 # enabled on purpose (ADR-001) — do not add `--disable traefik` here.
 k3s_extra_server_args: []
 
-# Fetch the kubeconfig back to the operator's machine after install.
+# Fetch the kubeconfig back to the operator's machine after install. Relative to
+# the Ansible run dir (the `ansible/` directory), so it lands at ansible/kubeconfig
+# — which is what `suite`/`make` point KUBECONFIG at and what the docs reference.
 k3s_fetch_kubeconfig: true
 k3s_kubeconfig_local_path: "./kubeconfig"

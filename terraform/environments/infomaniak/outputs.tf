@@ -11,11 +11,11 @@ output "ssh_target" {
 # Convenience: the object-storage lines to paste into .env. Read the secrets with
 # `terraform output -raw s3_secret_key` (they are sensitive).
 output "env_object_storage" {
-  description = ".env snippet for object storage (secrets shown as <sensitive>)."
+  description = ".env snippet for object storage. Only relevant in external-S3 mode; garage mode (the Infomaniak default) creates no buckets here."
   value       = <<-EOT
     OWNSUITE_S3_ENDPOINT=${module.suite.s3_endpoint}
     OWNSUITE_S3_REGION=${module.suite.s3_region}
-    OWNSUITE_S3_BUCKET=${module.suite.buckets[0]}
+    OWNSUITE_S3_BUCKET=${try(module.suite.buckets[0], "<garage mode: created in-cluster>")}
   EOT
 }
 

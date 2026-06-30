@@ -3,6 +3,6 @@
 # `helm lint` / `helm template`.
 
 # Backend service that authorizes media requests (the impress backend, port 80).
-backendService: docs
+backendService: docs-backend
 # Bucket the media path rewrites to (path-style S3).
 bucket: docs-media-storage

@@ -1,0 +1,67 @@
+{{- if .Values.garageMode }}
+{{- /*
+nginx server block replicating the upstream apps' media auth_request contract on
+Traefik. Mounted at /etc/nginx/conf.d/default.conf (the stock image's http{}/logging
+wrapper is kept). The /media-auth subrequest sends X-Original-URL=$request_uri and
+Host=$host (the public host, in DJANGO_ALLOWED_HOSTS) to the backend, which returns
+the SigV4 headers; /media/ then forwards those to Garage with the S3 endpoint as the
+upstream Host so the signature validates.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.app }}-media-proxy
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: {{ .Values.app }}
+data:
+  default.conf: |
+    server {
+        listen 8080;
+        server_name _;
+
+        location = /healthz {
+            return 200 "ok";
+            add_header Content-Type text/plain;
+        }
+
+        # Authenticated media download: authorize, then proxy the signed request to S3.
+        location /media/ {
+            auth_request /media-auth;
+            auth_request_set $authHeader $upstream_http_authorization;
+            auth_request_set $authDate $upstream_http_x_amz_date;
+            auth_request_set $authContentSha256 $upstream_http_x_amz_content_sha256;
+
+            proxy_set_header Authorization $authHeader;
+            proxy_set_header X-Amz-Date $authDate;
+            proxy_set_header X-Amz-Content-SHA256 $authContentSha256;
+
+            # Rewrite /media/<key> -> /<bucket>/<key> and send to the in-cluster Garage.
+            # The upstream Host MUST match what the backend signed against (its
+            # AWS_S3_ENDPOINT_URL), or Garage rejects the SigV4 signature.
+            proxy_pass http://{{ .Values.s3Host }}:{{ .Values.s3Port }}/{{ .Values.bucket }}/;
+            proxy_set_header Host {{ .Values.s3Host }}:{{ .Values.s3Port }};
+
+            add_header Content-Security-Policy "default-src 'none'" always;
+            {{- if .Values.forceDownload }}
+            add_header Content-Disposition "attachment";
+            {{- end }}
+        }
+
+        # Internal auth subrequest to the backend media-auth endpoint. The backend reads
+        # the requested object from X-Original-URL (nginx convention) and authorizes the
+        # session, then returns the SigV4 headers captured above.
+        location = /media-auth {
+            internal;
+            proxy_pass http://{{ .Values.authUpstream }}{{ .Values.authPath }};
+            proxy_pass_request_body off;
+            proxy_set_header Content-Length "";
+            proxy_set_header Host $host;
+            proxy_set_header X-Original-URL $request_uri;
+            proxy_set_header X-Original-Method $request_method;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+    }
+{{- end }}

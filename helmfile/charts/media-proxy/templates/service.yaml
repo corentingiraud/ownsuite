@@ -1,0 +1,16 @@
+{{- if .Values.garageMode }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.app }}-media-proxy
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: {{ .Values.app }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ .Values.app }}-media-proxy
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+{{- end }}

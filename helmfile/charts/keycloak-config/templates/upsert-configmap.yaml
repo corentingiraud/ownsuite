@@ -57,6 +57,10 @@ data:
     done
     [ "$found" = "1" ] || echo "  no OIDC clients configured; nothing to do"
     echo "OIDC client reconciliation complete."
+{{- /* UserInfo is kept UNSIGNED (user.info.response.signature.alg=""). RS256 makes Keycloak
+       return a signed JWT that Grist's openid-client cannot parse ("not valid JSON"); unsigned
+       is the OIDC default every app here expects. Empty (not omitted) so a re-upsert clears any
+       previously-set RS256 on existing clients. */}}
 {{- range .Values.clients }}
   {{- $host := printf "%s.%s" .clientId $root.Values.domain }}
   {{- $rep := dict
@@ -76,7 +80,7 @@ data:
       "defaultClientScopes" (list "web-origins" "acr" "roles" "profile" "email")
       "attributes" (dict
           "post.logout.redirect.uris" (printf "https://%s/*" $host)
-          "user.info.response.signature.alg" "RS256")
+          "user.info.response.signature.alg" "")
   }}
   {{ .clientId }}.client.json: |
 {{ toPrettyJson $rep | indent 4 }}
