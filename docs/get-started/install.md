@@ -66,6 +66,15 @@ it and re-run `make install` to resume:
     rows are added when the server has public IPv6. (A wildcard *A record* is not a wildcard
     *certificate* — certificates are still issued per host.)
 
+    !!! note "CAA tag, and a tidier wildcard"
+        - **CAA tag** is `issue` — in registrar UIs that ask for a tag this is usually
+          labelled *"Only allow specific hostnames"*. Do **not** use `issuewild`: OwnSuite
+          issues per-host certificates via HTTP-01, not a wildcard certificate.
+        - If you prefer to maintain a single record when the IP changes, replace the two
+          `A` rows with `{domain}` A → IP and `*.{domain}` **CNAME → `{domain}`** (the
+          wildcard then follows the apex). The plain `*.{domain}` A form the installer
+          prints works too.
+
 5. **Propagation gate.** Polls public resolvers until a majority return your server IP,
    **before** triggering ACME (so a typo never burns Let's Encrypt's production rate
    limits).
@@ -120,5 +129,14 @@ The installer wraps the manual flow; you can still run it by hand — see
   `make install` once the records resolve (`dig +short '*.{domain}'`).
 - **Certificate stuck not-Ready** — `kubectl -n ownsuite describe certificate keycloak-tls`;
   for HTTP-01, port 80 must reach the server and the host must resolve to it.
+- **`helmfile`/`kubectl` say "cluster unreachable" or hit `localhost:8080`** — `KUBECONFIG`
+  is unset or relative. `suite`/`make` set it for you; for ad-hoc commands
+  `export KUBECONFIG="$PWD/ansible/kubeconfig"` (absolute — helmfile changes cwd).
+- **SSH `Too many authentication failures`** — a multi-key agent (e.g. 1Password) is
+  offering every key; pin yours with `IdentitiesOnly=yes` (see
+  [Server bootstrap → Caveats](bootstrap.md#caveats)).
+- **Manual `make sync` served self-signed certs** — you forgot
+  `export OWNSUITE_TLS_ISSUER=letsencrypt-http01` before the sync (see
+  [Configuration → TLS](../reference/configuration.md#tls-certificates)).
 - **Lost the seed** — there is no recovery; rotate by re-running with a new seed (this
   re-derives every credential) on a clean install.
