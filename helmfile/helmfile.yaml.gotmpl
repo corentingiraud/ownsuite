@@ -235,6 +235,21 @@ releases:
     values:
       - values/docs.yaml.gotmpl
 
+  # --- Docs media proxy: a tiny nginx that serves authenticated /media/ downloads on
+  #     Traefik (findings #20/#21 — the upstream media-auth is nginx-coupled). Renders
+  #     only in garage mode (gated in-chart); Traefik routes /media/ here.
+  - name: docs-media-proxy
+    namespace: {{ $ns }}
+    chart: ./charts/media-proxy
+    condition: apps.docs.enabled
+    needs:
+      - {{ $ns }}/docs
+      {{- if .Values.garage.enabled }}
+      - {{ $ns }}/garage
+      {{- end }}
+    values:
+      - values/docs-media-proxy.yaml.gotmpl
+
   # --- Drive ingress glue: Traefik middlewares for authenticated media (ADR-016,
   #     ADR-022). Sibling of docs-ingress; ordered after Keycloak so the K3s Traefik
   #     CRDs are present before these CRs.
@@ -266,6 +281,20 @@ releases:
       {{- end }}
     values:
       - values/drive.yaml.gotmpl
+
+  # --- Drive media proxy: nginx serving authenticated /media/ downloads on Traefik
+  #     (findings #20/#21). Renders only in garage mode (gated in-chart).
+  - name: drive-media-proxy
+    namespace: {{ $ns }}
+    chart: ./charts/media-proxy
+    condition: apps.drive.enabled
+    needs:
+      - {{ $ns }}/drive
+      {{- if .Values.garage.enabled }}
+      - {{ $ns }}/garage
+      {{- end }}
+    values:
+      - values/drive-media-proxy.yaml.gotmpl
 
   # --- App: Grist (getgrist) — Phase 5 broadening (ADR-024) -------------------
   # A single-container app from a local chart, OFF by default (apps.grist.enabled).

@@ -1,0 +1,28 @@
+{{- if .Values.garageMode }}
+{{- /* Traefik routes /media/ to the nginx proxy (no Traefik middlewares — nginx does
+       the auth_request + signing + rewrite). More specific than the app's `/` route. */}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.app }}-media-proxy
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: {{ .Values.app }}
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - {{ .Values.host | quote }}
+      secretName: {{ .Values.tlsSecret | quote }}
+  rules:
+    - host: {{ .Values.host | quote }}
+      http:
+        paths:
+          - path: /media/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.app }}-media-proxy
+                port:
+                  number: 80
+{{- end }}

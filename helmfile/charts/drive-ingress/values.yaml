@@ -13,11 +13,6 @@ bucket: drive-media-storage
 # same-origin. See templates/upload-proxy-ingress.yaml.
 sameOriginUpload:
   enabled: false
-# Authenticated media DOWNLOAD route via the in-cluster Garage (finding #21). Enabled in
-# garage mode: replaces the upstream /media/ Ingress, which targets a portless ExternalName
-# Service that Traefik cannot route. See templates/media-ingress.yaml.
-garageMedia:
-  enabled: false
 # Public Drive host the presigned upload URLs are signed against.
 host: drive.example.com
 # TLS secret for that host (issued on the drive chart's main ingress, reused here).

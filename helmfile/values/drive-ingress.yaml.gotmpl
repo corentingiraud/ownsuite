@@ -7,8 +7,6 @@ bucket: {{ .Values.objectStorage.driveBucket | quote }}
 # PUTs uploads to https://drive.{domain}/<bucket>/... which Traefik forwards to Garage.
 sameOriginUpload:
   enabled: {{ .Values.garage.enabled }}
-garageMedia:
-  enabled: {{ .Values.garage.enabled }}
 host: {{ printf "drive.%s" .Values.domain | quote }}
 tlsSecret: drive-tls
 # Target the Garage ClusterIP Service directly (garage mode); the chart's ExternalName

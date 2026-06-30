@@ -63,6 +63,12 @@ imageVersions:
   # rclone image for the off-site object copy CronJob / restore Job (ADR-006/ADR-017).
   # renovate: datasource=docker depName=rclone/rclone
   rclone: "1.74.3"
+  # nginx for the media-proxy chart: the authenticated /media/ download path on Traefik
+  # (ADR-016). The upstream apps' media-auth is nginx-coupled (auth_request + X-Original-URL
+  # + upstream-vhost) which Traefik forwardAuth cannot satisfy, so a tiny in-cluster nginx
+  # honours that contract. Stable branch, Alpine.
+  # renovate: datasource=docker depName=nginx
+  nginx: "1.30.3-alpine"
 
 # Vendored manifests pinned by version (not Helm charts or plain images). The
 # referenced file is committed verbatim; a Renovate bump is a reminder to re-vendor.

@@ -1,14 +1,4 @@
 # Traefik middlewares for Docs media serving (ADR-016). Released after Keycloak so
 # the K3s Traefik CRDs exist before these CRs are applied.
-backendService: docs
+backendService: docs-backend
 bucket: {{ .Values.objectStorage.bucket | quote }}
-
-# Garage-mode media DOWNLOAD route (finding #21): route /media/ at the Garage ClusterIP
-# Service directly; the chart's ExternalName media Service declares no port and is
-# unroutable by Traefik.
-garageMedia:
-  enabled: {{ .Values.garage.enabled }}
-host: {{ printf "docs.%s" .Values.domain | quote }}
-tlsSecret: docs-tls
-s3Service: garage
-s3Port: 3900
