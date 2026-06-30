@@ -2,3 +2,16 @@
 # Keycloak so the K3s Traefik CRDs exist before these CRs.
 backendService: drive-backend
 bucket: {{ .Values.objectStorage.driveBucket | quote }}
+
+# Same-origin presigned-upload proxy (finding #20), only in garage mode: the browser
+# PUTs uploads to https://drive.{domain}/<bucket>/... which Traefik forwards to Garage.
+sameOriginUpload:
+  enabled: {{ .Values.garage.enabled }}
+garageMedia:
+  enabled: {{ .Values.garage.enabled }}
+host: {{ printf "drive.%s" .Values.domain | quote }}
+tlsSecret: drive-tls
+# Target the Garage ClusterIP Service directly (garage mode); the chart's ExternalName
+# media Service declares no port and is unroutable by Traefik.
+s3Service: garage
+s3Port: 3900

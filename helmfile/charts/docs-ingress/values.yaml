@@ -6,3 +6,15 @@
 backendService: docs
 # Bucket the media path rewrites to (path-style S3).
 bucket: docs-media-storage
+
+# Authenticated media DOWNLOAD route via the in-cluster Garage (finding #21). Enabled in
+# garage mode: replaces the upstream /media/ Ingress, which targets a portless ExternalName
+# Service that Traefik cannot route. See templates/media-ingress.yaml.
+garageMedia:
+  enabled: false
+# Public Docs host + its TLS secret (issued on the docs chart's main ingress).
+host: docs.example.com
+tlsSecret: docs-tls
+# In-cluster Garage S3 ClusterIP Service + port the media route forwards to.
+s3Service: garage
+s3Port: 3900

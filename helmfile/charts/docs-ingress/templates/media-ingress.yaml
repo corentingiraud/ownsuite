@@ -1,0 +1,37 @@
+{{- /*
+Authenticated media DOWNLOAD route for Docs on Traefik (ADR-016, finding #21). The
+upstream chart's /media/ Ingress targets its `docs-media` ExternalName Service, which
+declares no port — Traefik then refuses it ("service port not found") and /media/ falls
+through to the frontend, so document attachments/images never display. In garage mode the
+object store is a real in-cluster ClusterIP Service, so route /media/ straight at it
+(garage:3900) and leave the upstream media Ingress disabled. The forwardAuth (media-auth) +
+path-rewrite (/media/(.*) -> /<bucket>/$1) middlewares are unchanged — defined in this chart.
+*/}}
+{{- if .Values.garageMedia.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docs-media-garage
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: docs
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-docs-media-auth@kubernetescrd,%s-docs-media-rewrite@kubernetescrd" .Release.Namespace .Release.Namespace | quote }}
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - {{ .Values.host | quote }}
+      secretName: {{ .Values.tlsSecret | quote }}
+  rules:
+    - host: {{ .Values.host | quote }}
+      http:
+        paths:
+          - path: /media/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.s3Service | quote }}
+                port:
+                  number: {{ .Values.s3Port }}
+{{- end }}

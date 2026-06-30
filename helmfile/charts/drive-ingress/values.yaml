@@ -7,3 +7,21 @@
 backendService: drive-backend
 # Bucket the media path rewrites to (path-style S3).
 bucket: drive-media-storage
+
+# Same-origin presigned-upload proxy (finding #20). Enabled in garage mode: routes
+# https://<host>/<bucket>/ to the in-cluster Garage so browser presigned PUTs are
+# same-origin. See templates/upload-proxy-ingress.yaml.
+sameOriginUpload:
+  enabled: false
+# Authenticated media DOWNLOAD route via the in-cluster Garage (finding #21). Enabled in
+# garage mode: replaces the upstream /media/ Ingress, which targets a portless ExternalName
+# Service that Traefik cannot route. See templates/media-ingress.yaml.
+garageMedia:
+  enabled: false
+# Public Drive host the presigned upload URLs are signed against.
+host: drive.example.com
+# TLS secret for that host (issued on the drive chart's main ingress, reused here).
+tlsSecret: drive-tls
+# In-cluster Garage S3 ClusterIP Service + port the upload proxy forwards to.
+s3Service: garage
+s3Port: 3900
