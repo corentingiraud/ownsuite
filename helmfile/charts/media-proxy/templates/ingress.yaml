@@ -1,4 +1,4 @@
-{{- if .Values.garageMode }}
+{{- if .Values.enabled }}
 {{- /* Traefik routes /media/ to the nginx proxy (no Traefik middlewares — nginx does
        the auth_request + signing + rewrite). More specific than the app's `/` route. */}}
 apiVersion: networking.k8s.io/v1
