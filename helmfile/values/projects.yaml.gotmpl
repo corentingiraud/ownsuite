@@ -71,6 +71,10 @@ env:
   S3_BUCKET: {{ .Values.objectStorage.projectsBucket | quote }}
   # S3-compatible Garage/EU S3 need path-style addressing.
   S3_FORCE_PATH_STYLE: "true"
+  # S3-compatible stores reject the aws-chunked streaming checksum recent AWS SDKs
+  # send by default ("NotImplemented" on PutObject); only checksum when required.
+  AWS_REQUEST_CHECKSUM_CALCULATION: "when_required"
+  AWS_RESPONSE_CHECKSUM_VALIDATION: "when_required"
 
 secretEnv:
   - name: SECRET_KEY

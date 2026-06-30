@@ -102,6 +102,11 @@ backend:
         name: s3-credentials
         key: AWS_S3_SECRET_ACCESS_KEY
     AWS_STORAGE_BUCKET_NAME: {{ .Values.objectStorage.bucket | quote }}
+    # S3-compatible stores (Infomaniak/Ceph/MinIO) reject the aws-chunked streaming
+    # checksum that boto3 >=1.36 sends by default ("NotImplemented" on PutObject).
+    # Only add checksums when the API requires them.
+    AWS_REQUEST_CHECKSUM_CALCULATION: "when_required"
+    AWS_RESPONSE_CHECKSUM_VALIDATION: "when_required"
     AWS_S3_REGION_NAME: {{ $s3Region | quote }}
     STORAGES_STATICFILES_BACKEND: django.contrib.staticfiles.storage.StaticFilesStorage
     # --- OIDC (Keycloak) — external endpoints for the browser, internal for the backend ---
@@ -123,8 +128,12 @@ backend:
     LOGIN_REDIRECT_URL_FAILURE: {{ printf "https://%s" $host | quote }}
     LOGOUT_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
     # --- Real-time collaboration (y-provider) ---
-    Y_PROVIDER_API_BASE_URL: "http://docs-y-provider:443/api/"
-    COLLABORATION_API_URL: "http://docs-y-provider:443/api/"
+    Y_PROVIDER_API_BASE_URL: "http://docs-y-provider:80/api/"
+    # The collaboration API (reset-/get-connections) is mounted under /collaboration/api/
+    # in the y-provider (dist/routes.js); only /api/convert/ lives at /api/. Pointing this
+    # at /api/ makes reset_connections POST to a route the server rejects (403/"Invalid route"),
+    # which surfaces as a 500 on share/link-configuration changes.
+    COLLABORATION_API_URL: "http://docs-y-provider:80/collaboration/api/"
     COLLABORATION_WS_URL: {{ printf "wss://%s/collaboration/ws/" $host | quote }}
     COLLABORATION_SERVER_SECRET:
       secretKeyRef:
@@ -150,6 +159,12 @@ frontend:
 
 yProvider:
   replicas: 1
+  # Serve the y-provider on :80, not the chart default :443. Traefik (k3s) treats a
+  # backend service port of 443 as an HTTPS upstream and does a TLS handshake to the
+  # plain-HTTP y-provider (port 4444) -> "tls: first record does not look like a TLS
+  # handshake" -> 500 on the collaboration WebSocket. Port 80 keeps Traefik on HTTP.
+  service:
+    port: 80
   image:
     repository: lasuite/impress-y-provider
     tag: {{ .Values.imageVersions.docsYProvider | quote }}
