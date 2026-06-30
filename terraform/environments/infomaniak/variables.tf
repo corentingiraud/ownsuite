@@ -22,7 +22,7 @@ variable "flavor_name" {
 variable "image_name" {
   description = "Exact Debian 12/13 image name (`openstack image list`)."
   type        = string
-  default     = "Debian 13.0 Trixie"
+  default     = "Debian 13 trixie"
 }
 
 variable "volume_size_gb" {
@@ -50,7 +50,7 @@ variable "enable_mailbox" {
 }
 
 variable "bucket_names" {
-  description = "Media bucket(s) to create on this account."
+  description = "S3 buckets to create via the S3 API. Leave empty (default) in `garage` mode — Garage creates the media buckets in-cluster. Set it for an external-S3 primary or the off-site backup store."
   type        = list(string)
-  default     = ["docs-media-storage"]
+  default     = []
 }

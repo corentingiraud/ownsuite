@@ -1,7 +1,9 @@
 # Copy to terraform.tfvars (gitignored) and fill in.
 #
 # AUTH — do NOT put credentials here. Create an Infomaniak application
-# credential, drop it in ~/.config/openstack/clouds.yaml as an entry, e.g.:
+# credential (it MUST be "unrestricted" — Terraform mints the S3 key via
+# openstack_identity_ec2_credential_v3, which a restricted credential cannot do),
+# drop it in ~/.config/openstack/clouds.yaml as an entry, e.g.:
 #
 #   clouds:
 #     ownsuite:
@@ -22,9 +24,11 @@ ssh_public_key = "ssh-ed25519 AAAA... you@host"
 
 # Confirm these against your project (defaults shown):
 # flavor_name           = "a4-ram8-disk0"        # core; bump RAM for Mailbox
-# image_name            = "Debian 13.0 Trixie"   # `openstack image list`
+# image_name            = "Debian 13 trixie"     # EXACT name from `openstack image list` (no minor)
 # external_network_name = "ext-floating1"        # `openstack network list --external`
 # volume_size_gb        = 50
 # ssh_allowed_cidr      = "203.0.113.5/32"        # your admin IP
 # enable_mailbox        = false
-# bucket_names          = ["docs-media-storage"]
+# bucket_names          = []                      # garage mode (default): leave empty — Garage
+#                                                 # creates buckets in-cluster. Set names only for an
+#                                                 # external-S3 primary or the off-site backup store.

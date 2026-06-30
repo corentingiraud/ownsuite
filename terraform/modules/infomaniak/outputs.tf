@@ -13,17 +13,17 @@ output "ssh_target" {
 
 output "s3_endpoint" {
   description = "S3 endpoint for OWNSUITE_S3_ENDPOINT."
-  value       = "https://s3.pub1.infomaniak.cloud"
+  value       = local.s3_endpoint
 }
 
 output "s3_region" {
   description = "S3 region (compatibility value; data is in Switzerland)."
-  value       = "us-east-1"
+  value       = local.s3_region
 }
 
 output "buckets" {
-  description = "Names of the created buckets."
-  value       = [for c in openstack_objectstorage_container_v1.this : c.name]
+  description = "Names of the buckets created via the S3 API (empty in the default garage mode)."
+  value       = [for b in aws_s3_bucket.this : b.bucket]
 }
 
 output "s3_access_key" {
