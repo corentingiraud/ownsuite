@@ -71,6 +71,11 @@ components:
       OIDC_OP_TOKEN_ENDPOINT: {{ printf "%s/token" $kcInternal | quote }}
       OIDC_OP_USER_ENDPOINT: {{ printf "%s/userinfo" $kcInternal | quote }}
       OIDC_REDIRECT_ALLOWED_HOSTS: {{ printf "https://%s" $host | quote }}
+      # Post-auth redirect targets (same as Docs/Drive). Without LOGIN_REDIRECT_URL,
+      # mozilla-django-oidc's success_url calls resolve_url(None) -> 500 on /callback/.
+      LOGIN_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
+      LOGIN_REDIRECT_URL_FAILURE: {{ printf "https://%s" $host | quote }}
+      LOGOUT_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
       # Create the Django user on first OIDC login; the maildomain's oidc_autojoin (set
       # by the seed Job) then provisions the mailbox — the JIT path the DoD relies on.
       OIDC_CREATE_USER: "True"
