@@ -7,6 +7,9 @@ is derived from the same seed/id the app uses — Keycloak and the app match wit
 no manual sync. Phase 1 ships the realm with no clients yet (apps arrive in
 Phase 2 by appending to keycloak.clients).
 */ -}}
+{{- /* UserInfo is kept UNSIGNED (user.info.response.signature.alg=""). RS256 makes Keycloak
+       return a signed JWT that Grist's openid-client cannot parse; unsigned is the OIDC default
+       every app here expects. Empty (not omitted) so a re-upsert clears any prior RS256. */}}
 {{- $clients := list -}}
 {{- range .Values.keycloak.clients }}
   {{- $secret := include "ownsuite.getSecret" (dict "root" $ "id" (printf "%s-oidc" .clientId)) -}}
@@ -29,7 +32,7 @@ Phase 2 by appending to keycloak.clients).
       "defaultClientScopes" (list "web-origins" "acr" "roles" "profile" "email")
       "attributes" (dict
           "post.logout.redirect.uris" (printf "https://%s/*" $host)
-          "user.info.response.signature.alg" "RS256")
+          "user.info.response.signature.alg" "")
   -}}
   {{- $clients = append $clients $client -}}
 {{- end }}
