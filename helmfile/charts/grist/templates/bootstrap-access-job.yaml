@@ -1,0 +1,94 @@
+{{- /*
+Grant every authenticated user access to the single Grist team site.
+
+Grist has no native SSO auto-join (SCIM only, in the enterprise build): the single org
+(GRIST_SINGLE_ORG) is owned by GRIST_DEFAULT_EMAIL and every other SSO user lands on
+"You do not have access to this organization's documents". This Job idempotently adds
+Grist's built-in public principals to the org's `editors` group so any logged-in user
+inherits editor access to the shared workspace.
+
+BOTH principals are needed (see grist-core HomeDBManager):
+  - everyone@getgrist.com — makes the org pass the org-list filter (_filterByOrgGroups
+    accepts userId OR everyone@), but its permission is DISCOUNTED when LISTING, so
+    everyone@ alone yields "accessible but unlisted" → 403 on /api/orgs/{id}/workspaces.
+  - anon@getgrist.com — anon@ shares ARE listed (not discounted), so the workspaces
+    actually show up and open.
+Anonymous browser access stays blocked by GRIST_FORCE_LOGIN=true (HTTP-layer gate
+independent of these ACLs), so in practice this grants exactly "every authenticated
+(Keycloak-provisioned) user". SECURITY: this is safe ONLY while GRIST_FORCE_LOGIN=true.
+
+Runs as a post-install/post-upgrade hook (idempotent — re-runs each sync are no-ops).
+
+ponytail: seeds Grist's home-DB membership tables directly (orgs/acl_rules/groups/
+group_users) — Grist's stable core schema, but coupled to it. Upgrade path if a Grist
+release changes it: switch to the public access API (PATCH /api/orgs/{id}/access) with a
+seeded admin api_key.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: grist-bootstrap-access
+  labels:
+    app.kubernetes.io/managed-by: helm
+    app.kubernetes.io/part-of: grist
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grist-bootstrap-access
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: grant
+          image: {{ .Values.bootstrapImage | quote }}
+          env:
+            - name: PGHOST
+              value: {{ .Values.env.TYPEORM_HOST | quote }}
+            - name: PGPORT
+              value: {{ .Values.env.TYPEORM_PORT | default "5432" | quote }}
+            - name: PGDATABASE
+              value: {{ .Values.env.TYPEORM_DATABASE | quote }}
+            - name: PGUSER
+              value: {{ .Values.env.TYPEORM_USERNAME | quote }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grist-db
+                  key: password
+            - name: GRIST_ORG
+              value: {{ .Values.env.GRIST_SINGLE_ORG | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Waiting for the '$GRIST_ORG' team site to be seeded..."
+              for i in $(seq 1 60); do
+                if [ "$(psql -tAc "SELECT 1 FROM orgs WHERE domain='$GRIST_ORG' LIMIT 1")" = "1" ]; then
+                  break
+                fi
+                sleep 5
+              done
+              # Idempotent: add BOTH public principals (everyone@ + anon@) to the org's
+              # editors group if absent (see the header for why both are required).
+              psql -v ON_ERROR_STOP=1 -c "
+                INSERT INTO group_users (group_id, user_id)
+                SELECT ar.group_id, pub.id
+                FROM acl_rules ar
+                JOIN groups g ON g.id = ar.group_id AND g.name = 'editors'
+                JOIN orgs o   ON o.id = ar.org_id   AND o.domain = '$GRIST_ORG'
+                JOIN (
+                  SELECT u.id FROM users u
+                  JOIN logins l ON l.user_id = u.id
+                  WHERE l.email IN ('everyone@getgrist.com', 'anon@getgrist.com')
+                ) pub ON true
+                WHERE NOT EXISTS (
+                  SELECT 1 FROM group_users gu
+                  WHERE gu.group_id = ar.group_id AND gu.user_id = pub.id
+                );"
+              echo "everyone@ + anon@ are editors on '$GRIST_ORG' (shared team site)."
