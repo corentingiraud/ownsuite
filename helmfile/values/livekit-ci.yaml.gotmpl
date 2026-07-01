@@ -1,0 +1,23 @@
+# CI e2e ONLY — layered on top of values/livekit.yaml.gotmpl by helmfile when
+# OWNSUITE_MEET_E2E is set (see helmfile.yaml.gotmpl). Production values are untouched.
+#
+# LiveKit's production config binds the node via hostNetwork + host media ports
+# (7882/udp, 7881/tcp). On ephemeral k3d that both wedges `k3d cluster delete` and
+# can't exercise real WebRTC media anyway — the reason Meet was descoped in #54. The
+# Tier-A boot smoke only needs LiveKit to converge and answer signaling over HTTPS, so:
+#   - podHostNetwork: false        -> ordinary cluster networking, no host netns to wedge
+#   - rtc.{udp,tcp}_port: 0         -> the chart sets hostPort ONLY for these two; zeroing
+#                                      them removes every host-port binding (the actual
+#                                      teardown-wedge cause — hostPort survives even with
+#                                      hostNetwork off)
+#   - rtc.port_range_*: small range -> an in-pod UDP range so LiveKit still starts (media
+#                                      is reachable only in-cluster; not exercised here)
+#   - rtc.use_external_ip: false    -> skip the STUN public-IP probe (hangs on k3d)
+podHostNetwork: false
+livekit:
+  rtc:
+    udp_port: 0
+    tcp_port: 0
+    port_range_start: 50000
+    port_range_end: 50010
+    use_external_ip: false

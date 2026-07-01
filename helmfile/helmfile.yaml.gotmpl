@@ -379,6 +379,22 @@ releases:
     values:
       - values/meet.yaml.gotmpl
 
+  # --- Meet media proxy: nginx serving authenticated recording/file downloads on
+  #     Traefik (issue #55). The upstream meet media-auth is nginx-coupled, so Traefik
+  #     can't serve /media/ directly (as for Docs/Drive). Two prefixes, two auth routes
+  #     (recordings + files) via the chart's `locations` list.
+  - name: meet-media-proxy
+    namespace: {{ $ns }}
+    chart: ./charts/media-proxy
+    condition: apps.meet.enabled
+    needs:
+      - {{ $ns }}/meet
+      {{- if .Values.garage.enabled }}
+      - {{ $ns }}/garage
+      {{- end }}
+    values:
+      - values/meet-media-proxy.yaml.gotmpl
+
   # --- Meet media: LiveKit SFU (official chart) --------------------------------------
   # The WebRTC media server. Signaling (wss) is served on Traefik at livekit.{domain};
   # RTC media binds the node directly via hostNetwork on a single UDP mux port (7882)
@@ -395,6 +411,11 @@ releases:
       - cert-manager/issuers
     values:
       - values/livekit.yaml.gotmpl
+      {{- if env "OWNSUITE_MEET_E2E" }}
+      # CI e2e only: drop hostNetwork + external-IP so LiveKit converges and tears down
+      # cleanly on ephemeral k3d (production values above are untouched). See issue #55.
+      - values/livekit-ci.yaml.gotmpl
+      {{- end }}
 
   # --- Meet recording: LiveKit Egress (official chart) -------------------------------
   # Records rooms to the meet-recordings S3 bucket (headless Chrome). Talks to LiveKit

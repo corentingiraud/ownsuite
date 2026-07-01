@@ -48,9 +48,16 @@ case "$APP" in
   projects) export OWNSUITE_APP_PROJECTS=true ;;
   meet)
     # Brings up meet + livekit + livekit-egress (all gated on apps.meet.enabled). The
-    # DoD is a boot smoke: DB applied, backend + livekit pods Ready, UI bounces to SSO.
-    # Media/recording (hostNetwork UDP, headless-Chrome egress) is not exercised here.
+    # DoD is a boot smoke: DB applied, backend + livekit pods Ready, UI bounces to SSO,
+    # and the backend mints a LiveKit room token (proves backend<->LiveKit auth). Real
+    # media/recording (hostNetwork UDP, headless-Chrome egress) is not exercised here.
     export OWNSUITE_APP_MEET=true
+    # Layer the CI-only LiveKit override (values/livekit-ci.yaml.gotmpl): drop
+    # hostNetwork + external-IP so LiveKit converges and tears down cleanly on k3d.
+    export OWNSUITE_MEET_E2E=true
+    # The token DoD mints a bearer for the seeded realm user `docs-tester` (meet's OIDC
+    # client, direct-access grant), same seam docs uses. Seed it.
+    export OWNSUITE_KC_SEED_TEST_USER=true
     ;;
   docs)
     export OWNSUITE_APP_DOCS=true
@@ -82,7 +89,15 @@ cleanup() {
   [ "$rc" != "0" ] && { echo "(exit $rc)"; dump_failure_diagnostics; }
   if [ "${OWNSUITE_E2E_KEEP:-0}" != "1" ]; then
     echo "==> Deleting k3d cluster '$CLUSTER'"
-    k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
+    # Guard the teardown: LiveKit's hostNetwork + host media ports can wedge
+    # `k3d cluster delete` (the reason Meet was descoped), so cap it with `timeout` on
+    # systems that have it (CI/Linux) — never let a wedged delete hang the job. macOS
+    # has no `timeout`; fall back to a plain delete there.
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 60 k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
+    else
+      k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true
+    fi
   fi
 }
 trap cleanup EXIT

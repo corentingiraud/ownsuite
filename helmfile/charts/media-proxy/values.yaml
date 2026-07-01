@@ -11,8 +11,17 @@ enabled: false
 # nginx image (pinned in versions.yaml).
 image: nginx:1.31.2-alpine
 
-# Backend service + media-auth path the auth_request subrequest hits.
+# Backend service the auth_request subrequest hits (shared across all locations).
 authUpstream: drive-backend
+
+# Single-location apps (docs, drive) set authPath + the optional mediaPath (defaults to
+# /media/) and one forceDownload below. Multi-prefix apps (meet: recordings + files,
+# each guarded by its own backend media-auth route) instead set a `locations` list —
+# one entry per path, each with its own authPath + forceDownload, e.g.:
+#   locations:
+#     - { path: /media/recordings/, authPath: /api/v1.0/recordings/media-auth/, forceDownload: false }
+#     - { path: /media/files/,      authPath: /api/v1.0/files/media-auth/,      forceDownload: true }
+# When `locations` is unset a single entry is synthesised from authPath/mediaPath/forceDownload.
 authPath: /api/v1.0/items/media-auth/
 
 # Object-store bucket the /media/ path rewrites into, plus the scheme/host/port the

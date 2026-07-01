@@ -19,8 +19,14 @@
 {{- $lkSecret := printf "%s:%s" .Values.secretSeed "meet-livekit-secret" | sha256sum | trunc 40 }}
 
 replicaCount: 1
-# Stable service/ingress name ("livekit") so egress + meet can address it predictably.
-fullnameOverride: livekit
+# Stable in-cluster name so egress can address it predictably. Deliberately NOT
+# "livekit": a Service named exactly "livekit" makes the kubelet inject a service-link
+# env var LIVEKIT_PORT=tcp://<clusterIP>:80 into the pod, which collides with
+# livekit-server's own LIVEKIT_PORT config flag — the container then rejects the value
+# ("could not parse tcp://…:80 as uint") and crash-loops. A distinct name sidesteps the
+# collision entirely. The public signaling host stays livekit.{domain} (set on the
+# ingress via loadBalancer.tls below, independent of this name).
+fullnameOverride: livekit-sfu
 
 # Media binds the host network directly (hostPort). Default is already true; kept
 # explicit because it is load-bearing for the single-node port model.
@@ -61,8 +67,22 @@ livekit:
     password: {{ $valkeyPass | quote }}
   keys:
     {{ $lkKey }}: {{ $lkSecret | quote }}
+  {{- if .Values.apps.meet.turn.enabled }}
+  # Opt-in embedded TURN/TLS (issue #55): a last-resort relay for clients on networks
+  # that block BOTH the UDP mux and the TCP fallback. With podHostNetwork the chart
+  # binds tls_port on the node directly (hostPort) — no extra Service — and terminates
+  # TLS with the mounted cert. We reuse the livekit-tls cert (issued for livekit.{domain}
+  # on the signaling ingress), so domain MUST be livekit.{domain} and no new DNS/cert is
+  # needed. Opening 5349/tcp is gated on the Terraform/Ansible `enable_meet_turn` flag.
+  turn:
+    enabled: true
+    domain: {{ printf "livekit.%s" $domain | quote }}
+    tls_port: 5349
+    secretName: livekit-tls
+  {{- else }}
   turn:
     enabled: false
+  {{- end }}
   webhook:
     # Must be a key present in `keys` above; signs the room webhooks meet verifies.
     api_key: {{ $lkKey | quote }}

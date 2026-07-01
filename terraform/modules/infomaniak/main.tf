@@ -85,6 +85,22 @@ resource "openstack_networking_secgroup_rule_v2" "meet" {
   security_group_id = openstack_networking_secgroup_v2.this.id
 }
 
+# Optional embedded TURN/TLS (enable_meet_turn, issue #55): 5349/tcp for Meet clients
+# behind firewalls blocking both 7881 and 7882. Off by default (extra port + a cert);
+# set alongside OWNSUITE_MEET_TURN=true on the app side.
+resource "openstack_networking_secgroup_rule_v2" "meet_turn" {
+  for_each = var.enable_meet_turn ? {
+    meet-turn = { port = 5349, protocol = "tcp" }
+  } : {}
+  direction         = "ingress"
+  ethertype         = "IPv4"
+  protocol          = each.value.protocol
+  port_range_min    = each.value.port
+  port_range_max    = each.value.port
+  remote_ip_prefix  = "0.0.0.0/0"
+  security_group_id = openstack_networking_secgroup_v2.this.id
+}
+
 # Egress is left to Neutron's defaults: creating a security group auto-adds
 # allow-all egress rules (IPv4 + IPv6), so re-declaring them here 409s on
 # Infomaniak ("SecurityGroupRuleExists"). The node can pull images, reach S3,

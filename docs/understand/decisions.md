@@ -1435,3 +1435,16 @@ a client on a network that blocks **both** UDP/7882 and TCP/7881 cannot connect 
 TURN/TLS is added; and authenticated recording **download** (the upstream nginx `auth_request`
 `/media/` path) is deferred — recordings are stored in S3 but a Traefik media-proxy for downloads
 is a follow-up, as for Docs.
+
+**Update (issue #55).** Both trade-offs above are now resolved, without changing the default
+footprint:
+
+- **Recording/file download proxy shipped.** A `meet-media-proxy` release (the shared
+  `charts/media-proxy`, as for Docs/Drive) serves `/media/recordings/` and `/media/files/` on
+  Traefik, each authorized by its own backend media-auth route. No new ports.
+- **Embedded TURN/TLS is now opt-in.** Set `OWNSUITE_MEET_TURN=true` (app side) **and**
+  `enable_meet_turn=true` (Terraform/Ansible) to have LiveKit terminate TURN/TLS on the node at
+  **`5349/tcp`**, reusing the `livekit-tls` cert on `livekit.{domain}` — so no extra certificate
+  and no new DNS record. Off by default: it is only needed for clients blocked on both media ports,
+  and it adds one open port. `enable_meet_turn` mirrors `enable_meet` in both the Terraform security
+  group and the Ansible UFW rules.

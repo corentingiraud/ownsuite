@@ -12,6 +12,10 @@ enable_mailbox: false
 # Open LiveKit media ports (7881/tcp fallback + 7882/udp mux) for the optional Meet
 # app. Mirror of the Terraform `enable_meet` toggle; leave false unless deploying it.
 enable_meet: false
+# Open the LiveKit embedded TURN/TLS port (5349/tcp) for Meet clients behind firewalls
+# blocking both 7881 and 7882. Mirror of the Terraform `enable_meet_turn` toggle;
+# requires enable_meet and OWNSUITE_MEET_TURN=true. Leave false unless you need TURN.
+enable_meet_turn: false
 # K3s pod/service networks must be allowed or in-cluster traffic (CoreDNS,
 # pod-to-pod) is dropped by ufw's default-deny.
 k3s_pod_cidr: "10.42.0.0/16"

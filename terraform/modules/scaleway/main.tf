@@ -74,6 +74,18 @@ resource "scaleway_instance_security_group" "this" {
       port     = inbound_rule.value.port
     }
   }
+
+  # Optional embedded TURN/TLS (enable_meet_turn, issue #55): one TCP port (5349) for
+  # clients on networks that block both 7881 and 7882. Off by default (extra port + a
+  # cert); set alongside OWNSUITE_MEET_TURN=true on the app side.
+  dynamic "inbound_rule" {
+    for_each = var.enable_meet_turn ? { meet-turn = { port = 5349, protocol = "TCP" } } : {}
+    content {
+      action   = "accept"
+      protocol = inbound_rule.value.protocol
+      port     = inbound_rule.value.port
+    }
+  }
 }
 
 # --- Server -----------------------------------------------------------------

@@ -37,11 +37,17 @@ on:
       - "helmfile/values/messages.yaml.gotmpl"
       - "helmfile/values/docs.yaml.gotmpl"
       - "helmfile/values/drive.yaml.gotmpl"
-      # NOTE: Meet is intentionally NOT in this matrix. LiveKit needs hostNetwork + host
-      # UDP/TCP media ports, which don't tear down cleanly on ephemeral k3d (they wedge
-      # `k3d cluster delete`), and a k3d run can't exercise real WebRTC media anyway. Its
-      # boot check lives in the harness (`make test-app APP=meet`) for manual runs on a
-      # real cluster; PRs gate Meet on the static checks (helmfile-ci render + lint).
+      # Meet runs as a headless Tier-A boot smoke (no real media): a CI-only LiveKit
+      # override (livekit-ci.yaml.gotmpl) drops hostNetwork + host media ports so it
+      # converges and tears down cleanly on k3d. Its local code is the meet/livekit
+      # values files (no charts/meet dir — upstream chart).
+      - "helmfile/values/meet.yaml.gotmpl"
+      - "helmfile/values/meet-media-proxy.yaml.gotmpl"
+      - "helmfile/values/livekit.yaml.gotmpl"
+      - "helmfile/values/livekit-ci.yaml.gotmpl"
+      - "helmfile/values/livekit-egress.yaml.gotmpl"
+      # media-proxy backs docs, drive AND meet — a change here fans out to all apps.
+      - "helmfile/charts/media-proxy/**"
       - "helmfile/tests/run-app-e2e.sh"
       - "helmfile/tests/lib.sh"
       - "helmfile/tests/test_apps.py"
@@ -60,10 +66,11 @@ concurrency:
 
 jobs:
   # Decide which apps this run must boot. For a PR, diff against the base and keep
-  # only the apps whose chart/values changed; a shared-harness/workflow change selects
-  # all five. Any other event (schedule / dispatch) boots all five. GitHub `paths:`
-  # filters gate the WORKFLOW but cannot map "changed app -> only that matrix entry",
-  # so this job does the mapping and emits a JSON matrix.
+  # only the apps whose chart/values changed; a shared-harness/workflow change (or a
+  # media-proxy change, which backs docs/drive/meet) selects all six. Any other event
+  # (schedule / dispatch) boots all six. GitHub `paths:` filters gate the WORKFLOW but
+  # cannot map "changed app -> only that matrix entry", so this job does the mapping
+  # and emits a JSON matrix.
   detect:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -79,23 +86,30 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          all='["grist","projects","messages","docs","drive"]'
+          all='["grist","projects","messages","docs","drive","meet"]'
           if [ "$EVENT" != "pull_request" ]; then
             echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
           fi
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          # A shared-harness or workflow change can affect any app -> run all five.
-          if grep -qE '^(helmfile/tests/(run-app-e2e\.sh|lib\.sh|test_apps\.py)|\.github/workflows/apps-e2e\.yml)$' <<<"$changed"; then
+          # A shared-harness/workflow change, or a media-proxy change (backs docs/drive/
+          # meet), can affect any app -> run all six.
+          if grep -qE '^helmfile/charts/media-proxy/' <<<"$changed" \
+             || grep -qE '^(helmfile/tests/(run-app-e2e\.sh|lib\.sh|test_apps\.py)|\.github/workflows/apps-e2e\.yml)$' <<<"$changed"; then
             echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
           fi
           picked=()
-          for app in grist projects messages docs drive; do
+          for app in grist projects messages docs drive meet; do
             # Grist/Projects/messages own a charts/<app>/ dir; Docs/Drive have no such
             # dir — their only local chart is charts/<app>-ingress/ (upstream chart +
-            # values file otherwise). Match the right one per app. (Meet is excluded from
-            # this matrix — see the paths note above.)
+            # values file otherwise). Meet has no chart dir either — its local code is
+            # the meet + livekit values files. Match the right signal per app.
             case "$app" in
               docs|drive) chart="charts/$app-ingress/" ;;
+              meet)
+                if grep -qE '^helmfile/values/(meet|meet-media-proxy|livekit|livekit-ci|livekit-egress)\.yaml\.gotmpl$' <<<"$changed"; then
+                  picked+=("meet")
+                fi
+                continue ;;
               *) chart="charts/$app/" ;;
             esac
             if grep -qE "^helmfile/($chart|values/$app\.yaml\.gotmpl$)" <<<"$changed"; then

@@ -39,7 +39,8 @@ is UDP (with a TCP fallback). LiveKit is configured for the **smallest possible
 footprint** on a single node:
 
 - **One muxed UDP port `7882`** for all WebRTC media, plus **one TCP port `7881`** as a
-  fallback for clients on UDP-hostile networks. No 10 000-port range, no dedicated TURN.
+  fallback for clients on UDP-hostile networks. No 10 000-port range; TURN is off by
+  default and available opt-in (see [Optional embedded TURN](#optional-embedded-turn)).
 - LiveKit runs with **`hostNetwork`** and binds those ports directly on the node
   (`use_external_ip: true` so it advertises the server's public IP to clients).
 - **Signaling** (the `wss://livekit.{domain}` WebSocket) is a normal Traefik ingress on
@@ -73,6 +74,12 @@ Leave both `false` unless you deploy Meet.
 - **Recording to S3.** Egress writes room recordings to the **`meet-recordings`** bucket
   (its own bucket on the shared S3 seam — Garage in garage mode, external S3 otherwise).
   It shares LiveKit's Redis DB (Valkey DB 8) to receive recording jobs.
+- **Authenticated downloads via a media-proxy.** The upstream `/media/` download path uses
+  an nginx `auth_request` contract Traefik can't satisfy, so a small `meet-media-proxy`
+  release (the shared `charts/media-proxy`, as for Docs/Drive) serves `/media/recordings/`
+  and `/media/files/` on Traefik — each authorized by its own backend media-auth route
+  (`recordings/media-auth/`, `files/media-auth/`), then proxied to the store with the
+  backend's SigV4 headers. It brings its own more-specific ingress on `meet.{domain}`.
 
 ## What is disabled
 
@@ -104,11 +111,32 @@ LiveKit and (during a recording) the headless-Chrome egress are the heavy parts 
 plan Meet for **modest concurrency** on a single small server, and add capacity before
 inviting large meetings.
 
+## Optional embedded TURN
+
+The UDP mux + TCP fallback cover association-scale networks, but a client behind a
+firewall that blocks **both** `7882/udp` and `7881/tcp` cannot connect. For those cases
+LiveKit can terminate an embedded **TURN/TLS** relay on the node — **off by default**
+(it adds one open port). Enabling it needs two flags, mirroring the media-port seam:
+
+```bash
+# 1. Open the TURN port (pick your provider), then re-apply:
+#    terraform.tfvars:  enable_meet_turn = true
+#    ansible group_vars/all.yml:  enable_meet_turn: true
+# 2. Turn TURN on for the app and sync:
+export OWNSUITE_MEET_TURN=true
+make sync
+```
+
+- Trade-off: **one extra open port** (`5349/tcp`) reachable from the world.
+- **No new certificate or DNS record.** TURN reuses the existing `livekit-tls` cert on
+  `livekit.{domain}` (clients reach it as `turns:livekit.{domain}:5349`), so the cert SAN
+  already matches. With `hostNetwork` LiveKit binds `5349` on the node directly — no extra
+  Service.
+- You must set **both** flags: `OWNSUITE_MEET_TURN` enables it in LiveKit's config, and
+  `enable_meet_turn` opens the firewall. Setting only one has no useful effect.
+
 ## Known limitations
 
-- **Recording download proxy deferred.** Recordings land in S3, but the authenticated
-  `/media/` download path uses an nginx `auth_request` contract Traefik can't satisfy
-  (the same limitation Docs solves with a media-proxy). A Traefik media-proxy for
-  recording downloads is a follow-up.
-- **No dedicated TURN.** UDP + TCP fallback covers association-scale networks; a client
-  behind a firewall blocking both won't connect until embedded TURN/TLS is added.
+- **AI/transcription disabled.** The summary, transcription and LiveKit-agent components
+  ship at zero replicas (they need GPU/Whisper/LLM endpoints) — see [What is
+  disabled](#what-is-disabled).

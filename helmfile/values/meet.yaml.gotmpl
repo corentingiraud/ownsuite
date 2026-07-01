@@ -239,11 +239,11 @@ ingressWebhook:
     enabled: true
     secretName: meet-tls
 
-# Authenticated recording download (/media/) uses the upstream nginx auth_request
+# Authenticated recording/file download (/media/) uses the upstream nginx auth_request
 # contract, which Traefik cannot satisfy (same limitation Docs solves with a
-# media-proxy). Left disabled for v1 — recordings are stored in S3; wiring a Traefik
-# media-proxy for downloads is a follow-up.
-# ponytail: /media/ download proxy deferred; add a media-proxy release when needed.
+# media-proxy). These upstream ingresses stay disabled; the `meet-media-proxy` release
+# (charts/media-proxy, issue #55) serves /media/recordings/ + /media/files/ on Traefik
+# instead — a more-specific route than meet's `/`, exactly as for Docs/Drive.
 ingressMedia:
   enabled: false
 ingressMediaFiles:

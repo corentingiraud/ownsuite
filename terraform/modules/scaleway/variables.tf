@@ -76,6 +76,12 @@ variable "enable_meet" {
   default     = false
 }
 
+variable "enable_meet_turn" {
+  description = "Open the LiveKit embedded TURN/TLS port (5349/tcp) for Meet clients behind firewalls that block both 7881 and 7882. Requires enable_meet and OWNSUITE_MEET_TURN=true. Leave false unless you need TURN."
+  type        = bool
+  default     = false
+}
+
 variable "s3_key_expires_at" {
   description = "RFC3339 expiry for the apps' S3 API key. null (default) = apply-time + ~11 months, safely under orgs that cap key lifetime at 1 year. Pin a date to control it. Rotate the key + re-apply before it lapses."
   type        = string

@@ -2,12 +2,18 @@
 {{- /*
 nginx server block replicating the upstream apps' media auth_request contract on
 Traefik. Mounted at /etc/nginx/conf.d/default.conf (the stock image's http{}/logging
-wrapper is kept). The /media-auth subrequest sends X-Original-URL=$request_uri and
-Host=$host (the public host, in DJANGO_ALLOWED_HOSTS) to the backend, which returns
-the SigV4 headers; /media/ then forwards those to the object store with the endpoint
-as the upstream Host so the signature validates. Works for both the in-cluster Garage
-(http) and an external S3 (https) — the values set s3Scheme/s3Host/s3HostHeader.
+wrapper is kept). Each location's auth subrequest sends X-Original-URL=$request_uri and
+Host=$host (the public host, in DJANGO_ALLOWED_HOSTS) to the backend, which returns the
+SigV4 headers; the download location then forwards those to the object store with the
+endpoint as the upstream Host so the signature validates. Works for both the in-cluster
+Garage (http) and an external S3 (https) — the values set s3Scheme/s3Host/s3HostHeader.
+
+Most apps need a single /media/ path + one media-auth endpoint (docs, drive). Some
+(meet) serve several path prefixes, each guarded by its own backend media-auth route,
+so the config is driven by a `locations` list. When it is unset we synthesise a single
+entry from the legacy authPath/mediaPath/forceDownload keys — identical to before.
 */}}
+{{- $locations := .Values.locations | default (list (dict "path" (.Values.mediaPath | default "/media/") "authPath" .Values.authPath "forceDownload" .Values.forceDownload)) -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,10 +31,11 @@ data:
             return 200 "ok";
             add_header Content-Type text/plain;
         }
+    {{- range $i, $loc := $locations }}
 
         # Authenticated media download: authorize, then proxy the signed request to S3.
-        location /media/ {
-            auth_request /media-auth;
+        location {{ $loc.path }} {
+            auth_request /media-auth-{{ $i }};
             auth_request_set $authHeader $upstream_http_authorization;
             auth_request_set $authDate $upstream_http_x_amz_date;
             auth_request_set $authContentSha256 $upstream_http_x_amz_content_sha256;
@@ -37,18 +44,18 @@ data:
             proxy_set_header X-Amz-Date $authDate;
             proxy_set_header X-Amz-Content-SHA256 $authContentSha256;
 
-            # Rewrite /media/<key> -> /<bucket>/<key> and send to the object store.
-            # The upstream Host MUST match what the backend signed against (its
+            # Rewrite <path><key> -> /<bucket>/<key> and send to the object store. The
+            # upstream Host MUST match what the backend signed against (its
             # AWS_S3_ENDPOINT_URL), or the store rejects the SigV4 signature.
-            proxy_pass {{ .Values.s3Scheme }}://{{ .Values.s3Host }}:{{ .Values.s3Port }}/{{ .Values.bucket }}/;
-            proxy_set_header Host {{ .Values.s3HostHeader }};
-            {{- if eq .Values.s3Scheme "https" }}
+            proxy_pass {{ $.Values.s3Scheme }}://{{ $.Values.s3Host }}:{{ $.Values.s3Port }}/{{ $.Values.bucket }}/;
+            proxy_set_header Host {{ $.Values.s3HostHeader }};
+            {{- if eq $.Values.s3Scheme "https" }}
             # External S3 over TLS: send SNI matching the signed host.
             proxy_ssl_server_name on;
             {{- end }}
 
             add_header Content-Security-Policy "default-src 'none'" always;
-            {{- if .Values.forceDownload }}
+            {{- if $loc.forceDownload }}
             add_header Content-Disposition "attachment";
             {{- end }}
         }
@@ -56,9 +63,9 @@ data:
         # Internal auth subrequest to the backend media-auth endpoint. The backend reads
         # the requested object from X-Original-URL (nginx convention) and authorizes the
         # session, then returns the SigV4 headers captured above.
-        location = /media-auth {
+        location = /media-auth-{{ $i }} {
             internal;
-            proxy_pass http://{{ .Values.authUpstream }}{{ .Values.authPath }};
+            proxy_pass http://{{ $.Values.authUpstream }}{{ $loc.authPath }};
             proxy_pass_request_body off;
             proxy_set_header Content-Length "";
             proxy_set_header Host $host;
@@ -68,5 +75,6 @@ data:
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
         }
+    {{- end }}
     }
 {{- end }}
