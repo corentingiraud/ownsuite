@@ -14,7 +14,7 @@ This step is handled by **Ansible**, which applies three sets of changes in orde
 | Role | Actions |
 |---|---|
 | `common` | Swap file + `vm.swappiness`, sysctl tunables (inotify, `ip_forward`, bridge-nf), the `overlay`/`br_netfilter` modules, base packages, time sync, **unattended security upgrades**. |
-| `security` | **ufw** (default-deny ingress; allow 22/80/443 + the K3s pod/service CIDRs), **fail2ban** (sshd jail), **SSH hardening** (no root password login, no password auth). |
+| `security` | **ufw** (default-deny ingress; allow 22/80/443 + the K3s pod/service CIDRs), **fail2ban** (sshd jail, with an `ignoreip` allowlist — set `fail2ban_ignoreip` to your admin IP so a bootstrap can't lock you out), **SSH hardening** (no root password login, no password auth). |
 | `k3s` | Install the **pinned** K3s release (bundled Traefik + ServiceLB kept), write `/etc/rancher/k3s/config.yaml`, configure Traefik to **allow ExternalName services** (so OwnSuite can proxy authenticated `/media/` to the object store — a mild SSRF trade-off, acceptable single-tenant), wait for the node to be `Ready`, and fetch the kubeconfig to `ansible/kubeconfig`. |
 
 ## Requirements

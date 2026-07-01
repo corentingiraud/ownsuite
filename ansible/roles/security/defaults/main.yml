@@ -25,6 +25,9 @@ k3s_service_cidr: "10.43.0.0/16"
 fail2ban_bantime: "1h"
 fail2ban_findtime: "10m"
 fail2ban_maxretry: 5
+# Space-separated allowlist fail2ban never bans. Loopback only by default;
+# override (e.g. in group_vars or with -e) to add your admin/workstation IP.
+fail2ban_ignoreip: "127.0.0.1/8 ::1"
 
 # SSH hardening. Disabling password auth on a box you only reach by password
 # will lock you out — set ssh_harden: false until your key is installed.

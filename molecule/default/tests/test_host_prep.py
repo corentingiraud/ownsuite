@@ -47,6 +47,8 @@ def test_fail2ban_jail_configured(host):
     jail = host.file("/etc/fail2ban/jail.d/ownsuite.local")
     assert jail.exists
     assert jail.contains(r"\[sshd\]")
+    # An ignoreip allowlist must be present so the operator's IP can be exempted.
+    assert jail.contains(r"ignoreip")
 
 
 def test_ssh_hardening_drop_in(host):
