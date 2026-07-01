@@ -4,6 +4,9 @@ bantime = {{ fail2ban_bantime }}
 findtime = {{ fail2ban_findtime }}
 maxretry = {{ fail2ban_maxretry }}
 backend = systemd
+# Never ban these sources. Loopback by default; add the operator's admin IP
+# (fail2ban_ignoreip) so bootstrapping from your workstation can't lock you out.
+ignoreip = {{ fail2ban_ignoreip }}
 
 [sshd]
 enabled = true
