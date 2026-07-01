@@ -4,19 +4,23 @@ from suite import dns
 
 
 def test_records_ipv4_only():
+    # Apex holds the address once; a wildcard CNAME -> apex covers subdomains.
     recs = dns.records("assoc.example.org", "203.0.113.10")
     assert [(r.name, r.type, r.value) for r in recs] == [
-        ("*.assoc.example.org", "A", "203.0.113.10"),
         ("assoc.example.org", "A", "203.0.113.10"),
+        ("*.assoc.example.org", "CNAME", "assoc.example.org."),
         ("assoc.example.org", "CAA", '0 issue "letsencrypt.org"'),
     ]
     assert all(r.ttl == 300 for r in recs)
 
 
-def test_records_adds_aaaa_with_ipv6():
-    types = {(r.name, r.type) for r in dns.records("x.org", "1.2.3.4", "2001:db8::1")}
-    assert ("*.x.org", "AAAA") in types
+def test_records_adds_aaaa_at_apex_only():
+    # IPv6 adds an apex AAAA; the wildcard stays a single CNAME (covers both families).
+    recs = dns.records("x.org", "1.2.3.4", "2001:db8::1")
+    types = {(r.name, r.type) for r in recs}
     assert ("x.org", "AAAA") in types
+    assert ("*.x.org", "AAAA") not in types
+    assert [r.type for r in recs if r.name == "*.x.org"] == ["CNAME"]
 
 
 def test_records_omits_aaaa_without_ipv6():
@@ -24,7 +28,7 @@ def test_records_omits_aaaa_without_ipv6():
 
 
 def test_records_strips_trailing_dot():
-    assert dns.records("x.org.", "1.2.3.4")[0].name == "*.x.org"
+    assert dns.records("x.org.", "1.2.3.4")[0].name == "x.org"
 
 
 def test_records_validation():
@@ -39,8 +43,23 @@ def test_format_table():
     assert "Name" in out and "*.x.org" in out and "letsencrypt.org" in out
 
 
+def test_format_zone():
+    recs = dns.records("assoc.example.org", "1.2.3.4", "2001:db8::1", mail=_mail())
+    out = dns.format_zone(recs, "assoc.example.org")
+    assert "$ORIGIN assoc.example.org." in out
+    assert "$TTL 300" in out
+    # Names are relative to the origin: apex -> '@', subdomains stripped of suffix.
+    assert "@\t300\tIN\tA\t1.2.3.4" in out
+    assert "*\t300\tIN\tCNAME\tassoc.example.org." in out
+    assert "mail\t300\tIN\tA\t1.2.3.4" in out  # explicit MX target, not the wildcard
+    assert "_dmarc\t" in out and "ownsuite._domainkey\t" in out
+    # TXT values are quoted; no SOA/NS (the registrar owns those).
+    assert 'IN\tTXT\t"v=spf1' in out
+    assert "SOA" not in out and "\tNS\t" not in out
+
+
 def test_records_omit_mail_by_default():
-    # No mailbox -> the record set is unchanged (A/AAAA/CAA only).
+    # No mailbox -> the record set is base only (A/AAAA/CNAME/CAA).
     assert not any(r.type in ("MX", "TXT") for r in dns.records("x.org", "1.2.3.4"))
 
 
@@ -71,9 +90,17 @@ def test_mail_records_mx_spf_dkim_dmarc():
 def test_records_appends_mail_after_base():
     recs = dns.records("assoc.example.org", "1.2.3.4", mail=_mail())
     types = [r.type for r in recs]
-    # Base records (A/A/CAA) still come first, then the four mail records.
-    assert types[:3] == ["A", "A", "CAA"]
-    assert set(types[3:]) == {"MX", "TXT"}
+    # Base records (A/CNAME/CAA) come first, then the mail records.
+    assert types[:3] == ["A", "CNAME", "CAA"]
+    assert set(types[3:]) == {"A", "MX", "TXT"}
+
+
+def test_records_mail_adds_explicit_mail_a():
+    # The MX target must not be a CNAME (RFC 2181), so it gets its own A/AAAA
+    # instead of the wildcard CNAME.
+    recs = dns.records("assoc.example.org", "1.2.3.4", "2001:db8::1", mail=_mail())
+    mail_recs = {r.type: r.value for r in recs if r.name == "mail.assoc.example.org"}
+    assert mail_recs == {"A": "1.2.3.4", "AAAA": "2001:db8::1"}
 
 
 def test_dmarc_without_rua():

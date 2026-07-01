@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from pathlib import Path
 
 from . import bootstrap, config, dns, ip, mail, propagation, tunnel, verify
 from .errors import SuiteError
@@ -73,19 +74,47 @@ def install(args):
     print("\n==> Done. OwnSuite is serving over HTTPS.")
 
 
-def _dns_and_propagation(args, domain, ssh, mail_dns=None):
+def _detect_ipv4(args, ssh):
     ipv4 = args.public_ip or (ip.detect_over_ssh(ssh, 4) if ssh else None)
     if not ipv4:
         ipv4 = input("Server public IPv4: ").strip()
-    ipv6 = ip.detect_over_ssh(ssh, 6) if ssh else None
+    return ipv4
+
+
+def _emit_dns(domain, ipv4, ipv6, mail_dns, zone_path):
+    """Print the copy-paste table and write the BIND zone file (both from one record
+    set, so they never drift). Shared by `install` and the standalone `dns` command."""
+    recs = dns.records(domain, ipv4, ipv6, mail=mail_dns)
     print("\n==> Create these DNS records at your registrar:\n")
-    print(dns.format_table(dns.records(domain, ipv4, ipv6, mail=mail_dns)))
+    print(dns.format_table(recs))
+    Path(zone_path).write_text(dns.format_zone(recs, domain))
+    print(f"\n==> BIND zone file written to {zone_path} (import it at your registrar).")
     if mail_dns:
         _mail_manual_steps(ipv4, mail_dns.mail_host)
+
+
+def _dns_and_propagation(args, domain, ssh, mail_dns=None):
+    ipv4 = _detect_ipv4(args, ssh)
+    ipv6 = ip.detect_over_ssh(ssh, 6) if ssh else None
+    _emit_dns(domain, ipv4, ipv6, mail_dns, f"{domain}.zone")
     if not args.skip_propagation:
         print("\n==> Waiting for DNS to propagate (before triggering ACME)...")
         if not propagation.wait(domain, ipv4):
             raise SuiteError("DNS did not propagate in time; not triggering ACME")
+
+
+def run_dns(args):
+    """`suite dns`: (re)generate the DNS records + BIND zone file, no install. Same
+    record set as `install`, minus bootstrap/propagation/TLS."""
+    cfg = config.load_env(args.env_file)
+    domain = args.domain or cfg.get("OWNSUITE_DOMAIN")
+    if not domain:
+        raise SuiteError("OWNSUITE_DOMAIN is required (pass --domain or set it in .env)")
+    ssh = args.ssh or cfg.get("OWNSUITE_SERVER_SSH", "")
+    ipv4 = _detect_ipv4(args, ssh)
+    ipv6 = ip.detect_over_ssh(ssh, 6) if ssh else None
+    mail_dns = _ensure_mail(cfg, domain) if _mailbox_enabled(cfg) else None
+    _emit_dns(domain, ipv4, ipv6, mail_dns, args.out or f"{domain}.zone")
 
 
 def _mailbox_enabled(cfg):

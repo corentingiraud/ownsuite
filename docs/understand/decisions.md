@@ -523,10 +523,10 @@ values through. The installer issues against **staging first**, verifies the pat
 same `keycloak-tls`/`docs-tls` certificates to go Ready again. No ingress or Certificate resource
 changes — the annotation already follows `tls.issuer`.
 
-**Wildcard A record ≠ wildcard certificate; DNS-01 deferred.** The installer generates a wildcard
-**A record** (`*.{domain}`) so every subdomain resolves, but v1 keeps issuing **per-host
-certificates** (`auth.`, `docs.`) over HTTP-01 — which needs only the port 80 the firewall already
-opens. A true `*.{domain}` *certificate* would require explicit Certificate CRs and pointing the
+**Wildcard record ≠ wildcard certificate; DNS-01 deferred.** The installer generates an apex
+**A/AAAA** plus a wildcard **CNAME** (`*.{domain}` → apex) so every subdomain resolves off a
+single address record, but v1 keeps issuing **per-host certificates** (`auth.`, `docs.`) over
+HTTP-01 — which needs only the port 80 the firewall already opens. A true `*.{domain}` *certificate* would require explicit Certificate CRs and pointing the
 ingresses at a shared secret — exactly the seam rework ADR-013 forbids — so the **DNS-01 wildcard
 issuer is deferred**. The seam stays ready: a future `letsencrypt-dns01` ClusterIssuer (with a
 DNS-provider token Secret — the first credential *not* derived from the seed) is purely additive.
