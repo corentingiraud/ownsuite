@@ -14,7 +14,7 @@ bucket: drive-media-storage
 sameOriginUpload:
   enabled: false
 # Public Drive host the presigned upload URLs are signed against.
-host: drive.example.com
+host: drive.example.org
 # TLS secret for that host (issued on the drive chart's main ingress, reused here).
 tlsSecret: drive-tls
 # In-cluster Garage S3 ClusterIP Service + port the upload proxy forwards to.

@@ -17,7 +17,6 @@ subprocess calls — especially the backup gate and the rollback-on-failure path
 
 from __future__ import annotations
 
-import contextlib
 import os
 import shutil
 
@@ -58,12 +57,7 @@ def run_upgrade(args):
     env = {**cfg, "OWNSUITE_SECRET_SEED": seed}
     enabled = enabled_apps(cfg)
 
-    tunnel_ctx = (
-        contextlib.nullcontext()
-        if args.no_tunnel or not ssh
-        else tunnel.tunnel(ssh)
-    )
-    with tunnel_ctx:
+    with tunnel.maybe(ssh, no_tunnel=args.no_tunnel):
         _snapshot()
         _show_diff(env)
         if not args.yes and not _confirm():
