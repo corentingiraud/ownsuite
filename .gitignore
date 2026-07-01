@@ -14,6 +14,9 @@ __pycache__/
 /helmfile/environments/secrets.yaml
 .env
 
+# BIND zone file `suite install` writes for the operator's domain (real domain/IP).
+*.zone
+
 # Ansible — real inventory (keep only the example), retries, fetched kubeconfig
 ansible/inventory/hosts.yml
 *.retry

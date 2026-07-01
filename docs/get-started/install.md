@@ -58,22 +58,24 @@ it and re-run `make install` to resume:
 
     | Name | Type | Value | TTL |
     |---|---|---|---|
-    | `*.{domain}` | A | _your server IPv4_ | 300 |
     | `{domain}` | A | _your server IPv4_ | 300 |
+    | `*.{domain}` | CNAME | `{domain}.` | 300 |
     | `{domain}` | CAA | `0 issue "letsencrypt.org"` | 300 |
 
-    The wildcard `A` covers every subdomain (`auth.`, `docs.`, and future apps); `AAAA`
-    rows are added when the server has public IPv6. (A wildcard *A record* is not a wildcard
-    *certificate* — certificates are still issued per host.)
+    The apex holds the address once; the wildcard **CNAME → apex** covers every subdomain
+    (`auth.`, `docs.`, and future apps), so if the IP changes you edit a single record. An
+    `AAAA` row is added at the apex when the server has public IPv6 (the CNAME follows it —
+    no second wildcard needed). A wildcard record is not a wildcard *certificate* —
+    certificates are still issued per host.
 
-    !!! note "CAA tag, and a tidier wildcard"
-        - **CAA tag** is `issue` — in registrar UIs that ask for a tag this is usually
-          labelled *"Only allow specific hostnames"*. Do **not** use `issuewild`: OwnSuite
-          issues per-host certificates via HTTP-01, not a wildcard certificate.
-        - If you prefer to maintain a single record when the IP changes, replace the two
-          `A` rows with `{domain}` A → IP and `*.{domain}` **CNAME → `{domain}`** (the
-          wildcard then follows the apex). The plain `*.{domain}` A form the installer
-          prints works too.
+    The installer also writes a **BIND zone file** (`./{domain}.zone`) with these records
+    (`$ORIGIN`/`$TTL` + records, no SOA/NS) so you can import them in one step if your
+    registrar supports zone-file import.
+
+    !!! note "CAA tag"
+        **CAA tag** is `issue` — in registrar UIs that ask for a tag this is usually
+        labelled *"Only allow specific hostnames"*. Do **not** use `issuewild`: OwnSuite
+        issues per-host certificates via HTTP-01, not a wildcard certificate.
 
 5. **Propagation gate.** Polls public resolvers until a majority return your server IP,
    **before** triggering ACME (so a typo never burns Let's Encrypt's production rate

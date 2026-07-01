@@ -14,6 +14,7 @@ suite deps                         Install Python tooling + Ansible collections
 suite bootstrap                    Provision a bare server into a single-node K3s cluster
 suite check                        Dry-run the bootstrap (--check --diff); applies nothing
 suite install                      Guided install: bare server + domain → HTTPS
+suite dns                          Print the DNS records and write the BIND zone file (no install)
 suite user add|passwd|disable      Manage Keycloak users (one identity, all apps via JIT)
 suite status                       Read-only health summary (node, DB, certs, backup, apps)
 suite upgrade                      Apply pending chart/image upgrades (backup-gated)
@@ -94,6 +95,26 @@ python -m suite install --tls-mode staging     # pass flags via python -m
 | `--skip-dns` | off | Don't print/handle DNS records. |
 | `--skip-propagation` | off | Don't wait for DNS to propagate before ACME. |
 | `--env-file`, `--no-tunnel` | see [conventions](#common-conventions) | |
+
+## `suite dns`
+
+Prints the DNS records for your domain and writes a **BIND zone file** (`<domain>.zone`,
+`$ORIGIN`/`$TTL` + records, no SOA/NS) you can import at your registrar — the same records
+`suite install` emits, but on demand and without touching the cluster. Useful to regenerate
+the zone after a server IP change, or to prepare DNS before installing. If the mailbox is
+enabled it also includes the mail records. Needs no `OWNSUITE_SECRET_SEED`.
+
+```bash
+suite dns --domain assoc.example.org --public-ip 203.0.113.10
+suite dns --ssh root@server --out /tmp/assoc.zone     # detect the IP over SSH
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--domain DOMAIN` | `.env` (`OWNSUITE_DOMAIN`) | Base domain (each app is `<name>.{domain}`). |
+| `--public-ip IPV4` | detected over SSH / prompted | Server public IPv4 for the address records. |
+| `--out PATH` | `<domain>.zone` | Where to write the BIND zone file. |
+| `--env-file`, `--ssh` | see [conventions](#common-conventions) | |
 
 ## `suite user`
 

@@ -63,9 +63,11 @@ creates the domain, enables autojoin, and registers the supplied DKIM key.
 ## DNS (a manual step, like the rest of the DNS flow)
 
 With the mailbox enabled, `suite install` prints the mail records to add at your registrar, on top
-of the existing A/AAAA/CAA:
+of the existing A/AAAA/CNAME/CAA:
 
-- **MX** → the server, so mail for `@{domain}` is delivered to your MTA-in.
+- **`mail.{domain}` A/AAAA** → the server. The MX target needs its own address record because an
+  MX must not point at a CNAME (RFC 2181), so it can't ride the wildcard CNAME.
+- **MX** → `mail.{domain}`, so mail for `@{domain}` is delivered to your MTA-in.
 - **SPF** (TXT) — must `include:` the relay so relayed mail is authorized.
 - **DKIM** (TXT) — the public half of the installer-generated signing key.
 - **DMARC** (TXT) — alignment policy.

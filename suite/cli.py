@@ -34,6 +34,14 @@ def build_parser():
     i.add_argument("--skip-dns", action="store_true")
     i.add_argument("--skip-propagation", action="store_true")
 
+    # `suite dns` — print the records + write the BIND zone file, without installing.
+    d = sub.add_parser("dns", help="Print DNS records + write the BIND zone file (no install).")
+    d.add_argument("--env-file", default=".env")
+    d.add_argument("--domain", help="Base domain (else read from .env)")
+    d.add_argument("--ssh", help="Server SSH target user@host (else from .env; used to detect IP)")
+    d.add_argument("--public-ip", help="Server public IPv4 (else detected over SSH / prompted)")
+    d.add_argument("--out", help="Zone file path (default: <domain>.zone)")
+
     # `suite user <verb> <email>` — Keycloak user provisioning (JIT to all apps).
     u = sub.add_parser("user", help="Manage Keycloak users (one identity, all apps via JIT).")
     uver = u.add_subparsers(dest="action", required=True)
@@ -101,6 +109,8 @@ def main(argv=None):
             upgrade.run_upgrade(args)
         elif args.command == "restore":
             restore.run_restore(args)
+        elif args.command == "dns":
+            steps.run_dns(args)
         else:
             steps.install(args)
     except SuiteError as exc:
