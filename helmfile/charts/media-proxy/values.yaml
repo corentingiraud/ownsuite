@@ -4,8 +4,9 @@
 
 # App this proxy serves (drive | docs) — names the Deployment/Service/Ingress.
 app: drive
-# Render the resources only in garage mode (the in-cluster store is a real Service).
-garageMode: false
+# Render the resources only when this app needs the proxy (garage mode, or external
+# S3 where the backend's media-auth contract still requires an nginx hop).
+enabled: false
 
 # nginx image (pinned in versions.yaml).
 image: nginx:1.30.3-alpine
@@ -14,12 +15,16 @@ image: nginx:1.30.3-alpine
 authUpstream: drive-backend
 authPath: /api/v1.0/items/media-auth/
 
-# Object-store bucket the /media/ path rewrites into, and the in-cluster Garage S3
-# Service the signed request is proxied to. s3Host:s3Port MUST equal the host the
-# backend signs against (AWS_S3_ENDPOINT_URL), or the SigV4 signature won't validate.
+# Object-store bucket the /media/ path rewrites into, plus the scheme/host/port the
+# signed request is proxied to. s3HostHeader MUST equal the host the backend signs
+# against (AWS_S3_ENDPOINT_URL), or the SigV4 signature won't validate — for the
+# in-cluster Garage that is host:port (non-default port), for an external S3 over
+# TLS it is the bare host (port 443 omitted, as boto3 signs it).
 bucket: drive-media-storage
+s3Scheme: http
 s3Host: garage.ownsuite.svc.cluster.local
 s3Port: 3900
+s3HostHeader: garage.ownsuite.svc.cluster.local:3900
 
 # Public host + TLS secret for the /media/ ingress (the cert is issued on the app's
 # main ingress; reused here).

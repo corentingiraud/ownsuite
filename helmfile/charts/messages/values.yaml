@@ -131,12 +131,19 @@ components:
     #      entrypoint. The queue-dir chowns it cares about still happen; `|| true`
     #      swallows only the cosmetic manpage failure. A genuinely broken permission
     #      set still fails fast at `postfix start-fg`, which validates them.
-    # Create the dir, fix permissions, then exec the stock entrypoint.
-    # ponytail: drop once upstream ships the mkdir + set-permissions in its image.
+    #   4. main.cf is rendered from a Jinja template (/app/etc/main.cf.j2) whose
+    #      relay block is indented one space. Postfix treats a whitespace-led line
+    #      as a CONTINUATION, so the smtp_sasl_* directives get folded into the
+    #      relayhost value: SASL to the relay never enables (TEM answers "502
+    #      authenticate first") and relayhost is garbage. De-indent those lines in
+    #      the template before the entrypoint renders main.cf from it.
+    # Create the dir, fix permissions, de-indent the relay block, then exec the entrypoint.
+    # ponytail: drop each once upstream ships the fixes (mkdir+set-permissions;
+    # de-indented main.cf.j2 — PR suitenumerique/messages#733).
     command:
       - sh
       - -c
-      - mkdir -p /var/spool/postfix/etc && { postfix set-permissions || true; } && exec /usr/local/bin/entrypoint.sh
+      - mkdir -p /var/spool/postfix/etc && { postfix set-permissions || true; } && sed -i 's/^ *\(smtp_sasl[a-z_]* =\)/\1/' /app/etc/main.cf.j2 && exec /usr/local/bin/entrypoint.sh
     probe:
       type: tcp
     # Postfix: lightweight relay process.

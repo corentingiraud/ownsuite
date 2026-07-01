@@ -1,0 +1,32 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+#
+# AUTH — do NOT put the secret key here. Create a Scaleway IAM API key whose
+# principal has BOTH product rights (InstancesFullAccess + ObjectStorageFullAccess)
+# AND `IAMManager` — Terraform mints the apps' S3 key via an IAM application/
+# policy, which a product-only key cannot do (it 403s "write application").
+# IAM permission sets must be scoped to the ORGANIZATION, not the project.
+# Then export:
+#
+#   export SCW_ACCESS_KEY="SCWXXXXXXXXXXXXXXXXX"
+#   export SCW_SECRET_KEY="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+#
+# (or put them in ~/.config/scw/config.yaml). project_id/organization_id below.
+
+project_id      = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"   # scw config get default-project-id
+organization_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"   # scw config get default-organization-id (IAM is org-scoped)
+
+name           = "mon-assoc"
+ssh_public_key = "ssh-ed25519 AAAA... you@host"
+
+# Scaleway-native S3 primary: name the media bucket(s) (unique within the project/region).
+bucket_names = ["mon-assoc-media"]
+
+# Confirm these against your account (defaults shown):
+# region           = "fr-par"
+# zone             = "fr-par-1"
+# type             = "PRO2-XXS"          # core; PRO2-XS for Mailbox
+# image            = "debian_bookworm"   # `scw marketplace image list`
+# volume_size_gb   = 50
+# root_volume_type = "sbs_volume"        # PRO2 has no local SSD
+# ssh_allowed_cidr = "203.0.113.5/32"    # your admin IP
+# enable_mailbox   = false
