@@ -69,6 +69,11 @@ imageVersions:
   # honours that contract. Stable branch, Alpine.
   # renovate: datasource=docker depName=nginx
   nginx: "1.31.2-alpine"
+  # postgres client (psql) for the Grist bootstrap Job: it grants everyone@getgrist.com
+  # editor on the single team site so every SSO user shares it (Grist has no native SSO
+  # auto-join — only SCIM in the enterprise build).
+  # renovate: datasource=docker depName=postgres
+  postgresClient: "17-alpine"
 
 # Vendored manifests pinned by version (not Helm charts or plain images). The
 # referenced file is committed verbatim; a Renovate bump is a reminder to re-vendor.

@@ -233,15 +233,13 @@ ingressAdmin:
     enabled: true
     secretName: docs-tls
 
-# Authenticated media serving: Traefik forwardAuth to the backend media-auth
-# endpoint, then a path rewrite to the bucket (path-style S3). The two Middleware
-# CRs live in the platform-configuration chart (docs-traefik-middlewares.yaml).
-# In garage mode the /media/ route is served by the docs-ingress chart pointed at the
-# in-cluster Garage ClusterIP Service (finding #21): the chart's own media Ingress here
-# targets a portless ExternalName Service that Traefik cannot route. External mode keeps
-# this upstream route (external-S3 media is a separate pre-existing limitation).
+# Authenticated media serving: handled in BOTH modes by the docs-media-proxy release
+# (a tiny nginx that does the media-auth subrequest + SigV4 + rewrite to the store —
+# Garage over http in garage mode, the external S3 over TLS in external mode). The
+# docs chart's own media Ingress here targets a portless ExternalName Service that
+# Traefik cannot route, so it is always disabled in favour of the proxy.
 ingressMedia:
-  enabled: {{ not .Values.garage.enabled }}
+  enabled: false
   className: traefik
   host: {{ $host | quote }}
   path: /media/

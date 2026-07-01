@@ -33,6 +33,10 @@ ingress:
     enabled: true
     secretName: grist-tls
 
+# psql image for the bootstrap-access Job (grants everyone@getgrist.com editor on the
+# single team site so every SSO user shares it — Grist has no native SSO auto-join).
+bootstrapImage: postgres:{{ .Values.imageVersions.postgresClient }}
+
 env:
   PORT: "8484"
   # Externally visible base URL — Grist builds redirect/links from it.

@@ -4,13 +4,17 @@
 # media-auth contract (X-Original-URL + signed upstream Host) that Traefik forwardAuth
 # cannot. s3Host:s3Port MUST equal the backend's AWS_S3_ENDPOINT_URL host or SigV4 fails.
 app: drive
-garageMode: {{ .Values.garage.enabled }}
+# Drive serves downloads via presigned direct-to-S3 URLs in external mode, so the
+# proxy is only needed for the in-cluster Garage.
+enabled: {{ .Values.garage.enabled }}
 image: nginx:{{ .Values.imageVersions.nginx }}
 authUpstream: {{ printf "drive-backend.%s.svc.cluster.local" $ns | quote }}
 authPath: /api/v1.0/items/media-auth/
 bucket: {{ .Values.objectStorage.driveBucket | quote }}
+s3Scheme: http
 s3Host: {{ printf "garage.%s.svc.cluster.local" $ns | quote }}
 s3Port: 3900
+s3HostHeader: {{ printf "garage.%s.svc.cluster.local:3900" $ns | quote }}
 host: {{ printf "drive.%s" .Values.domain | quote }}
 tlsSecret: drive-tls
 # Drive is a file manager — deliver files as downloads.
