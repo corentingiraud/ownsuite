@@ -21,6 +21,16 @@
     proto: tcp
   when: enable_mailbox | bool
 
+- name: Allow inbound LiveKit media (TCP 7881 fallback, UDP 7882 mux) for Meet
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+  loop:
+    - { port: "7881", proto: tcp }
+    - { port: "7882", proto: udp }
+  when: enable_meet | bool
+
 - name: Allow traffic from the K3s pod and service networks
   community.general.ufw:
     rule: allow

@@ -9,6 +9,9 @@ firewall_allowed_tcp_ports:
 # Open inbound SMTP (port 25) for the optional Mailbox app (messages, ADR-027).
 # Mirror of the Terraform `enable_mailbox` toggle; leave false unless deploying it.
 enable_mailbox: false
+# Open LiveKit media ports (7881/tcp fallback + 7882/udp mux) for the optional Meet
+# app. Mirror of the Terraform `enable_meet` toggle; leave false unless deploying it.
+enable_meet: false
 # K3s pod/service networks must be allowed or in-cluster traffic (CoreDNS,
 # pod-to-pod) is dropped by ufw's default-deny.
 k3s_pod_cidr: "10.42.0.0/16"

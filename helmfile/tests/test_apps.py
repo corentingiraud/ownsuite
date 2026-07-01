@@ -374,3 +374,48 @@ def test_drive_jit_provisions_cli_user():
         assert (data.get("email") or "").lower() == CLI_USER.lower(), data
 
     retry(whoami)
+
+
+# --- Meet (suitenumerique/meet, LiveKit) ------------------------------------
+# Boot smoke only: DB applied, the meet backend/frontend + livekit pods reach Ready,
+# and the UI answers over HTTPS through Traefik (bouncing to SSO). Media/recording
+# (hostNetwork UDP, headless-Chrome egress) is out of scope for a per-app boot test.
+
+
+@only("meet")
+def test_meet_database_applied():
+    _db_applied("meet")
+
+
+@only("meet")
+def test_meet_pods_ready():
+    """Meet's serving components and the LiveKit media server reach Ready."""
+    for component in ("backend", "frontend"):
+        _pod_ready("meet", component=component)
+    # LiveKit is a separate release; its chart labels pods app.kubernetes.io/name=livekit-server.
+    _pod_ready("livekit-server")
+
+
+@only("meet")
+def test_meet_ui_reachable():
+    """Meet answers 200 over HTTPS through Traefik+TLS (its SPA, bouncing to Keycloak
+    for an unauthenticated visitor). Asserts reachability, not the bounce target."""
+    _ui_reachable(app_host("meet"))
+
+
+@only("meet")
+def test_meet_livekit_signaling_reachable():
+    """The LiveKit signaling endpoint answers over HTTPS through Traefik at
+    livekit.{domain} — proves the wss ingress + cert are wired (media itself is UDP)."""
+    host = f"livekit.{DOMAIN}"
+
+    def fetch():
+        out = subprocess.run(
+            ["curl", "-ksS", "-o", "/dev/null", "-w", "%{http_code}",
+             "--resolve", f"{host}:443:127.0.0.1", f"https://{host}/"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        # LiveKit returns 200 ("OK") on GET / when healthy.
+        assert out == "200", f"livekit signaling not reachable (status {out})"
+
+    retry(fetch, attempts=40, delay=3)

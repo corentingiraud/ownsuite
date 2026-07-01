@@ -66,6 +66,12 @@ variable "enable_mailbox" {
   default     = false
 }
 
+variable "enable_meet" {
+  description = "Open LiveKit media ports (7881/tcp fallback + 7882/udp mux) for the optional Meet app. Leave false unless you deploy Meet."
+  type        = bool
+  default     = false
+}
+
 variable "bucket_names" {
   description = "S3 buckets to create via the S3 API on THIS account. Leave empty (the default) in the recommended `garage` object-storage mode — Garage creates the media buckets in-cluster. Set it only for an external-S3 primary, or for the off-site BACKUP store, which must live in a DIFFERENT account/provider (ADR-006) — created from a second module instance, not here."
   type        = list(string)

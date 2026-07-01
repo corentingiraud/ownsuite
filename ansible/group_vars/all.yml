@@ -35,6 +35,9 @@ firewall_allowed_tcp_ports:
 # Mailbox (messages) is deployed here: open inbound SMTP (port 25) via the
 # gated ufw task. Mirror of the Terraform `enable_mailbox` toggle (ADR-027).
 enable_mailbox: true
+# Meet (LiveKit) media ports (7881/tcp fallback + 7882/udp mux) via the gated ufw
+# task. Mirror of the Terraform `enable_meet` toggle. Leave false unless deploying Meet.
+enable_meet: false
 # SSH hardening. Keep true in production; disable only if you bootstrap with a
 # password and have not yet installed an SSH key (you would lock yourself out).
 ssh_harden: true

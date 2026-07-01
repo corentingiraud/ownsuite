@@ -25,6 +25,8 @@ apps:
     enabled: true
   messages:
     enabled: true
+  meet:
+    enabled: true
 
 # In-cluster PostgreSQL service host, for apps that need a full connection URL
 # (e.g. Projects' DATABASE_URL). Helmfile passes the computed CNPG `-rw` service.

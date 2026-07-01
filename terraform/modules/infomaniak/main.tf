@@ -69,6 +69,22 @@ resource "openstack_networking_secgroup_rule_v2" "web" {
   security_group_id = openstack_networking_secgroup_v2.this.id
 }
 
+# Meet (LiveKit) media, open only when enable_meet: one muxed UDP port (7882) plus a
+# TCP fallback (7881) — the ADR-027 non-HTTP-port precedent extended to UDP.
+resource "openstack_networking_secgroup_rule_v2" "meet" {
+  for_each = var.enable_meet ? {
+    meet-tcp = { port = 7881, protocol = "tcp" }
+    meet-udp = { port = 7882, protocol = "udp" }
+  } : {}
+  direction         = "ingress"
+  ethertype         = "IPv4"
+  protocol          = each.value.protocol
+  port_range_min    = each.value.port
+  port_range_max    = each.value.port
+  remote_ip_prefix  = "0.0.0.0/0"
+  security_group_id = openstack_networking_secgroup_v2.this.id
+}
+
 # Egress is left to Neutron's defaults: creating a security group auto-adds
 # allow-all egress rules (IPv4 + IPv6), so re-declaring them here 409s on
 # Infomaniak ("SecurityGroupRuleExists"). The node can pull images, reach S3,

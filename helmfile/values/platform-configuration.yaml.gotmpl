@@ -13,6 +13,8 @@ apps:
     enabled: {{ .Values.apps.projects.enabled }}
   messages:
     enabled: {{ .Values.apps.messages.enabled }}
+  meet:
+    enabled: {{ .Values.apps.meet.enabled }}
 postgres:
   host: {{ printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName .Values.workloadsNamespace | quote }}
 databases:

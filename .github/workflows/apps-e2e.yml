@@ -37,6 +37,11 @@ on:
       - "helmfile/values/messages.yaml.gotmpl"
       - "helmfile/values/docs.yaml.gotmpl"
       - "helmfile/values/drive.yaml.gotmpl"
+      # NOTE: Meet is intentionally NOT in this matrix. LiveKit needs hostNetwork + host
+      # UDP/TCP media ports, which don't tear down cleanly on ephemeral k3d (they wedge
+      # `k3d cluster delete`), and a k3d run can't exercise real WebRTC media anyway. Its
+      # boot check lives in the harness (`make test-app APP=meet`) for manual runs on a
+      # real cluster; PRs gate Meet on the static checks (helmfile-ci render + lint).
       - "helmfile/tests/run-app-e2e.sh"
       - "helmfile/tests/lib.sh"
       - "helmfile/tests/test_apps.py"
@@ -87,7 +92,8 @@ jobs:
           for app in grist projects messages docs drive; do
             # Grist/Projects/messages own a charts/<app>/ dir; Docs/Drive have no such
             # dir — their only local chart is charts/<app>-ingress/ (upstream chart +
-            # values file otherwise). Match the right one per app.
+            # values file otherwise). Match the right one per app. (Meet is excluded from
+            # this matrix — see the paths note above.)
             case "$app" in
               docs|drive) chart="charts/$app-ingress/" ;;
               *) chart="charts/$app/" ;;

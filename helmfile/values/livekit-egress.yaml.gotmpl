@@ -1,0 +1,60 @@
+# LiveKit Egress — records Meet rooms to S3 (headless Chrome compositor).
+#
+# Egress receives jobs from LiveKit over Redis, so its Redis address+db MUST match
+# the livekit release (shared Valkey, DB 8). Config is INLINE (the chart renders it
+# into a ConfigMap, no secretKeyRef): the API key/secret and Valkey password are
+# re-derived from the seed with the same ids as platform-configuration, and the S3
+# credentials honour secretOverrides (external S3 mints its own keys) exactly like
+# platform-configuration's getSecret (ADR-012).
+
+{{- $domain := .Values.domain -}}
+{{- $ns := .Values.workloadsNamespace -}}
+{{- $ov := .Values.secretOverrides | default dict -}}
+{{- $valkeyHost := printf "valkey.%s.svc.cluster.local" $ns -}}
+{{- $valkeyPass := printf "%s:%s" .Values.secretSeed "valkey" | sha256sum | trunc 32 -}}
+{{- $lkKey := printf "%s:%s" .Values.secretSeed "meet-livekit-key" | sha256sum | trunc 20 -}}
+{{- $lkSecret := printf "%s:%s" .Values.secretSeed "meet-livekit-secret" | sha256sum | trunc 40 -}}
+{{- $s3Access := index $ov "s3-access" | default (printf "%s:%s" .Values.secretSeed "s3-access" | sha256sum | trunc 20) -}}
+{{- $s3Secret := index $ov "s3-secret" | default (printf "%s:%s" .Values.secretSeed "s3-secret" | sha256sum | trunc 40) -}}
+{{- $s3Endpoint := .Values.objectStorage.endpoint -}}
+{{- $s3Region := .Values.objectStorage.region -}}
+{{- if .Values.garage.enabled -}}
+{{-   $s3Endpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
+{{-   $s3Region = .Values.garage.region -}}
+{{- end -}}
+{{- $insecure := eq .Values.tls.issuer "selfsigned" }}
+
+replicaCount: 1
+
+egress:
+  log_level: info
+  # Signaling to LiveKit over the in-cluster service (plain ws, port 80 -> pod 7880).
+  ws_url: {{ printf "ws://livekit.%s.svc.cluster.local:80" $ns | quote }}
+  # Skip TLS verification only with the self-signed CI issuer (egress also loads the
+  # room page in Chrome; a self-signed cert would otherwise break recording).
+  insecure: {{ $insecure }}
+  # Chrome's setuid sandbox needs host privileges unavailable on stock K3s. Egress
+  # only ever loads our own trusted Meet room page, so run without it.
+  # ponytail: sandbox off (trusted content); enable + add the seccomp profile if the
+  # recorder is ever pointed at untrusted URLs.
+  enable_chrome_sandbox: false
+  api_key: {{ $lkKey | quote }}
+  api_secret: {{ $lkSecret | quote }}
+  redis:
+    address: {{ printf "%s:6379" $valkeyHost | quote }}
+    db: 8
+    password: {{ $valkeyPass | quote }}
+  s3:
+    access_key: {{ $s3Access | quote }}
+    secret: {{ $s3Secret | quote }}
+    region: {{ $s3Region | quote }}
+    bucket: {{ .Values.objectStorage.meetBucket | quote }}
+    endpoint: {{ $s3Endpoint | quote }}
+    force_path_style: true
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    memory: "2Gi"

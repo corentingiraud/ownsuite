@@ -30,6 +30,7 @@ APPS = [
     ("OWNSUITE_APP_GRIST", "Grist (spreadsheets/tables)"),
     ("OWNSUITE_APP_PROJECTS", "Projects (kanban)"),
     ("OWNSUITE_APP_MESSAGES", "Mailbox (email — needs extra DNS/relay setup)"),
+    ("OWNSUITE_APP_MEET", "Meet (video — needs media ports via enable_meet)"),
 ]
 
 

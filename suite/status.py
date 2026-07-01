@@ -25,11 +25,12 @@ APPS = {
     "grist": "grist",
     "projects": "projects",
     "messages": "messages",
+    "meet": "meet",
 }
 # Defaults match helmfile/environments/default.yaml.gotmpl: every app is off by
 # default (ADR-035); only the operator's OWNSUITE_APP_* / .env turns one on.
 APP_DEFAULTS = {"docs": "false", "drive": "false", "grist": "false",
-                "projects": "false", "messages": "false"}
+                "projects": "false", "messages": "false", "meet": "false"}
 
 
 def run_status(args):

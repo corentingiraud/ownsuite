@@ -74,6 +74,12 @@ Enable each with one `OWNSUITE_APP_*` flag; they reuse the same SSO + JIT seam.
 - **Mailbox** *(advanced)* — La Suite's own mail app, `suitenumerique/messages`
   (`OWNSUITE_APP_MESSAGES`). Mail is the hardest part to make reliable, so it ships isolated
   and disabled by default. See [Mailbox application](../understand/messages.md).
+- **Meet** *(advanced)* — video conferencing, `suitenumerique/meet` on LiveKit
+  (`OWNSUITE_APP_MEET`). The only app needing non-HTTP ports: LiveKit media on
+  `7882/udp` (mux) + `7881/tcp` (fallback), opened via the Terraform/Ansible
+  `enable_meet` flag ([ADR-039](../understand/decisions.md#adr-039-meet-media-ports-single-udp-mux-tcp-fallback)).
+  Recording is written to its own S3 bucket; the AI/transcription components are
+  disabled. See [Meet application](../understand/meet.md).
 
 ## Not supported (and why)
 
@@ -82,13 +88,12 @@ single-server fit and real value over what the shared foundation already provide
 
 | App | What it is | Why not (yet) |
 |---|---|---|
-| **Meet** | Video conferencing (LiveKit + coturn) | Real-time media is heavy and operationally painful on a single VPS. Deferred. |
 | **People** | User & team management | It's an OIDC **client**, not an identity provider — it sits *behind* Keycloak, so it can't replace it. Identity is already covered by Keycloak + `suite user`; People would be one more app, not a simplification. |
 | **Calendars** | Shared calendars | Early upstream; not integrated yet. |
 | **Conversations** | AI chatbot | Early upstream prototype; not integrated yet. |
 | **Calc** | Collaborative spreadsheets | Upstream prototype; overlaps with the shipped **Grist**. |
-| **Hub** | Meet + chat, unified | Depends on **Meet** (above). |
-| **Tchap** | Matrix-based secure messaging | Separate `tchapgouv` org, not part of La Suite's `suitenumerique` catalog. Heavy Synapse stack + its own SSO seam; out of scope like Meet. |
+| **Hub** | Meet + chat, unified | A portal over the other apps; overlaps with the shipped **Meet** + the suite landing. Not integrated yet. |
+| **Tchap** | Matrix-based secure messaging | Separate `tchapgouv` org, not part of La Suite's `suitenumerique` catalog. Heavy Synapse stack + its own SSO seam; out of scope. |
 
 ## Planned
 

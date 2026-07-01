@@ -11,6 +11,7 @@ module "suite" {
   root_volume_type = var.root_volume_type
   ssh_allowed_cidr = var.ssh_allowed_cidr
   enable_mailbox   = var.enable_mailbox
+  enable_meet      = var.enable_meet
   mail_domain      = var.domain
   bucket_names     = var.bucket_names
 

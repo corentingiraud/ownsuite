@@ -60,6 +60,20 @@ resource "scaleway_instance_security_group" "this" {
       port     = inbound_rule.value
     }
   }
+
+  # Meet (LiveKit) media, open only when enable_meet: one muxed UDP port (7882) plus
+  # a TCP fallback (7881) — the ADR-027 non-HTTP-port precedent extended to UDP.
+  dynamic "inbound_rule" {
+    for_each = var.enable_meet ? {
+      meet-tcp = { port = 7881, protocol = "TCP" }
+      meet-udp = { port = 7882, protocol = "UDP" }
+    } : {}
+    content {
+      action   = "accept"
+      protocol = inbound_rule.value.protocol
+      port     = inbound_rule.value.port
+    }
+  }
 }
 
 # --- Server -----------------------------------------------------------------

@@ -9,6 +9,7 @@ module "suite" {
   external_network_name = var.external_network_name
   ssh_allowed_cidr      = var.ssh_allowed_cidr
   enable_mailbox        = var.enable_mailbox
+  enable_meet           = var.enable_meet
   bucket_names          = var.bucket_names
 }
 

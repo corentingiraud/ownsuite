@@ -16,8 +16,8 @@ cd "$(dirname "$0")/../.."  # repo root
 
 APP="${1:-${OWNSUITE_E2E_APP:-}}"
 case "$APP" in
-  grist|projects|messages|docs|drive) ;;
-  *) echo "usage: $0 <grist|projects|messages|docs|drive>" >&2; exit 2 ;;
+  grist|projects|messages|docs|drive|meet) ;;
+  *) echo "usage: $0 <grist|projects|messages|docs|drive|meet>" >&2; exit 2 ;;
 esac
 
 CLUSTER="${OWNSUITE_E2E_CLUSTER:-ownsuite-app-$APP}"
@@ -35,6 +35,7 @@ export OWNSUITE_OBJECT_STORAGE_MODE="${OWNSUITE_OBJECT_STORAGE_MODE:-garage}"
 # Only the app under test: Docs/Drive off so one app owns the runner's RAM.
 export OWNSUITE_APP_DOCS=false OWNSUITE_APP_DRIVE=false
 export OWNSUITE_APP_GRIST=false OWNSUITE_APP_PROJECTS=false OWNSUITE_APP_MESSAGES=false
+export OWNSUITE_APP_MEET=false
 # Direct-access grant on this app's OIDC client so the test can mint a bearer token
 # for the API read-back (messages) without a browser — CI only, as in run-e2e.sh.
 export OWNSUITE_KC_DIRECT_GRANTS=true
@@ -45,6 +46,12 @@ export OWNSUITE_E2E_APP="$APP"
 case "$APP" in
   grist) export OWNSUITE_APP_GRIST=true ;;
   projects) export OWNSUITE_APP_PROJECTS=true ;;
+  meet)
+    # Brings up meet + livekit + livekit-egress (all gated on apps.meet.enabled). The
+    # DoD is a boot smoke: DB applied, backend + livekit pods Ready, UI bounces to SSO.
+    # Media/recording (hostNetwork UDP, headless-Chrome egress) is not exercised here.
+    export OWNSUITE_APP_MEET=true
+    ;;
   docs)
     export OWNSUITE_APP_DOCS=true
     # Docs' DoD (SSO create + read-back) mints a token for the seeded realm user

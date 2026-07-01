@@ -30,3 +30,4 @@ bucket_names = ["mon-assoc-media"]
 # root_volume_type = "sbs_volume"        # PRO2 has no local SSD
 # ssh_allowed_cidr = "203.0.113.5/32"    # your admin IP
 # enable_mailbox   = false
+# enable_meet      = false               # open LiveKit media 7881/tcp + 7882/udp for Meet
