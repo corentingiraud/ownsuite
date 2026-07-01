@@ -2,4 +2,3 @@
 # Pin exact versions after the first successful build; Renovate will keep them fresh.
 mkdocs-material>=9.5,<10
 mkdocs-llmstxt>=0.1
-mkdocs-redirects>=1.2,<2

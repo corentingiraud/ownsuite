@@ -56,7 +56,7 @@ Some upstream La Suite apps (Meet, People, Calendars…) are deliberately not pa
 
 <div class="grid cards" markdown>
 
-- :material-cloud-outline: **[0. Provision](get-started/provision.md)** *(optional)* — Terraform spins up the server and storage on Infomaniak. Already have a Debian server and an S3 bucket? Skip to step 1.
+- :material-cloud-outline: **[0. Provision](get-started/provision.md)** *(optional)* — Terraform spins up the server and storage on Scaleway (or Infomaniak). Already have a Debian server and an S3 bucket? Skip to step 1.
 - :material-server: **[1. Prepare the server](get-started/bootstrap.md)** — one command turns a bare Debian server into a ready K3s cluster.
 - :material-rocket-launch: **[2. Install](get-started/install.md)** — the guided installer takes you from there to the apps you choose, on HTTPS, by following the screen.
 
