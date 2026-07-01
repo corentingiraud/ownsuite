@@ -17,8 +17,8 @@ the server beyond the initial setup.
    `suite deps`, sets the inventory, and — importantly — installs your **SSH key before the
    hardening disables password login** (don't skip its warning, or you can lock yourself
    out). `suite install` *can* run the bootstrap for you, but read that page first.
-2. **Install these CLI tools** on your workstation (the installer only orchestrates them and
-   adds no Python dependencies of its own):
+2. **Install these CLI tools** on your workstation (the installer orchestrates them; its one
+   Python dependency, `questionary` for the interactive prompts, is installed by `suite deps`):
 
     | Tool | Used for | Get it |
     |---|---|---|
@@ -38,11 +38,16 @@ make install              # python -m suite install
 The installer walks these steps; each is **idempotent**, so if anything stops you, fix
 it and re-run `make install` to resume:
 
-1. **Config.** Prompts for the domain, admin email, server SSH target, object-storage mode,
-   backups, and **which apps to enable** (every app is off by default; Docs + Drive are
-   presented as the recommended first pair), and writes the non-secret values to a
-   git-ignored `.env`. Every prompt — and many more optional knobs — maps to an
-   `OWNSUITE_*` variable; the full list is the [Configuration reference](../reference/configuration.md).
+0. **Provision (optional).** If no server is configured yet (`OWNSUITE_SERVER_SSH` unset),
+   the installer offers to run `suite provision` first — the Terraform step that creates the
+   server and object storage. Decline it if you already have a server. See
+   [Provision the server](provision.md).
+1. **Config.** Interactive prompts collect the domain, admin email, server SSH target,
+   object-storage mode (arrow-key select), backups (yes/no), and **which apps to enable**
+   (a checkbox — every app is off by default; Docs + Drive are the recommended first pair),
+   and writes the non-secret values to a git-ignored `.env`. Every prompt — and many more
+   optional knobs — maps to an `OWNSUITE_*` variable; the full list is the
+   [Configuration reference](../reference/configuration.md).
 2. **Secret seed.** Generates `OWNSUITE_SECRET_SEED` (`openssl rand -hex 24` equivalent)
    and prints it **once**.
 

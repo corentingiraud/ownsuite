@@ -1,0 +1,3 @@
+# Runtime dependencies of the `suite` CLI (installed by `suite deps`).
+# Pinned (AGENTS.md: never `latest`). Dev/CI tooling lives in requirements-dev.txt.
+questionary==2.1.1

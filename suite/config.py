@@ -11,24 +11,34 @@ import hashlib
 import secrets
 from pathlib import Path
 
-# (env key, prompt, default). Advanced knobs stay in .env / the Helmfile defaults.
-PROMPTS = [
-    ("OWNSUITE_DOMAIN", "Base domain (e.g. assoc.example.org)", ""),
-    ("OWNSUITE_ADMIN_EMAIL", "Admin email", ""),
-    ("OWNSUITE_SERVER_SSH", "Server SSH target (user@host)", ""),
-    ("OWNSUITE_OBJECT_STORAGE_MODE", "Object storage [external|garage]", "external"),
-    ("OWNSUITE_BACKUP_ENABLED", "Enable off-site backups [true|false]", "true"),
-    # App toggles — every app is off by default (ADR-035); the operator opts each in
-    # here (or via OWNSUITE_APP_*). Docs+Drive are the recommended first pair.
-    ("OWNSUITE_APP_DOCS", "Enable Docs (collaborative documents) [true|false]", "false"),
-    ("OWNSUITE_APP_DRIVE", "Enable Drive (file storage) [true|false]", "false"),
-    ("OWNSUITE_APP_GRIST", "Enable Grist (spreadsheets/tables) [true|false]", "false"),
-    ("OWNSUITE_APP_PROJECTS", "Enable Projects (kanban) [true|false]", "false"),
-    # The mailbox (ADR-026) is more involved: if enabled, the installer also generates
-    # a DKIM key and prints MX/SPF/DKIM/DMARC + the rDNS/port-25 manual steps; export
-    # the relay account (OWNSUITE_MTA_RELAY_USERNAME/PASSWORD) before sync.
-    ("OWNSUITE_APP_MESSAGES", "Enable the mailbox [true|false]", "false"),
+# Free-text fields (env key, prompt, default). SSH may be left blank — `provision`
+# or the bootstrap can fill it. Advanced knobs stay in .env / the Helmfile defaults.
+TEXT_PROMPTS = [
+    ("OWNSUITE_DOMAIN", "Base domain (e.g. assoc.example.org)", "", True),
+    ("OWNSUITE_ADMIN_EMAIL", "Admin email", "", True),
+    ("OWNSUITE_SERVER_SSH", "Server SSH target (user@host, blank if unknown yet)", "", False),
 ]
+
+# App toggles — every app is off by default (ADR-035); the operator opts each in
+# via a checkbox (or OWNSUITE_APP_*). Docs+Drive are the recommended first pair.
+# The mailbox (ADR-026) is more involved: if enabled, the installer also generates
+# a DKIM key and prints MX/SPF/DKIM/DMARC + the rDNS/port-25 manual steps and needs
+# the relay account (OWNSUITE_MTA_RELAY_USERNAME/PASSWORD) exported before sync.
+APPS = [
+    ("OWNSUITE_APP_DOCS", "Docs (collaborative documents)"),
+    ("OWNSUITE_APP_DRIVE", "Drive (file storage)"),
+    ("OWNSUITE_APP_GRIST", "Grist (spreadsheets/tables)"),
+    ("OWNSUITE_APP_PROJECTS", "Projects (kanban)"),
+    ("OWNSUITE_APP_MESSAGES", "Mailbox (email — needs extra DNS/relay setup)"),
+]
+
+
+def _b(value):
+    return "true" if value else "false"  # normalise a bool answer to the .env form
+
+
+def _required(text):
+    return True if text.strip() else "This value is required."
 
 
 def generate_seed():
@@ -74,9 +84,27 @@ def capture(existing, *, interactive=True, overrides=None):
     # (forcing prompt defaults here would clobber env vars like the e2e's settings).
     cfg = {**existing, **(overrides or {})}
     if interactive:
-        for key, prompt, default in PROMPTS:
-            cur = cfg.get(key, default)
-            cfg[key] = input(f"{prompt} [{cur}]: ").strip() or cur
+        from . import prompt  # local import: questionary only needed interactively
+
+        for key, label, default, required in TEXT_PROMPTS:
+            validate = _required if required else None
+            cfg[key] = prompt.text(label, default=cfg.get(key, default), validate=validate)
+        cfg["OWNSUITE_OBJECT_STORAGE_MODE"] = prompt.select(
+            "Object storage", ["external", "garage"],
+            default=cfg.get("OWNSUITE_OBJECT_STORAGE_MODE", "external"),
+        )
+        cfg["OWNSUITE_BACKUP_ENABLED"] = _b(prompt.confirm(
+            "Enable off-site backups?",
+            default=cfg.get("OWNSUITE_BACKUP_ENABLED", "true") != "false",
+        ))
+        # Checkbox pre-ticks apps already enabled in .env; unticked apps become false.
+        enabled = prompt.checkbox(
+            "Enable apps (space to toggle, enter to confirm)",
+            choices=[label for _, label in APPS],
+            checked=[label for key, label in APPS if cfg.get(key) == "true"],
+        )
+        for key, label in APPS:
+            cfg[key] = _b(label in enabled)
     admin = cfg.get("OWNSUITE_ADMIN_EMAIL")
     if admin and not cfg.get("OWNSUITE_ACME_EMAIL"):
         cfg["OWNSUITE_ACME_EMAIL"] = admin

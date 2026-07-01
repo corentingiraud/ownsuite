@@ -24,10 +24,11 @@ def test_deps_installs_pip_then_ansible_collections(monkeypatch):
     calls = _patch_run(monkeypatch)
     bootstrap.run_deps(SimpleNamespace())
     argvs = [c[0] for c in calls]
-    assert argvs[0] == ["pip", "install", "-r", bootstrap.REQUIREMENTS_DEV]
-    assert argvs[1][:3] == ["ansible-galaxy", "collection", "install"]
-    assert argvs[1][-1] == bootstrap.ANSIBLE_REQUIREMENTS
-    assert argvs[2][-1] == bootstrap.MOLECULE_REQUIREMENTS
+    assert argvs[0] == ["pip", "install", "-r", bootstrap.REQUIREMENTS]
+    assert argvs[1] == ["pip", "install", "-r", bootstrap.REQUIREMENTS_DEV]
+    assert argvs[2][:3] == ["ansible-galaxy", "collection", "install"]
+    assert argvs[2][-1] == bootstrap.ANSIBLE_REQUIREMENTS
+    assert argvs[3][-1] == bootstrap.MOLECULE_REQUIREMENTS
 
 
 def test_bootstrap_runs_playbook_in_ansible_dir_without_check(monkeypatch):

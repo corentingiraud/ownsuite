@@ -12,6 +12,24 @@ server into a single-node K3s cluster, and the [installer](install.md) deploys
 the apps. Terraform is optional — if you already have a Debian server and an S3
 bucket, skip straight to [Prepare the server](bootstrap.md).
 
+## Guided (`suite provision`)
+
+The quickest path is the CLI, which wraps everything below — it prompts for the
+provider and the required `terraform.tfvars` values, runs `init` / `plan` /
+`apply`, then wires the outputs into `.env` and the Ansible inventory
+(`ansible/inventory/hosts.yml`), and prints the external secrets (S3 keys, TEM
+relay) to export:
+
+```bash
+export SCW_ACCESS_KEY="SCWXXXXXXXXXXXXXXXXX"   # Scaleway; Infomaniak uses clouds.yaml
+export SCW_SECRET_KEY="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+suite provision                # or: suite provision --provider scaleway --yes
+```
+
+`suite install` also offers to run this for you when no server is configured yet.
+It needs `terraform` **or** `tofu` on PATH. The rest of this page is the manual
+equivalent (and the reference for every tfvars value).
+
 Two providers ship, both exposing the **same output contract** so the rest of the
 flow is identical:
 
