@@ -46,8 +46,9 @@ off by default** — you pick which to deploy. **Docs + Drive** are the recommen
 | **[Grist](understand/grist.md)** | Spreadsheets that behave like a database | optional |
 | **[Projects](understand/projects.md)** | Kanban boards / task management | optional |
 | **[Mailbox](understand/messages.md)** | Mail provider + webmail | advanced |
+| **[Meet](understand/meet.md)** | Video conferencing (LiveKit) | advanced |
 
-Some upstream La Suite apps (Meet, People, Calendars…) are deliberately not packaged — see
+Some upstream La Suite apps (People, Calendars…) are deliberately not packaged — see
 [Not supported](project/roadmap.md#not-supported-and-why).
 
 ## Where to start

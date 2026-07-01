@@ -92,6 +92,14 @@ keycloak:
       # (redirectUris https://messages.{domain}/* + profile/email scopes) fits as-is.
       directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
     {{- end }}
+    {{- if eq (env "OWNSUITE_APP_MEET" | default "false") "true" }}
+    - clientId: meet
+      # Only present when Meet is enabled (off by default). Meet is a Django/
+      # mozilla-django-oidc app like Docs; the shared client template emits
+      # redirectUris https://meet.{domain}/* (covering /api/v1.0/callback/) and the
+      # profile+email scopes Meet maps to its user.
+      directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
+    {{- end }}
   # Optional realm user seeded for the e2e SSO check (CI only). Its password is
   # derived from the seed (id "kc-test-user") — never committed in plaintext.
   seedTestUser:
@@ -145,6 +153,11 @@ apps:
     # Until then mta-out runs without an external relay (the hermetic e2e path:
     # internal local delivery only, no outbound to the internet).
     relayConfigured: {{ ne (env "OWNSUITE_MTA_RELAY_USERNAME" | default "") "" }}
+  # Meet (suitenumerique/meet, LiveKit) — video conferencing. OFF by default. The
+  # only app needing non-HTTP ports (LiveKit media 7882/udp + 7881/tcp), opened via
+  # the Terraform/Ansible `enable_meet` flag. Enable with OWNSUITE_APP_MEET=true.
+  meet:
+    enabled: {{ env "OWNSUITE_APP_MEET" | default "false" }}
 
 # Contact address used for app admin / superuser accounts.
 adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}
@@ -179,6 +192,12 @@ databases:
   # mailbox is enabled.
   - name: messages
     secretName: messages-db
+  {{- end }}
+  {{- if eq (env "OWNSUITE_APP_MEET" | default "false") "true" }}
+  # Meet's database (rooms/participants/recordings metadata). Only provisioned when
+  # Meet is enabled.
+  - name: meet
+    secretName: meet-db
   {{- end }}
 
 # TLS issuance (ADR-013, ADR-019). Accepted `OWNSUITE_TLS_ISSUER` values:
@@ -216,6 +235,9 @@ objectStorage:
   # Bucket holding Projects' uploads (avatars/backgrounds/attachments) (ADR-031).
   # Created by Garage in `garage` mode when projects is enabled; pre-create on external S3.
   projectsBucket: {{ env "OWNSUITE_PROJECTS_S3_BUCKET" | default "projects-media-storage" | quote }}
+  # Bucket holding Meet's room recordings (written by LiveKit Egress). Created by
+  # Garage in `garage` mode when Meet is enabled; pre-create on external S3.
+  meetBucket: {{ env "OWNSUITE_MEET_S3_BUCKET" | default "meet-recordings" | quote }}
 
 # In-cluster Garage object store (ADR-015), deployed only in `garage` mode. Its
 # S3 access key/secret are the seed-derived s3-access/s3-secret credentials,

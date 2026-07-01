@@ -70,6 +70,12 @@ variable "mail_domain" {
   default     = ""
 }
 
+variable "enable_meet" {
+  description = "Open LiveKit media ports (7881/tcp fallback + 7882/udp mux) for the optional Meet app. Leave false unless you deploy Meet."
+  type        = bool
+  default     = false
+}
+
 variable "s3_key_expires_at" {
   description = "RFC3339 expiry for the apps' S3 API key. null (default) = apply-time + ~11 months, safely under orgs that cap key lifetime at 1 year. Pin a date to control it. Rotate the key + re-apply before it lapses."
   type        = string

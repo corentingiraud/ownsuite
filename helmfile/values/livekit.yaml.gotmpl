@@ -1,0 +1,77 @@
+# LiveKit media server (SFU) — the WebRTC backend for Meet.
+#
+# Networking (the only non-HTTP path in OwnSuite, gated on the Terraform/Ansible
+# `enable_meet` flag): media binds the node directly via hostNetwork on a single
+# muxed UDP port (7882) plus a TCP fallback (7881). Signaling (wss) is a normal
+# Traefik ingress at livekit.{domain} -> service :80 -> pod :7880. No large UDP
+# range, no TURN (add embedded TURN/TLS later only if a client can't connect).
+#
+# Secrets are INLINE here: the livekit-server chart renders config into a ConfigMap
+# and supports no secretKeyRef. The API key/secret and Valkey password are RE-DERIVED
+# from the seed with the SAME ids platform-configuration uses (meet-livekit-key /
+# -secret, valkey), so meet, livekit and egress always share one credential (ADR-012).
+
+{{- $domain := .Values.domain -}}
+{{- $ns := .Values.workloadsNamespace -}}
+{{- $valkeyHost := printf "valkey.%s.svc.cluster.local" $ns -}}
+{{- $valkeyPass := printf "%s:%s" .Values.secretSeed "valkey" | sha256sum | trunc 32 -}}
+{{- $lkKey := printf "%s:%s" .Values.secretSeed "meet-livekit-key" | sha256sum | trunc 20 -}}
+{{- $lkSecret := printf "%s:%s" .Values.secretSeed "meet-livekit-secret" | sha256sum | trunc 40 }}
+
+replicaCount: 1
+# Stable service/ingress name ("livekit") so egress + meet can address it predictably.
+fullnameOverride: livekit
+
+# Media binds the host network directly (hostPort). Default is already true; kept
+# explicit because it is load-bearing for the single-node port model.
+podHostNetwork: true
+
+loadBalancer:
+  # "nginx" makes the chart render a plain Ingress (no cloud-LB Service). It carries
+  # no nginx-specific fields, so Traefik — the default IngressClass on K3s — serves
+  # it. Only the signaling WebSocket (port 80 -> pod 7880) goes through here.
+  type: nginx
+  servicePort: 80
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.tls.issuer | quote }}
+  tls:
+    - hosts:
+        - {{ printf "livekit.%s" $domain | quote }}
+      secretName: livekit-tls
+
+# No dedicated TURN service.
+turnLoadbalancer:
+  enable: false
+
+livekit:
+  port: 7880
+  log_level: info
+  rtc:
+    # Single UDP mux port + TCP fallback. Zero out the default 50000-60000 range so
+    # LiveKit runs in single-port mode (only 7882/udp + 7881/tcp need opening).
+    udp_port: 7882
+    tcp_port: 7881
+    port_range_start: 0
+    port_range_end: 0
+    # Advertise the node's public IP to clients (single-node, no cloud LB in front).
+    use_external_ip: true
+  redis:
+    address: {{ printf "%s:6379" $valkeyHost | quote }}
+    db: 8
+    password: {{ $valkeyPass | quote }}
+  keys:
+    {{ $lkKey }}: {{ $lkSecret | quote }}
+  turn:
+    enabled: false
+  webhook:
+    # Must be a key present in `keys` above; signs the room webhooks meet verifies.
+    api_key: {{ $lkKey | quote }}
+    urls:
+      - {{ printf "https://meet.%s/api/v1.0/rooms/webhooks-livekit/" $domain | quote }}
+
+resources:
+  requests:
+    cpu: "200m"
+    memory: "256Mi"
+  limits:
+    memory: "1Gi"

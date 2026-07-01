@@ -25,6 +25,10 @@ repositories:
     url: https://suitenumerique.github.io/docs
   - name: suitenumerique-drive
     url: https://suitenumerique.github.io/drive
+  - name: suitenumerique-meet
+    url: https://suitenumerique.github.io/meet
+  - name: livekit
+    url: https://helm.livekit.io
 
 helmDefaults:
   wait: true
@@ -353,3 +357,60 @@ releases:
       {{- end }}
     values:
       - values/messages.yaml.gotmpl
+
+  # --- App: Meet (suitenumerique/meet) — video conferencing (LiveKit) ---------------
+  # OFF by default. A Django/React sibling of Docs reusing CNPG (its own `meet` DB),
+  # the shared Valkey (DBs 6/7) and Keycloak SSO. Media is served by LiveKit (below),
+  # not Traefik: the only app needing non-HTTP ports (7882/udp + 7881/tcp), opened via
+  # the Terraform/Ansible `enable_meet` flag — the ADR-027 port-25 precedent extended
+  # to UDP. The AI/transcription components (summary, agents) are disabled in values.
+  - name: meet
+    namespace: {{ $ns }}
+    chart: suitenumerique-meet/meet
+    version: {{ .Values.chartVersions.meet | quote }}
+    condition: apps.meet.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/postgres
+      - {{ $ns }}/valkey
+      - {{ $ns }}/keycloak
+      - {{ $ns }}/livekit
+      - cert-manager/issuers
+    values:
+      - values/meet.yaml.gotmpl
+
+  # --- Meet media: LiveKit SFU (official chart) --------------------------------------
+  # The WebRTC media server. Signaling (wss) is served on Traefik at livekit.{domain};
+  # RTC media binds the node directly via hostNetwork on a single UDP mux port (7882)
+  # + a TCP fallback (7881). Uses the shared Valkey (DB 8) as its Redis. Gated with
+  # meet so it comes up alongside the app.
+  - name: livekit
+    namespace: {{ $ns }}
+    chart: livekit/livekit-server
+    version: {{ .Values.chartVersions.livekit | quote }}
+    condition: apps.meet.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/valkey
+      - cert-manager/issuers
+    values:
+      - values/livekit.yaml.gotmpl
+
+  # --- Meet recording: LiveKit Egress (official chart) -------------------------------
+  # Records rooms to the meet-recordings S3 bucket (headless Chrome). Talks to LiveKit
+  # over the SAME shared Valkey DB (8) it uses for job dispatch. Heavy during a
+  # recording; harmless otherwise.
+  - name: livekit-egress
+    namespace: {{ $ns }}
+    chart: livekit/egress
+    version: {{ .Values.chartVersions.livekitEgress | quote }}
+    condition: apps.meet.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/valkey
+      - {{ $ns }}/livekit
+      {{- if .Values.garage.enabled }}
+      - {{ $ns }}/garage
+      {{- end }}
+    values:
+      - values/livekit-egress.yaml.gotmpl

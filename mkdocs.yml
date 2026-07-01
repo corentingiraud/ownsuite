@@ -104,6 +104,7 @@ plugins:
           - understand/grist.md: Grist — spreadsheets that behave like a database; optional, off by default.
           - understand/projects.md: Projects — kanban boards and task management; optional, off by default.
           - understand/messages.md: Mailbox — a full mail provider with webmail; advanced, off by default.
+          - understand/meet.md: Meet — video conferencing on LiveKit; advanced, off by default.
           - understand/decisions.md: Design decisions and their rationale.
         Reference:
           - reference/cli.md: The `suite` CLI — every command and flag (install, user, status, upgrade).
@@ -132,6 +133,7 @@ nav:
       - Grist: understand/grist.md
       - Projects: understand/projects.md
       - Mailbox: understand/messages.md
+      - Meet: understand/meet.md
       - Design decisions: understand/decisions.md
   - Reference:
       - suite CLI: reference/cli.md

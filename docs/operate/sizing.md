@@ -14,6 +14,7 @@ spec you can buy against. Pick a profile by which apps you enable, then read RAM
 | **Recommended core** — Docs + Drive | 4 GB | 8 GB | 2 | 40 GB |
 | **+ Optional** — Grist, Projects | 6 GB | 10 GB | 2–4 | +15 GB |
 | **+ Mailbox** — messages | 8 GB | 12 GB | 4 | +10 GB |
+| **+ Meet** — video (LiveKit) | 8 GB | 12 GB | 4 | +5 GB |
 
 - **Minimum** is the tight floor: it runs, but with little burst headroom — keep the swap the
   bootstrap configures. **Recommended** leaves room for first-boot migrations, upgrades (old +
@@ -42,10 +43,16 @@ their chart defaults.
 | **Grist** | no (optional) | 0.1 vCPU | 0.25 GB | 1.0 GB |
 | **Projects** | no (optional) | 0.1 vCPU | 0.25 GB | 0.75 GB |
 | **Mailbox** (backend, worker, frontend, 2× MTA) | no (advanced) | 0.45 vCPU | 1.15 GB | 2.3 GB |
+| **Meet** (backend, Celery, frontend, LiveKit, Egress) | no (advanced) | 0.9 vCPU | 1.65 GB | 4.8 GB |
 | **Garage** object store (only if not using external S3) | no | 0.05 vCPU | 0.13 GB | 0.5 GB |
 
-With **everything enabled**, the declared requests total **~1.5 vCPU / 4.7 GB** and the memory
-limits total **~11 GB** — which is why 12 GB is the recommended all-in figure.
+With the recommended core + optional + mailbox enabled, the declared requests total
+**~1.5 vCPU / 4.7 GB** and the memory limits total **~11 GB** — which is why 12 GB is the
+recommended figure there. **Meet** is the heavy outlier: real-time media (LiveKit) and, during a
+recording, the headless-Chrome **Egress** are CPU- and RAM-hungry and also consume real network
+**bandwidth** that scales with concurrent participants. Its memory *limit* is high (~4.8 GB) but
+mostly headroom for Egress; treat Meet as its own step-up and size for **modest concurrency** —
+add capacity (and bandwidth) before hosting large meetings.
 
 ### Disk
 

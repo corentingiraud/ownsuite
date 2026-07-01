@@ -49,6 +49,12 @@ variable "enable_mailbox" {
   default     = false
 }
 
+variable "enable_meet" {
+  description = "Open LiveKit media ports (7881/tcp + 7882/udp) for the Meet app."
+  type        = bool
+  default     = false
+}
+
 variable "bucket_names" {
   description = "S3 buckets to create via the S3 API. Leave empty (default) in `garage` mode — Garage creates the media buckets in-cluster. Set it for an external-S3 primary or the off-site backup store."
   type        = list(string)

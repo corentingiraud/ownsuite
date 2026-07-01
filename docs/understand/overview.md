@@ -65,5 +65,9 @@ sign in. No per-app setup, no separate passwords.
   ([suitenumerique/messages](https://github.com/suitenumerique/messages)), federated to the
   same Keycloak. Mail is the hardest part to make reliable (deliverability, port 25, rDNS),
   so it ships isolated and disabled by default. See the [Mailbox application](messages.md).
-- **Meet (video)** *(out of scope)*: video calls need a lot of CPU and bandwidth and are
-  painful to run reliably on a single server, so they're left out for now.
+- **Meet** *(optional, advanced — off by default)*: video conferencing
+  ([suitenumerique/meet](https://github.com/suitenumerique/meet)) powered by LiveKit,
+  federated to the same Keycloak. It is the only app needing non-HTTP ports — LiveKit
+  media on `7882/udp` (mux) + `7881/tcp` (fallback), opened via the `enable_meet`
+  Terraform/Ansible flag. Real-time media is CPU/bandwidth-heavy, so it fits modest
+  concurrency on a single server. See the [Meet application](meet.md).

@@ -1406,3 +1406,32 @@ every S3 call 403s; and the Terraform key itself needs **`IAMManager`** (org-sco
 apps' S3 key. Scaleway also **caps API-key lifetime** (~1 year), so the apps' key must be rotated
 and re-applied before it lapses. Scaleway Debian images log in as **`root`** (Infomaniak uses
 `debian`); the bootstrap hardens root afterward.
+
+## ADR-039 — Meet media ports: single UDP mux + TCP fallback
+
+**Context.** [Meet](../understand/meet.md) (`suitenumerique/meet`) is built on **LiveKit**, so
+unlike every other app it cannot run entirely behind Traefik: WebRTC media is **UDP** (with a TCP
+fallback), not HTTP. LiveKit's default deployment opens a **10 000-port UDP range** (50000–60000)
+and can bundle a TURN server — far more surface than a single small association VPS wants, and
+awkward for a firewall that is otherwise 22/80/443 (+25 for the mailbox).
+
+**Decision.** Run LiveKit in its **smallest reachable footprint** and open the media path with a
+dedicated `enable_meet` flag, reusing the port-25 seam from
+[ADR-027](#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb) — now extended to UDP:
+
+- **One muxed UDP port `7882`** (`rtc.udp_port`, range zeroed) for all media, plus **one TCP port
+  `7881`** (`rtc.tcp_port`) as a fallback for UDP-hostile clients. **No port range, no TURN.**
+- LiveKit runs with **`hostNetwork`** and binds those two ports on the node directly
+  (`use_external_ip: true` to advertise the server's public IP). Signaling stays a normal Traefik
+  ingress on 443 (`wss://livekit.{domain}`).
+- **`enable_meet`** opens `7881/tcp` + `7882/udp` in both the Terraform security group (Scaleway +
+  Infomaniak) and the Ansible UFW rules — a boolean mirror of `enable_mailbox`. Off by default.
+- Recording (LiveKit Egress) writes to its own **`meet-recordings`** S3 bucket; the AI/transcription
+  components ship at zero replicas.
+
+**Consequences.** A single UDP port keeps the firewall and k3s host-port model simple and is enough
+for association-scale concurrency. The trade-offs, recorded so they are a choice not an omission:
+a client on a network that blocks **both** UDP/7882 and TCP/7881 cannot connect until embedded
+TURN/TLS is added; and authenticated recording **download** (the upstream nginx `auth_request`
+`/media/` path) is deferred — recordings are stored in S3 but a Traefik media-proxy for downloads
+is a follow-up, as for Docs.

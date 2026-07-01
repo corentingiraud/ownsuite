@@ -72,6 +72,12 @@ variable "enable_mailbox" {
   default     = false
 }
 
+variable "enable_meet" {
+  description = "Open LiveKit media ports (7881/tcp + 7882/udp) for the Meet app."
+  type        = bool
+  default     = false
+}
+
 variable "bucket_names" {
   description = "Object-storage buckets to create. Set the media bucket(s) here in Scaleway-native-S3 primary mode. The off-site backup store must live in a different account/provider."
   type        = list(string)

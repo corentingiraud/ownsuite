@@ -1,0 +1,256 @@
+# Meet (suitenumerique / meet) — video conferencing powered by LiveKit.
+# Wired to the Phase 1 foundation like Docs: CNPG (`meet` DB), Valkey (cache + Celery
+# broker, DBs 6/7), S3 (Garage in-cluster or external — the meet-recordings bucket),
+# and Keycloak SSO (client `meet`). Every credential comes from a seed-derived Secret
+# via secretKeyRef (ADR-012); nothing secret is rendered here. Image tags are pinned
+# in versions.yaml (the chart has no appVersion).
+#
+# OIDC uses the Docs-style external/internal endpoint split: the browser hits Keycloak
+# at https://auth.{domain}, the backend reaches it in-cluster over plain HTTP.
+#
+# The AI/transcription stack (summary microservice, LiveKit agents, transcription
+# Celery queues) is DISABLED (replicas 0) — it needs GPU/Whisper/LLM endpoints far
+# beyond a single association VPS. Core video + recording only.
+
+{{- $domain := .Values.domain -}}
+{{- $host := printf "meet.%s" $domain -}}
+{{- $realm := .Values.keycloak.realm -}}
+{{- $ns := .Values.workloadsNamespace -}}
+{{- $pgHost := printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName $ns -}}
+{{- $kcExternal := printf "https://auth.%s/realms/%s/protocol/openid-connect" $domain $realm -}}
+{{- $kcInternal := printf "http://keycloak-keycloakx-http.%s.svc.cluster.local/realms/%s/protocol/openid-connect" $ns $realm -}}
+{{- $s3Endpoint := .Values.objectStorage.endpoint -}}
+{{- $s3Region := .Values.objectStorage.region -}}
+{{- if .Values.garage.enabled -}}
+{{-   $s3Endpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
+{{-   $s3Region = .Values.garage.region -}}
+{{- end -}}
+{{- $verifySsl := ternary "False" "True" (eq .Values.tls.issuer "selfsigned") }}
+
+image:
+  repository: lasuite/meet-backend
+  tag: {{ .Values.imageVersions.meetBackend | quote }}
+  pullPolicy: IfNotPresent
+
+backend:
+  replicas: 1
+  # Probes tuned for a constrained single node: the backend runs DB migrations on
+  # first boot, so liveness gets a long initialDelay + tolerant timeout (never restart
+  # it mid-migration); readiness still gates Ready so the rollout isn't slowed.
+  probes:
+    liveness:
+      path: /__lbheartbeat__
+      initialDelaySeconds: 120
+      timeoutSeconds: 5
+    readiness:
+      path: /__heartbeat__
+      timeoutSeconds: 5
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      memory: "1Gi"
+  envVars:
+    # --- Django core ---
+    DJANGO_SETTINGS_MODULE: meet.settings
+    DJANGO_CONFIGURATION: Production
+    DJANGO_ALLOWED_HOSTS: {{ $host | quote }}
+    DJANGO_CSRF_TRUSTED_ORIGINS: {{ printf "https://%s" $host | quote }}
+    DJANGO_SECRET_KEY:
+      secretKeyRef:
+        name: meet-secrets
+        key: DJANGO_SECRET_KEY
+    DJANGO_SUPERUSER_EMAIL: {{ .Values.adminEmail | quote }}
+    DJANGO_SUPERUSER_PASSWORD:
+      secretKeyRef:
+        name: meet-secrets
+        key: DJANGO_SUPERUSER_PASSWORD
+    # --- PostgreSQL (CNPG) ---
+    DB_HOST: {{ $pgHost | quote }}
+    DB_NAME: meet
+    DB_USER: meet
+    DB_PORT: "5432"
+    DB_PASSWORD:
+      secretKeyRef:
+        name: meet-db
+        key: password
+    # --- Cache + Celery broker (Valkey, DBs 6/7) ---
+    REDIS_URL:
+      secretKeyRef:
+        name: meet-secrets
+        key: REDIS_URL
+    CELERY_ENABLED: "True"
+    CELERY_BROKER_URL:
+      secretKeyRef:
+        name: meet-secrets
+        key: CELERY_BROKER_URL
+    # --- Object storage (S3 / Garage) — recordings + uploads ---
+    AWS_S3_ENDPOINT_URL: {{ $s3Endpoint | quote }}
+    AWS_S3_ACCESS_KEY_ID:
+      secretKeyRef:
+        name: s3-credentials
+        key: AWS_S3_ACCESS_KEY_ID
+    AWS_S3_SECRET_ACCESS_KEY:
+      secretKeyRef:
+        name: s3-credentials
+        key: AWS_S3_SECRET_ACCESS_KEY
+    AWS_STORAGE_BUCKET_NAME: {{ .Values.objectStorage.meetBucket | quote }}
+    AWS_S3_REGION_NAME: {{ $s3Region | quote }}
+    AWS_S3_SIGNATURE_VERSION: s3v4
+    # S3-compatible stores (Infomaniak/Ceph/Garage) reject boto3's default aws-chunked
+    # streaming checksum ("NotImplemented" on PutObject); only add it when required.
+    AWS_REQUEST_CHECKSUM_CALCULATION: "when_required"
+    AWS_RESPONSE_CHECKSUM_VALIDATION: "when_required"
+    STORAGES_STATICFILES_BACKEND: django.contrib.staticfiles.storage.StaticFilesStorage
+    # --- OIDC (Keycloak) — external endpoints for the browser, internal for backend ---
+    OIDC_RP_CLIENT_ID: meet
+    OIDC_RP_CLIENT_SECRET:
+      secretKeyRef:
+        name: meet-secrets
+        key: OIDC_RP_CLIENT_SECRET
+    OIDC_RP_SIGN_ALGO: RS256
+    OIDC_RP_SCOPES: "openid email profile"
+    OIDC_OP_AUTHORIZATION_ENDPOINT: {{ printf "%s/auth" $kcExternal | quote }}
+    OIDC_OP_LOGOUT_ENDPOINT: {{ printf "%s/logout" $kcExternal | quote }}
+    OIDC_OP_JWKS_ENDPOINT: {{ printf "%s/certs" $kcInternal | quote }}
+    OIDC_OP_TOKEN_ENDPOINT: {{ printf "%s/token" $kcInternal | quote }}
+    OIDC_OP_USER_ENDPOINT: {{ printf "%s/userinfo" $kcInternal | quote }}
+    OIDC_VERIFY_SSL: {{ $verifySsl | quote }}
+    OIDC_REDIRECT_ALLOWED_HOSTS: {{ printf "https://%s" $host | quote }}
+    LOGIN_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
+    LOGIN_REDIRECT_URL_FAILURE: {{ printf "https://%s" $host | quote }}
+    LOGOUT_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
+    # Require an SSO account to create/join rooms (no anonymous rooms).
+    ALLOW_UNREGISTERED_ROOMS: "False"
+    # --- LiveKit (media server) ---
+    LIVEKIT_API_URL: {{ printf "https://livekit.%s/" $domain | quote }}
+    LIVEKIT_API_KEY:
+      secretKeyRef:
+        name: meet-secrets
+        key: LIVEKIT_API_KEY
+    LIVEKIT_API_SECRET:
+      secretKeyRef:
+        name: meet-secrets
+        key: LIVEKIT_API_SECRET
+    LIVEKIT_FORCE_WSS_PROTOCOL: "True"
+    LIVEKIT_ENABLE_FIREFOX_PROXY_WORKAROUND: "True"
+    LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX: "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    # --- Recording (LiveKit Egress -> S3) ---
+    RECORDING_ENABLE: "True"
+    RECORDING_STORAGE_EVENT_ENABLE: "True"
+    RECORDING_STORAGE_EVENT_TOKEN:
+      secretKeyRef:
+        name: meet-secrets
+        key: RECORDING_STORAGE_EVENT_TOKEN
+    RECORDING_DOWNLOAD_BASE_URL: {{ printf "https://%s/recording" $host | quote }}
+    FILE_UPLOAD_ENABLED: "True"
+    # --- Disabled optional features (AI/analytics/telephony/external) ---
+    METADATA_COLLECTOR_ENABLED: "False"
+    ROOM_SUBTITLE_ENABLED: "False"
+    ROOM_TELEPHONY_ENABLED: "False"
+    EXTERNAL_API_ENABLED: "False"
+    POSTHOG_ENABLED: "False"
+
+frontend:
+  replicas: 1
+  image:
+    repository: lasuite/meet-frontend
+    tag: {{ .Values.imageVersions.meetFrontend | quote }}
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      memory: "256Mi"
+
+# The Celery worker that processes recording/storage events. Kept at 1 replica.
+celeryBackend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "256Mi"
+    limits:
+      memory: "512Mi"
+
+# --- Disabled AI/transcription components (need GPU/Whisper/LLM; out of scope) -------
+# The chart renders these Deployments unconditionally (gated only by replicas), so we
+# scale them to 0. ponytail: replicas 0 disables them; re-enable + wire the summary/STT
+# services if an instance ever needs transcription. Their images are still pinned to the
+# app release (never "latest") so the inert manifests satisfy the no-latest rule; the
+# transcribe/summarize Celery workers reuse the backend image (already pinned above).
+summary:
+  replicas: 0
+  image:
+    tag: {{ .Values.imageVersions.meetBackend | quote }}
+celeryTranscribe:
+  replicas: 0
+  image:
+    tag: {{ .Values.imageVersions.meetBackend | quote }}
+celerySummarize:
+  replicas: 0
+  image:
+    tag: {{ .Values.imageVersions.meetBackend | quote }}
+celerySummaryBackend:
+  replicas: 0
+  image:
+    tag: {{ .Values.imageVersions.meetBackend | quote }}
+agentMetadata:
+  replicas: 0
+  image:
+    tag: {{ .Values.imageVersions.meetBackend | quote }}
+agentSubtitles:
+  replicas: 0
+  image:
+    tag: {{ .Values.imageVersions.meetBackend | quote }}
+
+# --- Ingress (Traefik, K3s-bundled). cert-manager issues meet-tls on the main
+#     ingress; the admin + webhook ingresses reuse that secret for the same host.
+#     Traefik proxies websockets natively.
+ingress:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  path: /
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.tls.issuer | quote }}
+  tls:
+    enabled: true
+    secretName: meet-tls
+
+ingressAdmin:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  path: /admin
+  tls:
+    enabled: true
+    secretName: meet-tls
+
+# LiveKit posts room webhooks (participant joined/left, recording status) here.
+ingressWebhook:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  path: /api/v1.0/rooms/webhooks-livekit/
+  tls:
+    enabled: true
+    secretName: meet-tls
+
+# Authenticated recording download (/media/) uses the upstream nginx auth_request
+# contract, which Traefik cannot satisfy (same limitation Docs solves with a
+# media-proxy). Left disabled for v1 — recordings are stored in S3; wiring a Traefik
+# media-proxy for downloads is a follow-up.
+# ponytail: /media/ download proxy deferred; add a media-proxy release when needed.
+ingressMedia:
+  enabled: false
+ingressMediaFiles:
+  enabled: false
+
+posthog:
+  ingress:
+    enabled: false
+  ingressAssets:
+    enabled: false
