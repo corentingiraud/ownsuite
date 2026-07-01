@@ -12,6 +12,7 @@ module "suite" {
   ssh_allowed_cidr = var.ssh_allowed_cidr
   enable_mailbox   = var.enable_mailbox
   enable_meet      = var.enable_meet
+  enable_meet_turn = var.enable_meet_turn
   mail_domain      = var.domain
   bucket_names     = var.bucket_names
 

@@ -27,6 +27,7 @@ from test_platform import (
     SECRET_SEED,
     SEED_TEST_USER,
     curl,
+    derive_secret,
     docs_user_token,
     kubectl,
     password_token,
@@ -419,3 +420,36 @@ def test_meet_livekit_signaling_reachable():
         assert out == "200", f"livekit signaling not reachable (status {out})"
 
     retry(fetch, attempts=40, delay=3)
+
+
+@only("meet")
+@pytest.mark.skipif(
+    not (SECRET_SEED and SEED_TEST_USER),
+    reason="meet token DoD needs the seeded realm user + secret seed (CI only)",
+)
+def test_meet_backend_mints_livekit_token():
+    """The Meet definition of done: the backend mints a LiveKit room token, proving it
+    and the LiveKit server agree on the shared API credential (ADR-012) — the config
+    alignment a k3d run *can* verify without real WebRTC media.
+
+    Headless equivalent of joining a call: obtain a bearer for the seeded realm user
+    from Keycloak (meet's OIDC client, direct-access grant), then create a room. Meet
+    just-in-time provisions the user and, for the room owner, its response embeds the
+    LiveKit config — a JWT the backend signs locally with LIVEKIT_API_KEY/SECRET."""
+    host = app_host("meet")
+    seed_pw = derive_secret("kc-test-user")
+    token = retry(lambda: password_token("meet", "docs-tester", seed_pw))
+    auth_header = f"Authorization: Bearer {token}"
+
+    def create_room_and_get_token():
+        out = curl(
+            host, f"https://{host}/api/v1.0/rooms/",
+            "-X", "POST", "-H", auth_header,
+            "-H", "Content-Type: application/json",
+            "--data", json.dumps({"name": "ownsuite-e2e-meet"}),
+        )
+        room = json.loads(out)
+        livekit = room.get("livekit") or {}
+        assert livekit.get("token"), f"no LiveKit token in room response: {room}"
+
+    retry(create_room_and_get_token)

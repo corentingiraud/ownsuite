@@ -61,8 +61,22 @@ livekit:
     password: {{ $valkeyPass | quote }}
   keys:
     {{ $lkKey }}: {{ $lkSecret | quote }}
+  {{- if .Values.apps.meet.turn.enabled }}
+  # Opt-in embedded TURN/TLS (issue #55): a last-resort relay for clients on networks
+  # that block BOTH the UDP mux and the TCP fallback. With podHostNetwork the chart
+  # binds tls_port on the node directly (hostPort) — no extra Service — and terminates
+  # TLS with the mounted cert. We reuse the livekit-tls cert (issued for livekit.{domain}
+  # on the signaling ingress), so domain MUST be livekit.{domain} and no new DNS/cert is
+  # needed. Opening 5349/tcp is gated on the Terraform/Ansible `enable_meet_turn` flag.
+  turn:
+    enabled: true
+    domain: {{ printf "livekit.%s" $domain | quote }}
+    tls_port: 5349
+    secretName: livekit-tls
+  {{- else }}
   turn:
     enabled: false
+  {{- end }}
   webhook:
     # Must be a key present in `keys` above; signs the room webhooks meet verifies.
     api_key: {{ $lkKey | quote }}

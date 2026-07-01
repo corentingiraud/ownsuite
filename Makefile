@@ -95,7 +95,7 @@ test-platform: ## Platform + installer + backup/restore DoD on a throwaway k3d c
 	helmfile/tests/run-e2e.sh
 
 .PHONY: test-app
-test-app: ## Boot ONE app on its own throwaway k3d cluster (APP=grist|projects|messages|docs|drive)
+test-app: ## Boot ONE app on its own throwaway k3d cluster (APP=grist|projects|messages|docs|drive|meet)
 	helmfile/tests/run-app-e2e.sh $(APP)
 
 .PHONY: test-pvc-backup

@@ -158,6 +158,12 @@ apps:
   # the Terraform/Ansible `enable_meet` flag. Enable with OWNSUITE_APP_MEET=true.
   meet:
     enabled: {{ env "OWNSUITE_APP_MEET" | default "false" }}
+    # Opt-in embedded TURN/TLS (issue #55) for clients on networks blocking BOTH
+    # UDP/7882 and TCP/7881. Off by default; when enabled LiveKit terminates TURN/TLS
+    # on the node at 5349/tcp, reusing the livekit-tls cert on livekit.{domain}. You
+    # must ALSO open the port with the Terraform/Ansible `enable_meet_turn` flag.
+    turn:
+      enabled: {{ env "OWNSUITE_MEET_TURN" | default "false" }}
 
 # Contact address used for app admin / superuser accounts.
 adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}

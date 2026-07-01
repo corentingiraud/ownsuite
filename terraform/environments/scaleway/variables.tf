@@ -78,6 +78,12 @@ variable "enable_meet" {
   default     = false
 }
 
+variable "enable_meet_turn" {
+  description = "Open the LiveKit embedded TURN/TLS port (5349/tcp) for Meet. Requires enable_meet + OWNSUITE_MEET_TURN=true."
+  type        = bool
+  default     = false
+}
+
 variable "bucket_names" {
   description = "Object-storage buckets to create. Set the media bucket(s) here in Scaleway-native-S3 primary mode. The off-site backup store must live in a different account/provider."
   type        = list(string)

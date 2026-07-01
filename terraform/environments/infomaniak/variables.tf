@@ -55,6 +55,12 @@ variable "enable_meet" {
   default     = false
 }
 
+variable "enable_meet_turn" {
+  description = "Open the LiveKit embedded TURN/TLS port (5349/tcp) for Meet. Requires enable_meet + OWNSUITE_MEET_TURN=true."
+  type        = bool
+  default     = false
+}
+
 variable "bucket_names" {
   description = "S3 buckets to create via the S3 API. Leave empty (default) in `garage` mode — Garage creates the media buckets in-cluster. Set it for an external-S3 primary or the off-site backup store."
   type        = list(string)

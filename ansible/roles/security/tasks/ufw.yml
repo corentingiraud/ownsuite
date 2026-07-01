@@ -31,6 +31,13 @@
     - { port: "7882", proto: udp }
   when: enable_meet | bool
 
+- name: Allow inbound LiveKit embedded TURN/TLS (TCP 5349) for Meet
+  community.general.ufw:
+    rule: allow
+    port: "5349"
+    proto: tcp
+  when: enable_meet_turn | bool
+
 - name: Allow traffic from the K3s pod and service networks
   community.general.ufw:
     rule: allow
