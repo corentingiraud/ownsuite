@@ -9,7 +9,7 @@ chartVersions:
   # renovate: datasource=helm registryUrl=https://charts.jetstack.io depName=cert-manager
   certManager: "v1.20.3"
   # renovate: datasource=helm registryUrl=https://cloudnative-pg.github.io/charts depName=cloudnative-pg
-  cnpgOperator: "0.28.3"
+  cnpgOperator: "0.29.0"
   # renovate: datasource=helm registryUrl=https://codecentric.github.io/helm-charts depName=keycloakx
   keycloakx: "7.2.0"
   # renovate: datasource=helm registryUrl=https://groundhog2k.github.io/helm-charts depName=valkey
@@ -41,9 +41,9 @@ imageVersions:
   driveFrontend: "v0.19.0"
   # Grist (getgrist) — a single-container app (no official Helm chart), deployed
   # from the local ./charts/grist chart (ADR-024). One image; the Docker tag has no
-  # "v" prefix (the grist-core GitHub release is tagged v1.7.15).
+  # "v" prefix (the grist-core GitHub release is tagged v1.7.16).
   # renovate: datasource=docker depName=gristlabs/grist
-  grist: "1.7.15"
+  grist: "1.7.16"
   # Projects (suitenumerique) — a single-container Sails.js app (no official Helm
   # chart), deployed from the local ./charts/projects chart (ADR-025).
   # renovate: datasource=docker depName=lasuite/projects
@@ -68,7 +68,7 @@ imageVersions:
   # + upstream-vhost) which Traefik forwardAuth cannot satisfy, so a tiny in-cluster nginx
   # honours that contract. Stable branch, Alpine.
   # renovate: datasource=docker depName=nginx
-  nginx: "1.30.3-alpine"
+  nginx: "1.31.2-alpine"
 
 # Vendored manifests pinned by version (not Helm charts or plain images). The
 # referenced file is committed verbatim; a Renovate bump is a reminder to re-vendor.
