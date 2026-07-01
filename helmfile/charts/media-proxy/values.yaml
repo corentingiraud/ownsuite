@@ -9,7 +9,7 @@ app: drive
 enabled: false
 
 # nginx image (pinned in versions.yaml).
-image: nginx:1.30.3-alpine
+image: nginx:1.31.2-alpine
 
 # Backend service + media-auth path the auth_request subrequest hits.
 authUpstream: drive-backend
