@@ -29,7 +29,9 @@ replicaCount: 1
 egress:
   log_level: info
   # Signaling to LiveKit over the in-cluster service (plain ws, port 80 -> pod 7880).
-  ws_url: {{ printf "ws://livekit.%s.svc.cluster.local:80" $ns | quote }}
+  # Service name is livekit-sfu (see fullnameOverride in livekit.yaml.gotmpl — "livekit"
+  # collides with the kubelet's LIVEKIT_PORT service-link env var).
+  ws_url: {{ printf "ws://livekit-sfu.%s.svc.cluster.local:80" $ns | quote }}
   # Skip TLS verification only with the self-signed CI issuer (egress also loads the
   # room page in Chrome; a self-signed cert would otherwise break recording).
   insecure: {{ $insecure }}

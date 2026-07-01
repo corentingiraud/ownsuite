@@ -19,8 +19,14 @@
 {{- $lkSecret := printf "%s:%s" .Values.secretSeed "meet-livekit-secret" | sha256sum | trunc 40 }}
 
 replicaCount: 1
-# Stable service/ingress name ("livekit") so egress + meet can address it predictably.
-fullnameOverride: livekit
+# Stable in-cluster name so egress can address it predictably. Deliberately NOT
+# "livekit": a Service named exactly "livekit" makes the kubelet inject a service-link
+# env var LIVEKIT_PORT=tcp://<clusterIP>:80 into the pod, which collides with
+# livekit-server's own LIVEKIT_PORT config flag — the container then rejects the value
+# ("could not parse tcp://…:80 as uint") and crash-loops. A distinct name sidesteps the
+# collision entirely. The public signaling host stays livekit.{domain} (set on the
+# ingress via loadBalancer.tls below, independent of this name).
+fullnameOverride: livekit-sfu
 
 # Media binds the host network directly (hostPort). Default is already true; kept
 # explicit because it is load-bearing for the single-node port model.
