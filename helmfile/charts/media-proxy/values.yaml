@@ -23,7 +23,7 @@ s3Port: 3900
 
 # Public host + TLS secret for the /media/ ingress (the cert is issued on the app's
 # main ingress; reused here).
-host: drive.example.com
+host: drive.example.org
 tlsSecret: drive-tls
 
 # Force a download (Content-Disposition: attachment). True for Drive (files), false
