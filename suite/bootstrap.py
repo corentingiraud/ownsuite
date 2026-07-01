@@ -24,6 +24,7 @@ from .process import run
 
 ANSIBLE_DIR = "ansible"
 PLAYBOOK = "bootstrap.yml"
+REQUIREMENTS = "requirements.txt"
 REQUIREMENTS_DEV = "requirements-dev.txt"
 ANSIBLE_REQUIREMENTS = "ansible/requirements.yml"
 MOLECULE_REQUIREMENTS = "molecule/requirements.yml"
@@ -32,7 +33,8 @@ MOLECULE_REQUIREMENTS = "molecule/requirements.yml"
 def run_deps(args):
     _require(["pip", "ansible-galaxy"])
     print("\n==> Installing Python tooling + Ansible collections")
-    run(["pip", "install", "-r", REQUIREMENTS_DEV], step="pip install")
+    run(["pip", "install", "-r", REQUIREMENTS], step="pip install (cli)")
+    run(["pip", "install", "-r", REQUIREMENTS_DEV], step="pip install (dev)")
     run(["ansible-galaxy", "collection", "install", "-r", ANSIBLE_REQUIREMENTS],
         step="ansible-galaxy (app)")
     run(["ansible-galaxy", "collection", "install", "-r", MOLECULE_REQUIREMENTS],

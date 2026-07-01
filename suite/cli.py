@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 
-from . import bootstrap, restore, status, steps, upgrade, users
+from . import bootstrap, provision, restore, status, steps, upgrade, users
 from .errors import SuiteError
 
 
@@ -30,9 +30,29 @@ def build_parser():
     )
     i.add_argument("--non-interactive", action="store_true", help="No prompts (CI)")
     i.add_argument("--no-tunnel", action="store_true", help="Use the ambient KUBECONFIG")
+    i.add_argument("--skip-provision", action="store_true",
+                   help="Do not offer to provision a server with Terraform")
     i.add_argument("--skip-bootstrap", action="store_true")
     i.add_argument("--skip-dns", action="store_true")
     i.add_argument("--skip-propagation", action="store_true")
+    # provision (when offered from install) reuses these:
+    i.add_argument("--provider", choices=provision.PROVIDERS,
+                   help="Cloud provider for `suite provision`")
+    i.add_argument("--force-tfvars", action="store_true",
+                   help="Regenerate terraform.tfvars from prompts")
+    i.add_argument("--yes", action="store_true",
+                   help="Auto-approve the Terraform apply (non-interactive)")
+
+    # `suite provision` — run the Terraform step (server + object storage) and wire
+    # its outputs into .env + the Ansible inventory (ADR-038). Optional prerequisite.
+    pv = sub.add_parser("provision", help="Provision infra with Terraform (server + S3).")
+    pv.add_argument("--env-file", default=".env")
+    pv.add_argument("--provider", choices=provision.PROVIDERS,
+                    help="Cloud provider (else prompted)")
+    pv.add_argument("--force-tfvars", action="store_true",
+                    help="Regenerate terraform.tfvars from prompts even if it exists")
+    pv.add_argument("--yes", action="store_true",
+                    help="Skip the plan confirmation (auto-approve apply)")
 
     # `suite dns` — print the records + write the BIND zone file, without installing.
     d = sub.add_parser("dns", help="Print DNS records + write the BIND zone file (no install).")
@@ -109,6 +129,8 @@ def main(argv=None):
             upgrade.run_upgrade(args)
         elif args.command == "restore":
             restore.run_restore(args)
+        elif args.command == "provision":
+            provision.run_provision(args)
         elif args.command == "dns":
             steps.run_dns(args)
         else:

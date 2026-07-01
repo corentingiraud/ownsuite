@@ -11,7 +11,7 @@ import os
 import shutil
 from pathlib import Path
 
-from . import bootstrap, config, dns, ip, mail, propagation, tunnel, verify
+from . import bootstrap, config, dns, ip, mail, propagation, provision, tunnel, verify
 from .errors import SuiteError
 from .process import run
 from .status import enabled_apps
@@ -26,12 +26,22 @@ STAGING_ISSUER = "letsencrypt-staging"
 
 def install(args):
     cfg = config.load_env(args.env_file)
+    # No server yet? Offer to provision one with Terraform first (the infra half),
+    # then re-read .env so its ssh_target/S3 values feed the rest of the install.
+    interactive = not args.non_interactive
+    have_ssh = args.ssh or cfg.get("OWNSUITE_SERVER_SSH")
+    if interactive and not args.skip_provision and not have_ssh:
+        from . import prompt
+        if prompt.confirm("No server configured — provision one with Terraform now?",
+                          default=False):
+            provision.run_provision(args)
+            cfg = config.load_env(args.env_file)
     overrides = {
         k: v
         for k, v in (("OWNSUITE_DOMAIN", args.domain), ("OWNSUITE_SERVER_SSH", args.ssh))
         if v
     }
-    cfg = config.capture(cfg, interactive=not args.non_interactive, overrides=overrides)
+    cfg = config.capture(cfg, interactive=interactive, overrides=overrides)
     domain = cfg.get("OWNSUITE_DOMAIN")
     if not domain:
         raise SuiteError("OWNSUITE_DOMAIN is required")
