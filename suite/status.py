@@ -8,7 +8,6 @@ are unit-tested with fixtures, never a live cluster.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import os
 import shutil
@@ -39,12 +38,7 @@ def run_status(args):
     _preflight(args, ssh)
     enabled = enabled_apps(cfg)
 
-    tunnel_ctx = (
-        contextlib.nullcontext()
-        if args.no_tunnel or not ssh
-        else tunnel.tunnel(ssh)
-    )
-    with tunnel_ctx:
+    with tunnel.maybe(ssh, no_tunnel=args.no_tunnel):
         nodes = _kubectl_json(["get", "nodes"])
         clusters = _kubectl_json(["-n", NS, "get", "clusters.postgresql.cnpg.io"])
         certs = _kubectl_json(["-n", NS, "get", "certificates.cert-manager.io"])

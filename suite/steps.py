@@ -7,7 +7,6 @@ reads, ansible) is safe to repeat, so the replay story is simply re-running
 
 from __future__ import annotations
 
-import contextlib
 import os
 import shutil
 
@@ -60,12 +59,7 @@ def install(args):
     # ADR-035). Keycloak is always issued/verified; each enabled app is checked at its
     # own cert + public HTTPS host, so a platform-only install never waits on an app.
     enabled = enabled_apps(cfg)
-    tunnel_ctx = (
-        contextlib.nullcontext()
-        if args.no_tunnel or not ssh
-        else tunnel.tunnel(ssh)
-    )
-    with tunnel_ctx:
+    with tunnel.maybe(ssh, no_tunnel=args.no_tunnel):
         if args.tls_mode == "selfsigned":
             _issue(env, "selfsigned", enabled)
             _verify(domain, enabled, trusted=False)

@@ -38,12 +38,8 @@ def run(args):
     _preflight(args, ssh)
     admin_password = config.derive_secret(seed, "keycloak-admin")
 
-    tunnel_ctx = (
-        contextlib.nullcontext()
-        if args.no_tunnel or not ssh
-        else tunnel.tunnel(ssh)
-    )
-    with tunnel_ctx, _port_forward(KC_SERVICE, args.local_port, KC_PORT) as port:
+    with tunnel.maybe(ssh, no_tunnel=args.no_tunnel), \
+            _port_forward(KC_SERVICE, args.local_port, KC_PORT) as port:
         kc = KeycloakAdmin(f"http://127.0.0.1:{port}", REALM, ADMIN_USER, admin_password)
         _dispatch(args, kc)
 

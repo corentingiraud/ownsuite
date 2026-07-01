@@ -21,7 +21,6 @@ calls — no live cluster.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import os
 import shutil
@@ -60,12 +59,7 @@ def run_restore(args):
     }
     enabled = enabled_apps(cfg)
 
-    tunnel_ctx = (
-        contextlib.nullcontext()
-        if args.no_tunnel or not ssh
-        else tunnel.tunnel(ssh)
-    )
-    with tunnel_ctx:
+    with tunnel.maybe(ssh, no_tunnel=args.no_tunnel):
         if not args.yes and not _cluster_is_clean() and not _confirm_not_clean():
             print("Aborted — cluster is not clean; nothing changed.")
             return

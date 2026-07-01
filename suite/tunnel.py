@@ -23,6 +23,14 @@ def port_open(port, host="127.0.0.1"):
         return s.connect_ex((host, port)) == 0
 
 
+def maybe(ssh_target, *, no_tunnel=False):
+    """The tunnel context, or a no-op when tunnelling is skipped — no SSH target, or
+    the operator opted into the ambient KUBECONFIG with --no-tunnel."""
+    if no_tunnel or not ssh_target:
+        return contextlib.nullcontext()
+    return tunnel(ssh_target)
+
+
 @contextlib.contextmanager
 def tunnel(ssh_target, *, port=6443):
     # Point kubectl/helmfile at the fetched kubeconfig unless the operator already
