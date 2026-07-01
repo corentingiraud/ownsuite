@@ -45,13 +45,15 @@ OS/K3s version bumps. Drift is possible on manual edits (mitigated by idempotenc
 **Context.** MinIO (community) is **archived** (February 2026): console removed,
 binaries/images discontinued. Drive can store hundreds of GB.
 
-**Decision.** **Pluggable** object storage via config: **Garage** (self-hosted,
-French, lightweight) **or** a **managed EU/CH S3** (Infomaniak, Scaleway, OVH).
-Recommended production default: external S3.
+**Decision.** **Pluggable** object storage via config: a **managed EU S3** (Scaleway,
+OVH, AWS) **or** **Garage** (self-hosted, French, lightweight). Recommended production
+default: **external S3 on Scaleway** — its Object Storage is CORS-capable, which Drive's
+browser uploads require ([ADR-038](#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative)).
 
 **Consequences.** No storage ops with external S3, smaller server disk, simpler backups;
-Garage for full sovereignty. Even with external S3, an **off-site application-level
-backup** of the objects is still required (accidental deletion, lock-in).
+Garage for full sovereignty or CORS-incapable hosts (Infomaniak's Swift+s3api). Even with
+external S3, an **off-site application-level backup** of the objects is still required
+(accidental deletion, lock-in).
 
 ---
 
@@ -591,8 +593,11 @@ Keycloak** via OIDC. It is a full mail provider, not an IMAP client:
 - **Webmail:** ships its own **integrated web UI**. **No IMAP/POP3 by design** — users read
   mail in messages, not in Thunderbird/Apple Mail. Accepted trade-off.
 - **Outbound:** **never direct from the VPS IP.** `MTA_OUT_MODE=relay` points the MTA-out at a
-  reputable EU SMTP relay (Infomaniak `mail.infomaniak.com:587`, STARTTLS, `MTA_OUT_RELAY_*`
-  credentials, `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure`).
+  reputable SMTP relay (STARTTLS, `MTA_OUT_RELAY_*` credentials,
+  `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure`). On the recommended Scaleway host that relay is native
+  **Transactional Email (TEM)**, `smtp.tem.scaleway.com:2587` — the alternate port matters because
+  Scaleway Instances block outbound 25/465/587 ([ADR-038](#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative)).
+  Any EU relay works as an alternative (Infomaniak `mail.infomaniak.com:587`).
 
 **Why.** Owning the easy half (receiving) and renting the hard half (deliverability) is the
 same stance ADR-008 took — outbound from a fresh VPS IP loses on reputation/PTR/port-25. The
@@ -1356,3 +1361,48 @@ the entrypoint, Ansible/helmfile/kubectl are the tools it drives, and `make` sto
 operator's mental model. **Trade-off:** the headline commands grow one token longer
 (`make bootstrap` → `python3 -m suite bootstrap`) until a `suite` shim is on `PATH`; CI is unaffected
 because it already invoked `pip`/`ansible-galaxy` directly rather than through `make deps`.
+
+---
+
+## ADR-038 — Hosting provider: Scaleway recommended (Infomaniak alternative)
+
+**Context.** OwnSuite provisions its infrastructure half with Terraform ([Provision](../get-started/provision.md)),
+and two providers now ship. The first target was **Infomaniak** Public Cloud (OpenStack) for its
+low EU/CH price, but a full end-to-end trial surfaced two structural limits: (a) its object storage
+is **Swift with an `s3api` layer that does not implement bucket CORS** ([OpenStack bug #2077629](https://bugs.launchpad.net/swift/+bug/2077629)),
+which Drive's browser-direct uploads need in `external` mode; and (b) it has **no native
+transactional-email product**, so the Mailbox's outbound relay must be bolted on separately.
+
+**Decision.** **Scaleway is the recommended host; Infomaniak stays a supported alternative.** Both
+ship as sibling Terraform modules behind the **same output contract** (`public_ip`, `ssh_target`,
+`s3_endpoint`, `s3_region`, `buckets`, `s3_access_key`, `s3_secret_key`), so bootstrap and Helmfile
+are provider-agnostic ([ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3)). Scaleway
+wins on the two limits above:
+
+- **Object Storage is fully S3-compatible and CORS-capable** → `external` mode works end-to-end,
+  including Drive uploads (the module sets a bucket CORS rule); no in-cluster Garage required.
+- **Transactional Email (TEM)** is a native relay → the Mailbox gets deliverability with no third
+  party. Because Scaleway Instances **block outbound 25/465/587**, the module wires TEM's alternate
+  port **2587** (STARTTLS) ([ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay),
+  [ADR-027](#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb)).
+
+The Scaleway module is also **shorter** than the OpenStack one (no floating-IP-via-port indirection,
+no Swift/S3 namespace split):
+
+| Need | Infomaniak (OpenStack) | Scaleway (native) |
+|---|---|---|
+| Server | `openstack_compute_instance_v2` + boot volume | `scaleway_instance_server` (root `sbs_volume`; PRO2 has no local SSD) |
+| Public IP | floating IP + port + associate | `scaleway_instance_ip` (attached to the server) |
+| Firewall | `openstack_networking_secgroup*` | `scaleway_instance_security_group` |
+| SSH key | `openstack_compute_keypair_v2` | `scaleway_iam_ssh_key` (project, injected via cloud-init) |
+| Object storage | EC2 credential + `aws` provider → S3 | `scaleway_object_bucket` + `scaleway_iam_application`/`policy`/`api_key` |
+| Outbound mail | external SMTP relay | `scaleway_tem_domain` (native) |
+
+**Consequences.** The happy path is `external` S3 + TEM on Scaleway, with Garage and an external
+relay as the fallbacks for Infomaniak or full sovereignty. Two Scaleway specifics the module already
+handles but operators must know: **Object Storage is IAM-authorized** — the S3 key needs a policy
+(`ObjectStorageFullAccess`) scoped to the project *and* `default_project_id` set to that project, or
+every S3 call 403s; and the Terraform key itself needs **`IAMManager`** (org-scoped) to mint the
+apps' S3 key. Scaleway also **caps API-key lifetime** (~1 year), so the apps' key must be rotated
+and re-applied before it lapses. Scaleway Debian images log in as **`root`** (Infomaniak uses
+`debian`); the bootstrap hardens root afterward.

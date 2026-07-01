@@ -87,7 +87,7 @@ plugins:
         Overview:
           - index.md: Project overview and product vision.
         Get started:
-          - get-started/provision.md: Step 0 — provision the server + object storage on Infomaniak Public Cloud with Terraform (optional).
+          - get-started/provision.md: Step 0 — provision the server + object storage with Terraform on Scaleway (recommended) or Infomaniak (optional).
           - get-started/bootstrap.md: Step 1 — one-command server bootstrap into a single-node K3s cluster.
           - get-started/install.md: Step 2 — guided installer (suite install), bare server + domain to all-in-HTTPS.
         Operate:
@@ -111,18 +111,6 @@ plugins:
         Project:
           - project/roadmap.md: Status board (Shipped / Optional / Planned) and the product vision.
           - project/for-ai-agents.md: Conventions for AI agents and the documentation.
-  # Keep pre-restructure URLs valid after the task-oriented folder move.
-  - redirects:
-      redirect_maps:
-        architecture/overview.md: understand/overview.md
-        architecture/decisions.md: understand/decisions.md
-        operations/bootstrap.md: get-started/bootstrap.md
-        operations/install.md: get-started/install.md
-        operations/platform.md: understand/platform.md
-        operations/docs.md: understand/docs.md
-        operations/backups.md: operate/backups.md
-        contributing/for-ai-agents.md: project/for-ai-agents.md
-        roadmap.md: project/roadmap.md
 
 nav:
   - Home: index.md

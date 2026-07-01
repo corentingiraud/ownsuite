@@ -40,9 +40,33 @@ existing seam rather than a foreign one. Upstream ships container images
   **port 25**, exposed by a `LoadBalancer` Service that K3s' ServiceLB binds to the host port
 . The
   **MTA-out** **never** sends directly from the VPS IP: `MTA_OUT_MODE=relay`,
-  `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure` to a reputable EU relay (Infomaniak
-  `mail.infomaniak.com:587`). `THROTTLE_*_OUTBOUND_EXTERNAL_RECIPIENTS` are set below the relay cap
-  (Infomaniak: 1440 msg/24h) so it fails gracefully in-app.
+  `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure` to a reputable relay — Scaleway TEM by default (see
+  [Outbound](#outbound-scaleway-tem-or-an-external-relay)). `THROTTLE_*_OUTBOUND_EXTERNAL_RECIPIENTS`
+  are set below the relay's cap so it fails gracefully in-app.
+
+## Outbound: Scaleway TEM or an external relay { #outbound-scaleway-tem-or-an-external-relay }
+
+The MTA-out relays through an authenticated SMTP relay; you own the easy half (receiving) and rent
+the hard half (deliverability). On the recommended Scaleway host, that relay is **Transactional
+Email (TEM)**, provisioned by Terraform (`enable_mailbox = true`):
+
+| `OWNSUITE_MTA_*` | Value |
+|---|---|
+| `RELAY_HOST` | `smtp.tem.scaleway.com:2587` |
+| `RELAY_USERNAME` | your Scaleway **Project ID** (`terraform output mta_relay_username`) |
+| `RELAY_PASSWORD` | the workload IAM key secret, carrying `TransactionalEmailFullAccess` (`= s3_secret_key`) |
+| `SPF_INCLUDE` | `_spf.tem.scaleway.com` |
+
+!!! warning "Use port 2587, not 587"
+    **Scaleway Instances block outbound SMTP (25/465/587) by default** as an anti-spam measure. TEM
+    exposes alternate ports **2587 (STARTTLS)** and **2465 (TLS)** for exactly this — the standard
+    ports will time out from the server. TEM also needs **its own DNS records published** (SPF, DKIM,
+    DMARC from `terraform output tem_dns`) before Scaleway validates the domain and outbound works,
+    on top of OwnSuite's own DKIM below.
+
+Any reputable EU SMTP relay works as an alternative (e.g. Infomaniak `mail.infomaniak.com:587`,
+`SPF_INCLUDE=spf.infomaniak.ch`, cap 1440 msg/24h) — set the same three `RELAY_*` variables. See
+[Configuration → Mailbox](../reference/configuration.md#mailbox-messages).
 - **Reuse, per-app instances.** A dedicated CNPG `messages` database; the shared Valkey on DBs 4/5;
   a per-app S3 bucket for mail blobs. The Django `SECRET_KEY`, OIDC client secret and the internal
   `MDA_API_SECRET` (MTA↔MDA) are seed-derived
@@ -79,8 +103,8 @@ set -a && source .env && set +a            # OWNSUITE_SECRET_SEED, OWNSUITE_DOMA
 export OWNSUITE_APP_MESSAGES=true           # opt in (off by default)
 # External relay account + DKIM key — held in the env, never written to .env (like the
 # seed). The installer generates the DKIM key the first time and prints it to re-export.
-export OWNSUITE_MTA_RELAY_USERNAME=...      # your relay account (e.g. Infomaniak)
-export OWNSUITE_MTA_RELAY_PASSWORD=...
+export OWNSUITE_MTA_RELAY_USERNAME=...      # Scaleway TEM (Project ID) or an EU relay account
+export OWNSUITE_MTA_RELAY_PASSWORD=...      # TEM: the IAM key secret (= s3_secret_key)
 export OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64=... # printed by `suite install` on first run
 make tunnel                                 # in another terminal
 make sync                                   # brings up the infra + enabled apps + messages
