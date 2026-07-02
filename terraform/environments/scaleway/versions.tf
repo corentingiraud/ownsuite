@@ -8,7 +8,7 @@ terraform {
     }
   }
 
-  # ponytail: local state for a single-instance personal deploy. Switch to the
+  # local state for a single-instance personal deploy. Switch to the
   # Scaleway Object Storage (S3) backend for team/remote state:
   #   backend "s3" { bucket = "ownsuite-tfstate" endpoints = { s3 = "https://s3.fr-par.scw.cloud" } ... }
 }

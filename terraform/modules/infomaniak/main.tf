@@ -48,7 +48,7 @@ resource "openstack_networking_secgroup_v2" "this" {
 }
 
 resource "openstack_networking_secgroup_rule_v2" "ssh" {
-  # ponytail: SSH open to ssh_allowed_cidr (default world); narrow it per deploy.
+  # SSH open to ssh_allowed_cidr (default world); narrow it per deploy.
   direction         = "ingress"
   ethertype         = "IPv4"
   protocol          = "tcp"

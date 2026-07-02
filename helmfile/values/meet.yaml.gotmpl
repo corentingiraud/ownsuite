@@ -200,7 +200,7 @@ celeryBackend:
 
 # --- Disabled AI/transcription components (need GPU/Whisper/LLM; out of scope) -------
 # The chart renders these Deployments unconditionally (gated only by replicas), so we
-# scale them to 0. ponytail: replicas 0 disables them; re-enable + wire the summary/STT
+# scale them to 0. replicas 0 disables them; re-enable + wire the summary/STT
 # services if an instance ever needs transcription. Their images are still pinned to the
 # app release (never "latest") so the inert manifests satisfy the no-latest rule; the
 # transcribe/summarize Celery workers reuse the backend image (already pinned above).

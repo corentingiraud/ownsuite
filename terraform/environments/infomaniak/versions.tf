@@ -8,7 +8,7 @@ terraform {
     }
   }
 
-  # ponytail: local state for a single-instance personal deploy. Switch to the
+  # local state for a single-instance personal deploy. Switch to the
   # OpenStack Swift backend (an object-storage container) for team/remote state:
   #   backend "swift" { container = "ownsuite-tfstate" ... }
 }

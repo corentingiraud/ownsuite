@@ -19,7 +19,7 @@ independent of these ACLs), so in practice this grants exactly "every authentica
 
 Runs as a post-install/post-upgrade hook (idempotent — re-runs each sync are no-ops).
 
-ponytail: seeds Grist's home-DB membership tables directly (orgs/acl_rules/groups/
+seeds Grist's home-DB membership tables directly (orgs/acl_rules/groups/
 group_users) — Grist's stable core schema, but coupled to it. Upgrade path if a Grist
 release changes it: switch to the public access API (PATCH /api/orgs/{id}/access) with a
 seeded admin api_key.
