@@ -49,3 +49,32 @@ tunnel is already open or you have a working `KUBECONFIG`; point it elsewhere wi
     data changes. That's why backups are mandatory: keep your `OWNSUITE_SECRET_SEED` and the
     backup passphrase safe, or a restore won't be possible. See
     [Backups & restore](backups.md).
+
+## Surgical change to one component
+
+Sometimes you need to reapply **one** component — say you changed a single app's config and
+want it live without reconciling everything else. `suite sync` does exactly that, keeping the
+same rails as `suite upgrade` but scoped to the releases you name:
+
+```bash
+set -a && source .env && set +a       # OWNSUITE_SECRET_SEED + OWNSUITE_SERVER_SSH
+
+suite sync --app drive                # drive's whole release group (ingress + app + media proxy)
+suite sync -l drive-media-proxy       # just one release, by name
+```
+
+It takes a pre-sync snapshot, shows a diff **limited to those releases**, applies only them,
+and health-checks (and, on failure, rolls back) **only** the affected app — nothing else in the
+stack is touched. Crucially, it always applies the TLS issuer that's actually in force, so a
+targeted sync can never silently reissue your certificates as self-signed.
+
+For a config-only change with no data at risk, skip the snapshot:
+
+```bash
+suite sync -l drive-media-proxy --no-snapshot
+```
+
+!!! note "Use this instead of a hand-run `helmfile -l`"
+    Running `helmfile -l name=… sync` by hand skips the snapshot, the health check **and** the
+    TLS issuer injection — the last silently downgrades live certificates to `selfsigned`.
+    `suite sync` is the safe way to target a single release.

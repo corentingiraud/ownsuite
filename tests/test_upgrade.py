@@ -24,6 +24,7 @@ def _patch_common(monkeypatch, *, calls, cfg, health_failed):
     monkeypatch.setenv("OWNSUITE_SECRET_SEED", "seed")
     monkeypatch.setattr(upgrade.config, "load_env", lambda p: dict(cfg))
     monkeypatch.setattr(upgrade, "_preflight", lambda *a, **k: None)
+    monkeypatch.setattr(upgrade, "resolve_issuer", lambda: "letsencrypt-http01")
     monkeypatch.setattr(upgrade, "run", lambda argv, **kw: calls.append(list(argv)))
     monkeypatch.setattr(upgrade, "_health_check", lambda domain, enabled: list(health_failed))
 
@@ -81,3 +82,45 @@ def test_health_check_targets_keycloak_plus_enabled_apps(monkeypatch):
     assert "https://auth.assoc.org/realms/ownsuite/.well-known/openid-configuration" in seen
     assert "https://docs.assoc.org/" in seen
     assert "https://drive.assoc.org/" in seen
+
+
+def test_injects_resolved_issuer_into_apply_env(monkeypatch):
+    """The apply must render with the live issuer, never the helmfile `selfsigned`
+    default — the footgun that reissued real certs as self-signed (issue #62)."""
+    seen = {}
+    monkeypatch.setenv("OWNSUITE_SECRET_SEED", "seed")
+    monkeypatch.setattr(upgrade.config, "load_env", lambda p: dict(BASE_CFG))
+    monkeypatch.setattr(upgrade, "_preflight", lambda *a, **k: None)
+    monkeypatch.setattr(upgrade, "resolve_issuer", lambda: "letsencrypt-http01")
+    monkeypatch.setattr(upgrade, "_health_check", lambda domain, enabled: [])
+
+    def _run(argv, **kw):
+        if argv[-1] == "apply":
+            seen["env"] = kw.get("env")
+
+    monkeypatch.setattr(upgrade, "run", _run)
+    upgrade.run_upgrade(_args())
+    assert seen["env"]["OWNSUITE_TLS_ISSUER"] == "letsencrypt-http01"
+
+
+def test_resolve_issuer_prefers_env(monkeypatch):
+    monkeypatch.setenv("OWNSUITE_TLS_ISSUER", "letsencrypt-staging")
+    # env wins → no kubectl call at all.
+    monkeypatch.setattr(upgrade, "run", lambda *a, **k: pytest.fail("should not shell out"))
+    assert upgrade.resolve_issuer() == "letsencrypt-staging"
+
+
+def test_resolve_issuer_reads_from_cluster(monkeypatch):
+    monkeypatch.delenv("OWNSUITE_TLS_ISSUER", raising=False)
+    monkeypatch.setattr(
+        upgrade, "run",
+        lambda argv, **kw: SimpleNamespace(stdout="letsencrypt-http01\n"),
+    )
+    assert upgrade.resolve_issuer() == "letsencrypt-http01"
+
+
+def test_resolve_issuer_errors_when_unknown(monkeypatch):
+    monkeypatch.delenv("OWNSUITE_TLS_ISSUER", raising=False)
+    monkeypatch.setattr(upgrade, "run", lambda argv, **kw: SimpleNamespace(stdout=""))
+    with pytest.raises(SuiteError, match="could not determine the live TLS issuer"):
+        upgrade.resolve_issuer()

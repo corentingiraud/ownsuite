@@ -58,6 +58,7 @@ def run_upgrade(args):
     enabled = enabled_apps(cfg)
 
     with tunnel.maybe(ssh, no_tunnel=args.no_tunnel):
+        env["OWNSUITE_TLS_ISSUER"] = resolve_issuer()
         _snapshot()
         _show_diff(env)
         if not args.yes and not _confirm():
@@ -92,10 +93,33 @@ def _snapshot():
     run(["make", "backup"], step="make backup")
 
 
-def _show_diff(env):
+def resolve_issuer():
+    """The CLI owns the TLS issuer so a sync/upgrade can never silently downgrade it
+    to `selfsigned` (the helmfile default — `environments/default.yaml.gotmpl`). An
+    explicit `OWNSUITE_TLS_ISSUER` wins; otherwise read the issuer actually in force
+    from the keycloak-tls Certificate (no persistence, no drift). Requires the tunnel,
+    so call it inside `tunnel.maybe(...)`."""
+    issuer = os.environ.get("OWNSUITE_TLS_ISSUER")
+    if issuer:
+        return issuer
+    proc = run(
+        ["kubectl", "-n", NS, "get", "certificate", "keycloak-tls",
+         "-o", "jsonpath={.spec.issuerRef.name}"],
+        capture=True, check=False, step="detect TLS issuer",
+    )
+    issuer = (proc.stdout or "").strip()
+    if not issuer:
+        raise SuiteError(
+            "could not determine the live TLS issuer (keycloak-tls certificate not found). "
+            "Export OWNSUITE_TLS_ISSUER=letsencrypt-http01 before running."
+        )
+    return issuer
+
+
+def _show_diff(env, selector=()):
     print("\n==> Pending changes (helmfile diff):\n")
     # helmfile diff exits non-zero (2) when there ARE changes; that is not a failure.
-    run(["helmfile", "-f", HELMFILE, "diff"], env=env, check=False)
+    run(["helmfile", "-f", HELMFILE, "diff", *selector], env=env, check=False)
 
 
 def _confirm():
