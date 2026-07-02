@@ -18,6 +18,7 @@ suite dns                          Print the DNS records and write the BIND zone
 suite user add|passwd|disable      Manage Keycloak users (one identity, all apps via JIT)
 suite status                       Read-only health summary (node, DB, certs, backup, apps)
 suite upgrade                      Apply pending chart/image upgrades (backup-gated)
+suite sync                         Apply ONE release/app with the upgrade rails (targeted)
 suite restore                      Restore a CLEAN cluster from off-site backups
 ```
 
@@ -174,6 +175,32 @@ suite upgrade --yes      # skip the confirmation (unattended)
 | `--env-file`, `--ssh`, `--no-tunnel` | see [conventions](#common-conventions) | |
 
 Needs `OWNSUITE_SECRET_SEED` exported (to render the deployment).
+
+## `suite sync`
+
+A **targeted** apply for a surgical change to one component (e.g. one media proxy), with the
+same rails as `upgrade` but scoped to the releases you name: it takes a pre-sync snapshot,
+shows a diff limited to those releases, `helmfile sync`s only them (never a full-tree
+reconcile), then health-checks and rolls back **only** the affected app(s). It always injects
+the live TLS issuer, so a targeted sync can never silently downgrade your certificates to
+`selfsigned`. Guide: [Upgrading safely](../operate/upgrade.md#surgical-change-to-one-component).
+
+```bash
+suite sync --app drive              # the whole drive release group (ingress + app + media proxy)
+suite sync -l drive-media-proxy     # a single release by name (repeatable)
+suite sync -l drive-media-proxy --no-snapshot   # config-only change, no data at risk
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--app NAME` | — | Sync a whole app's release group (`docs`, `drive`, `grist`, `projects`, `messages`, `meet`). Repeatable. |
+| `-l`, `--selector RELEASE` | — | Sync a single release by name. Repeatable; combines with `--app`. |
+| `--no-snapshot` | off | Skip the pre-sync backup (only for a config-only change with no data risk; also skips the backups gate). |
+| `--yes` | off | Skip the diff confirmation prompt. |
+| `--env-file`, `--ssh`, `--no-tunnel` | see [conventions](#common-conventions) | |
+
+At least one `--app` or `-l` is required. Needs `OWNSUITE_SECRET_SEED` exported (to render the
+deployment).
 
 ## `suite restore`
 

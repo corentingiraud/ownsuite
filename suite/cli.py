@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 
-from . import bootstrap, provision, restore, status, steps, upgrade, users
+from . import bootstrap, provision, restore, status, steps, sync, upgrade, users
 from .errors import SuiteError
 
 
@@ -102,6 +102,21 @@ def build_parser():
     up.add_argument("--yes", action="store_true",
                     help="Skip the diff confirmation (non-interactive)")
 
+    # `suite sync` — targeted: snapshot -> scoped diff -> `helmfile sync -l …` -> scoped
+    # health -> scoped rollback, injecting the live TLS issuer (issue #62).
+    sy = sub.add_parser("sync", help="Apply ONE release/app with the upgrade rails (targeted).")
+    sy.add_argument("--env-file", default=".env")
+    sy.add_argument("--ssh", help="Server SSH target user@host (else read from .env)")
+    sy.add_argument("--no-tunnel", action="store_true", help="Use the ambient KUBECONFIG")
+    sy.add_argument("--yes", action="store_true",
+                    help="Skip the diff confirmation (non-interactive)")
+    sy.add_argument("--no-snapshot", action="store_true",
+                    help="Skip the pre-sync backup (config-only change, no data risk)")
+    sy.add_argument("-l", "--selector", action="append", metavar="RELEASE",
+                    help="Release to sync, repeatable (e.g. -l drive-media-proxy)")
+    sy.add_argument("--app", action="append", metavar="NAME",
+                    help="Sync a whole app's release group, repeatable (e.g. --app drive)")
+
     # `suite restore` — disaster recovery onto a CLEAN cluster from off-site backups (ADR-036).
     rs = sub.add_parser("restore", help="Restore a CLEAN cluster from off-site backups.")
     rs.add_argument("--env-file", default=".env")
@@ -127,6 +142,8 @@ def main(argv=None):
             status.run_status(args)
         elif args.command == "upgrade":
             upgrade.run_upgrade(args)
+        elif args.command == "sync":
+            sync.run_sync(args)
         elif args.command == "restore":
             restore.run_restore(args)
         elif args.command == "provision":
