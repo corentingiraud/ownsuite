@@ -4,15 +4,15 @@ How big a server to rent. OwnSuite runs on **one** machine, so the answer is a s
 spec you can buy against. Pick a profile by which apps you enable, then read RAM / CPU / disk.
 
 > **Short answer:** every app is opt-in (enable it in the installer or with `OWNSUITE_APP_*`).
-> If you enable Docs + Drive (the recommended core), they run on **4 GB minimum, 8 GB
-> recommended, 2 vCPU**. Add the optional apps or the mailbox and step up as the tables below show.
+> A common starting set of Docs + Drive runs on **4 GB minimum, 8 GB
+> recommended, 2 vCPU**. Add more apps or the mailbox and step up as the tables below show.
 
 ## What to buy
 
 | Profile | RAM (minimum) | RAM (recommended) | vCPU | Disk |
 |---|---|---|---|---|
-| **Recommended core** — Docs + Drive | 4 GB | 8 GB | 2 | 40 GB |
-| **+ Optional** — Grist, Projects | 6 GB | 10 GB | 2–4 | +15 GB |
+| **Docs + Drive** (common starting set) | 4 GB | 8 GB | 2 | 40 GB |
+| **+ Grist, Projects** | 6 GB | 10 GB | 2–4 | +15 GB |
 | **+ Mailbox** — messages | 8 GB | 12 GB | 4 | +10 GB |
 | **+ Meet** — video (LiveKit) | 8 GB | 12 GB | 4 | +5 GB |
 
@@ -38,15 +38,15 @@ their chart defaults.
 | Component | Enabled | CPU request | Memory request | Memory limit |
 |---|---|---|---|---|
 | **Foundation** (Keycloak, PostgreSQL, Valkey, cert-manager + CNPG operators) | always on | ~0.4 vCPU | ~1.4 GB | ~2.8 GB |
-| **Docs** (backend, Celery, frontend, y-provider) | opt-in (recommended core) | 0.25 vCPU | 1.0 GB | 2.5 GB |
-| **Drive** (backend, Celery, frontend) | opt-in (recommended core) | 0.15 vCPU | 0.65 GB | 1.4 GB |
-| **Grist** | no (optional) | 0.1 vCPU | 0.25 GB | 1.0 GB |
-| **Projects** | no (optional) | 0.1 vCPU | 0.25 GB | 0.75 GB |
-| **Mailbox** (backend, worker, frontend, 2× MTA) | no (advanced) | 0.45 vCPU | 1.15 GB | 2.3 GB |
-| **Meet** (backend, Celery, frontend, LiveKit, Egress) | no (advanced) | 0.9 vCPU | 1.65 GB | 4.8 GB |
+| **Docs** (backend, Celery, frontend, y-provider) | opt-in | 0.25 vCPU | 1.0 GB | 2.5 GB |
+| **Drive** (backend, Celery, frontend) | opt-in | 0.15 vCPU | 0.65 GB | 1.4 GB |
+| **Grist** | opt-in | 0.1 vCPU | 0.25 GB | 1.0 GB |
+| **Projects** | opt-in | 0.1 vCPU | 0.25 GB | 0.75 GB |
+| **Mailbox** (backend, worker, frontend, 2× MTA) | opt-in | 0.45 vCPU | 1.15 GB | 2.3 GB |
+| **Meet** (backend, Celery, frontend, LiveKit, Egress) | opt-in | 0.9 vCPU | 1.65 GB | 4.8 GB |
 | **Garage** object store (only if not using external S3) | no | 0.05 vCPU | 0.13 GB | 0.5 GB |
 
-With the recommended core + optional + mailbox enabled, the declared requests total
+With Docs, Drive, Grist, Projects and the mailbox enabled, the declared requests total
 **~1.5 vCPU / 4.7 GB** and the memory limits total **~11 GB** — which is why 12 GB is the
 recommended figure there. **Meet** is the heavy outlier: real-time media (LiveKit) and, during a
 recording, the headless-Chrome **Egress** are CPU- and RAM-hungry and also consume real network

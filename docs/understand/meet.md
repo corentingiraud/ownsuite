@@ -1,6 +1,6 @@
 # Meet application
 
-An **advanced** optional app beyond the core (Docs + Drive). **Meet**
+**Meet**
 ([suitenumerique/meet](https://github.com/suitenumerique/meet) — video conferencing
 powered by [LiveKit](https://github.com/livekit/livekit)) is wired to the same shared
 foundation, with Keycloak SSO so a user provisioned once reaches it on first login

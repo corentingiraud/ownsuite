@@ -89,7 +89,7 @@ def _ui_reachable(host):
     return retry(fetch, attempts=40, delay=3)
 
 
-# --- Grist (optional) -------------------------------------------------------
+# --- Grist -------------------------------------------------------------------
 
 
 @only("grist")
@@ -123,7 +123,7 @@ def test_grist_ui_reachable():
     _ui_reachable(app_host("grist"))
 
 
-# --- Projects (optional) ----------------------------------------------------
+# --- Projects ----------------------------------------------------------------
 
 
 @only("projects")
@@ -144,7 +144,7 @@ def test_projects_ui_reachable():
     _ui_reachable(app_host("projects"))
 
 
-# --- Mailbox (optional, advanced) -------------------------------------------
+# --- Mailbox -----------------------------------------------------------------
 
 
 @only("messages")

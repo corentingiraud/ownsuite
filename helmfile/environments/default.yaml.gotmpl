@@ -110,7 +110,7 @@ keycloak:
 # Per-app toggles. Each app is a Helmfile release gated on its flag (ADR-001).
 # EVERY app is OFF by default (ADR-035): only Keycloak and the shared platform come
 # up unattended; the operator opts each app in (the installer prompts, or set
-# OWNSUITE_APP_*=true). Docs+Drive are still the recommended first pair.
+# OWNSUITE_APP_*=true). Every app is optional and equal.
 apps:
   # Docs (suitenumerique/docs) — collaborative documents. Enable with OWNSUITE_APP_DOCS=true.
   docs:
@@ -135,8 +135,8 @@ apps:
     enabled: {{ env "OWNSUITE_APP_PROJECTS" | default "false" }}
     # Uploads (avatars/backgrounds/attachments) live on S3 now (ADR-031), so the
     # off-site object copy covers them — no PVC, no storageSize knob.
-  # Messages (suitenumerique/messages, mailbox) — OFF by default (ADR-021, ADR-026):
-  # the optional, advanced add-on. Enable with OWNSUITE_APP_MESSAGES=true.
+  # Messages (suitenumerique/messages, mailbox) — OFF by default (ADR-021, ADR-026).
+  # Enable with OWNSUITE_APP_MESSAGES=true.
   messages:
     enabled: {{ env "OWNSUITE_APP_MESSAGES" | default "false" }}
     # The reputable EU SMTP relay messages' mta-out delivers through (never direct

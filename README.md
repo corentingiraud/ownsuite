@@ -34,21 +34,40 @@ python3 -m suite install    # guided: bare server + domain -> all-in-HTTPS
 Then follow the screen. Prerequisites and the full step-by-step flow are in the
 **[install guide](https://corentingiraud.github.io/ownsuite/get-started/install/)**.
 
+## The `suite` CLI
+
+`python3 -m suite <command>` is the single entry point for both installing and operating
+the stack (argparse, no extra tooling). The commands:
+
+| Command | What it does |
+|---|---|
+| `deps` | One-time: install Python tooling + Ansible collections. |
+| `provision` | Terraform-provision the server + S3 on Scaleway/Infomaniak (optional). |
+| `bootstrap` / `check` | Turn a bare Debian box into a hardened single-node K3s (`check` = dry-run). |
+| `dns` | Print the DNS records to set and write the BIND zone file. |
+| `install` | Guided install: bare server + domain → the whole stack on HTTPS. |
+| `user add\|passwd\|disable` | Manage Keycloak users — one identity reaches every enabled app (JIT). |
+| `status` | Health summary — node, database, certs, backup, apps. |
+| `upgrade` | Backup-gated upgrade: snapshot → diff → apply → health-check → rollback on failure. |
+| `restore` | Restore a clean cluster from the off-site backups. |
+
+Full reference: **[`suite` CLI](https://corentingiraud.github.io/ownsuite/reference/cli/)**.
+
 ## Apps
 
 One identity in Keycloak reaches every enabled app (single sign-on, just-in-time). **Every app
-is off by default**; each is opt-in via its flag or the guided installer's prompts. **Docs +
-Drive** are the recommended first pair (the installer presents them as such).
+is off by default** — opt each in via its flag or the guided installer's prompts.
 
-| App | What it is | Default | Flag | Status |
-|---|---|---|---|---|
-| **Docs** | Collaborative documents (suitenumerique/impress) | off | `OWNSUITE_APP_DOCS` | core |
-| **Drive** | File manager (suitenumerique/drive) | off | `OWNSUITE_APP_DRIVE` | core |
-| **Grist** | Spreadsheets that behave like a database (getgrist) | off | `OWNSUITE_APP_GRIST` | optional |
-| **Projects** | Kanban boards / task management (suitenumerique/projects) | off | `OWNSUITE_APP_PROJECTS` | optional |
-| **Mailbox** | Mail provider + webmail (suitenumerique/messages) | off | `OWNSUITE_APP_MESSAGES` | advanced |
+| App | What it is | Flag |
+|---|---|---|
+| **Docs** | Collaborative documents (suitenumerique/impress) | `OWNSUITE_APP_DOCS` |
+| **Drive** | File manager (suitenumerique/drive) | `OWNSUITE_APP_DRIVE` |
+| **Grist** | Spreadsheets that behave like a database (getgrist) | `OWNSUITE_APP_GRIST` |
+| **Projects** | Kanban boards / task management (suitenumerique/projects) | `OWNSUITE_APP_PROJECTS` |
+| **Mailbox** | Mail provider + webmail (suitenumerique/messages) | `OWNSUITE_APP_MESSAGES` |
+| **Meet** | Video conferencing on LiveKit (suitenumerique/meet) | `OWNSUITE_APP_MEET` |
 
-Some upstream La Suite apps (Meet, People, Calendars…) are deliberately not packaged — see
+Some upstream La Suite apps (People, Calendars…) are deliberately not packaged — see
 [Not supported](https://corentingiraud.github.io/ownsuite/project/roadmap/#not-supported-and-why).
 See the [status board](https://corentingiraud.github.io/ownsuite/project/roadmap/) for the
 full feature list and what's planned.
@@ -59,14 +78,14 @@ Production essentials, implemented and **proven in CI**:
 
 - ✅ **One-command bootstrap** — Ansible turns a bare Debian box into a hardened single-node K3s.
 - ✅ **Shared foundation** — Traefik + cert-manager (HTTPS), CloudNativePG, Valkey, Keycloak SSO.
-- ✅ **Recommended core apps** — Docs and Drive (opt-in) wired to SSO, Postgres, and S3 storage.
+- ✅ **Opt-in apps** — each app you enable is wired to SSO, Postgres, and S3 storage.
 - ✅ **One-command user provisioning** — `suite user add` grants every enabled app at once (JIT).
 - ✅ **Guided installer** — DNS records, propagation gate, Let's Encrypt staging → production.
 - ✅ **Backups + tested restore** — off-site, encrypted; CI replays *backup → destroy → restore* nightly.
 
 ## Stack
 
-K3s · Helmfile · Traefik · cert-manager · CloudNativePG · Valkey · Keycloak · Scaleway (or Infomaniak) · external EU S3 / Garage · rclone
+K3s · Helmfile · Traefik · cert-manager · CloudNativePG · Valkey · Keycloak · fail2ban · LiveKit (Meet) · Scaleway (or Infomaniak) · external EU S3 / Garage · rclone
 
 ## Contributing
 

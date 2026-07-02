@@ -29,24 +29,24 @@ production needs: **backups, tested restore, controlled upgrades**.
 !!! info "What's ready today"
     The platform is built and tested in CI: server setup, shared single sign-on, off-site
     backups with a restore that's actually tested, and the guided installer. **Every app is
-    off by default — you choose which to deploy.** **Docs** and **Drive** are the
-    recommended core; **Grist**, **Projects** and a **Mailbox** are also available. See
+    off by default — you choose which to deploy.** Docs, Drive, Grist, Projects, a Mailbox
+    and Meet are all available. See
     [Choosing which apps to deploy](reference/configuration.md#choosing-which-apps-to-deploy)
     and the [feature list](project/roadmap.md).
 
 ## The apps
 
 One Keycloak identity reaches every enabled app (single sign-on, just-in-time). **Every app is
-off by default** — you pick which to deploy. **Docs + Drive** are the recommended first pair.
+off by default** — you pick which to deploy.
 
-| App | What it is | Status |
+| App | What it is | Flag |
 |---|---|---|
-| **[Docs](understand/docs.md)** | Collaborative documents | recommended core |
-| **[Drive](understand/drive.md)** | File manager | recommended core |
-| **[Grist](understand/grist.md)** | Spreadsheets that behave like a database | optional |
-| **[Projects](understand/projects.md)** | Kanban boards / task management | optional |
-| **[Mailbox](understand/messages.md)** | Mail provider + webmail | advanced |
-| **[Meet](understand/meet.md)** | Video conferencing (LiveKit) | advanced |
+| **[Docs](understand/docs.md)** | Collaborative documents | `OWNSUITE_APP_DOCS` |
+| **[Drive](understand/drive.md)** | File manager | `OWNSUITE_APP_DRIVE` |
+| **[Grist](understand/grist.md)** | Spreadsheets that behave like a database | `OWNSUITE_APP_GRIST` |
+| **[Projects](understand/projects.md)** | Kanban boards / task management | `OWNSUITE_APP_PROJECTS` |
+| **[Mailbox](understand/messages.md)** | Mail provider + webmail | `OWNSUITE_APP_MESSAGES` |
+| **[Meet](understand/meet.md)** | Video conferencing (LiveKit) | `OWNSUITE_APP_MEET` |
 
 Some upstream La Suite apps (People, Calendars…) are deliberately not packaged — see
 [Not supported](project/roadmap.md#not-supported-and-why).

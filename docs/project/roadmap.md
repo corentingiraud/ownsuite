@@ -43,10 +43,6 @@ Production essentials, implemented and **proven in CI**:
   [server bootstrap](../get-started/bootstrap.md).
 - **Shared foundation** — Traefik + cert-manager (HTTPS), CloudNativePG, Valkey, Keycloak SSO,
   pluggable Garage / external EU S3. See [shared infrastructure](../understand/platform.md).
-- **Docs** *(recommended core, off until enabled)* — collaborative documents wired to SSO, Postgres and S3.
-  See [Docs application](../understand/docs.md).
-- **Drive** *(recommended core, off until enabled)* — file manager on the same foundation; one identity reaches
-  Docs **and** Drive. See [Drive application](../understand/drive.md).
 - **Shared SSO + JIT user provisioning** — one Keycloak identity, just-in-time into every app;
   `suite user add/passwd/disable`. See [Users](../operate/users.md).
 - **Guided installer** — `suite install` generates the DNS records, gates on propagation, issues
@@ -57,24 +53,29 @@ Production essentials, implemented and **proven in CI**:
   **backup → destroy → restore** cycle. See [Backups & restore](../operate/backups.md).
 - **Tuned for a single small server** — resource requests/limits and liveness/readiness probes on
   every workload, with a per-app **server-sizing guide** (RAM/CPU/disk). See [Sizing](../operate/sizing.md).
-- **Per-app boot checks in CI** — each optional app boots on its own fresh cluster nightly,
+- **Per-app boot checks in CI** — each app boots on its own fresh cluster nightly,
   including the mailbox local-delivery loopback.
 - **Backup-gated upgrades + health surfacing** — `suite upgrade` (snapshot → diff → apply →
   health check → rollback on failure) and `suite status`. See [Upgrade](../operate/upgrade.md)
   and [Status](../operate/status.md).
 
-## Optional apps (off by default)
+## Apps (all off by default)
 
-Enable each with one `OWNSUITE_APP_*` flag; they reuse the same SSO + JIT seam.
+Every app is opt-in via one `OWNSUITE_APP_*` flag; they reuse the same SSO + JIT seam and are
+boot-checked in CI. Enable any combination.
 
-- **Grist** *(optional)* — spreadsheets that behave like a database
+- **Docs** — collaborative documents, `suitenumerique/impress`
+  (`OWNSUITE_APP_DOCS`), wired to SSO, Postgres and S3. See [Docs application](../understand/docs.md).
+- **Drive** — file manager, `suitenumerique/drive` (`OWNSUITE_APP_DRIVE`), on the same
+  foundation; one identity reaches Docs **and** Drive. See [Drive application](../understand/drive.md).
+- **Grist** — spreadsheets that behave like a database
   (`OWNSUITE_APP_GRIST`). See [Grist application](../understand/grist.md).
-- **Projects** *(optional)* — kanban boards / task management
+- **Projects** — kanban boards / task management
   (`OWNSUITE_APP_PROJECTS`). See [Projects application](../understand/projects.md).
-- **Mailbox** *(advanced)* — La Suite's own mail app, `suitenumerique/messages`
+- **Mailbox** — La Suite's own mail app, `suitenumerique/messages`
   (`OWNSUITE_APP_MESSAGES`). Mail is the hardest part to make reliable, so it ships isolated
   and disabled by default. See [Mailbox application](../understand/messages.md).
-- **Meet** *(advanced)* — video conferencing, `suitenumerique/meet` on LiveKit
+- **Meet** — video conferencing, `suitenumerique/meet` on LiveKit
   (`OWNSUITE_APP_MEET`). The only app needing non-HTTP ports: LiveKit media on
   `7882/udp` (mux) + `7881/tcp` (fallback), opened via the Terraform/Ansible
   `enable_meet` flag ([ADR-039](../understand/decisions.md#adr-039-meet-media-ports-single-udp-mux-tcp-fallback)).

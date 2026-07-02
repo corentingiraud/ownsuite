@@ -20,7 +20,7 @@ TEXT_PROMPTS = [
 ]
 
 # App toggles — every app is off by default (ADR-035); the operator opts each in
-# via a checkbox (or OWNSUITE_APP_*). Docs+Drive are the recommended first pair.
+# via a checkbox (or OWNSUITE_APP_*).
 # The mailbox (ADR-026) is more involved: if enabled, the installer also generates
 # a DKIM key and prints MX/SPF/DKIM/DMARC + the rDNS/port-25 manual steps and needs
 # the relay account (OWNSUITE_MTA_RELAY_USERNAME/PASSWORD) exported before sync.

@@ -12,8 +12,8 @@ suite user disable alice@assoc.org    # deactivate (revokes access to all apps a
 ```
 
 > **The result:** `suite user add firstname@assoc.org` and that person can reach every app
-> you've enabled the first time they log in — with the recommended core (Docs **and** Drive)
-> enabled, that's Docs and Drive immediately. Tested in CI.
+> you've enabled the first time they log in — if you enabled Docs **and** Drive, that's
+> both of them immediately. Tested in CI.
 
 ## How it connects
 

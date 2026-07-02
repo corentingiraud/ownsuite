@@ -1,6 +1,6 @@
 # Projects application
 
-An **optional** app beyond the core (Docs + Drive). **Projects**
+**Projects**
 ([suitenumerique/projects](https://github.com/suitenumerique/projects) — kanban boards / task
 management, a Sails.js fork of Planka) is wired to the same shared foundation, with Keycloak SSO
 so a user provisioned once reaches it on first login.

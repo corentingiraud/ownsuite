@@ -17,8 +17,7 @@ set -a && source .env && set +a
 **No app is deployed by default.** A fresh install brings up only single sign-on
 (Keycloak) and the shared platform; you opt each app in explicitly. There are two ways:
 
-- **In the installer** — `suite install` prompts for each app (Docs and Drive are
-  presented as the recommended first pair), all defaulting off.
+- **In the installer** — `suite install` prompts for each app, all defaulting off.
 - **By variable** — set the app's flag to `true` in `.env` (or export it) and `make sync`.
 
 ```bash
@@ -27,18 +26,18 @@ OWNSUITE_APP_DOCS=true        # then: make sync   (or: suite upgrade)
 
 | App | Variable | Default | What it is |
 |---|---|---|---|
-| Docs | `OWNSUITE_APP_DOCS` | `false` | Collaborative documents (recommended core). |
-| Drive | `OWNSUITE_APP_DRIVE` | `false` | File manager (recommended core). |
+| Docs | `OWNSUITE_APP_DOCS` | `false` | Collaborative documents. |
+| Drive | `OWNSUITE_APP_DRIVE` | `false` | File manager. |
 | Grist | `OWNSUITE_APP_GRIST` | `false` | Spreadsheets that behave like a database. |
 | Projects | `OWNSUITE_APP_PROJECTS` | `false` | Kanban boards / task management. |
-| Mailbox | `OWNSUITE_APP_MESSAGES` | `false` | Mail provider + webmail (advanced). |
-| Meet | `OWNSUITE_APP_MEET` | `false` | Video conferencing on LiveKit (advanced — also needs `enable_meet`, see below). |
+| Mailbox | `OWNSUITE_APP_MESSAGES` | `false` | Mail provider + webmail. |
+| Meet | `OWNSUITE_APP_MEET` | `false` | Video conferencing on LiveKit (also needs `enable_meet`, see below). |
 
 Turning an app off again (`=false`) and re-syncing removes its workloads. Each app reaches
 every user you've added through the same single sign-on — see [Users](../operate/users.md).
 Per-app detail: [Docs](../understand/docs.md), [Drive](../understand/drive.md),
 [Grist](../understand/grist.md), [Projects](../understand/projects.md),
-[Mailbox](../understand/messages.md). For how much server each app needs, see
+[Mailbox](../understand/messages.md), [Meet](../understand/meet.md). For how much server each app needs, see
 [Sizing](../operate/sizing.md).
 
 ## Core

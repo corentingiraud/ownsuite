@@ -1,6 +1,6 @@
 # Grist application
 
-An **optional** app beyond the core (Docs + Drive). **Grist**
+**Grist**
 ([getgrist](https://github.com/gristlabs/grist-core) — spreadsheets that behave like a
 database) is wired to the same shared foundation, with Keycloak SSO so a user provisioned
 once reaches it on first login (JIT — no per-app step).
