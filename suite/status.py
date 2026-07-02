@@ -129,15 +129,25 @@ def summarise_backup(cronjobs, jobs):
 
 
 def summarise_app_pods(pods, app):
-    """(running, total, all_ready) for one app's pods, matched on the
-    app.kubernetes.io/name (or the `app` label) carrying the app name."""
-    items = [p for p in pods.get("items", []) if _pod_app(p) == app]
+    """(running, total, all_ready) for one app's long-running pods, matched on the
+    app.kubernetes.io/name (or the `app` label) carrying the app name. One-shot
+    Job/CronJob pods (migrations, file-cleanup crons) are excluded: they legitimately
+    end Succeeded/Failed and are not service health, so counting them would flip a
+    healthy app to FAIL (e.g. meet's clean_pending_files cron)."""
+    items = [p for p in pods.get("items", [])
+             if _pod_app(p) == app and not _job_pod(p)]
     total = len(items)
     running = sum(1 for p in items if p.get("status", {}).get("phase") == "Running")
     all_ready = total > 0 and all(
         _ready(p.get("status", {}).get("conditions")) for p in items
     )
     return running, total, all_ready
+
+
+def _job_pod(pod):
+    """True if the pod is owned by a Job (batch), i.e. a one-shot Job/CronJob pod."""
+    owners = pod.get("metadata", {}).get("ownerReferences", [])
+    return any(o.get("kind") == "Job" for o in owners)
 
 
 def _pod_app(pod):
