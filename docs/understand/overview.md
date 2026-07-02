@@ -16,7 +16,7 @@ flowchart TB
         subgraph APPS["Applications"]
             D["Docs"]
             DR["Drive"]
-            OPT["Grist · Projects · Mailbox\n(optional)"]
+            OPT["Grist · Projects · Mailbox · Meet\n(off by default)"]
         end
         KC["Keycloak\nSSO OIDC — 1 realm"]
         subgraph INFRA["Shared infrastructure"]
@@ -59,13 +59,13 @@ Every app trusts **the same login**. So you add a person **once**, and they get 
 **all** the apps — their account in each one is created automatically the first time they
 sign in. No per-app setup, no separate passwords.
 
-## Optional and out-of-scope apps
+## Apps that need extra setup
 
-- **Mailbox** *(optional, advanced — off by default)*: La Suite's own mail app
+- **Mailbox** *(off by default)*: La Suite's own mail app
   ([suitenumerique/messages](https://github.com/suitenumerique/messages)), federated to the
   same Keycloak. Mail is the hardest part to make reliable (deliverability, port 25, rDNS),
   so it ships isolated and disabled by default. See the [Mailbox application](messages.md).
-- **Meet** *(optional, advanced — off by default)*: video conferencing
+- **Meet** *(off by default)*: video conferencing
   ([suitenumerique/meet](https://github.com/suitenumerique/meet)) powered by LiveKit,
   federated to the same Keycloak. It is the only app needing non-HTTP ports — LiveKit
   media on `7882/udp` (mux) + `7881/tcp` (fallback), opened via the `enable_meet`

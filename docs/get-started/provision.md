@@ -89,7 +89,7 @@ Confirm these account-specific values before you apply:
 |---|---|
 | `project_id` / `organization_id` | `scw config get default-project-id` / `default-organization-id`. |
 | `image` | `scw marketplace image list` — `debian_bookworm` (12) is confirmed; check the label before setting Debian 13. |
-| `type` | `PRO2-XXS` (2 vCPU / 8 GB) for the core apps; `PRO2-XS` for Mailbox. PRO2 has no local SSD, so `root_volume_type = "sbs_volume"` (the default). |
+| `type` | `PRO2-XXS` (2 vCPU / 8 GB) for a starting set like Docs + Drive; `PRO2-XS` for Mailbox. PRO2 has no local SSD, so `root_volume_type = "sbs_volume"` (the default). |
 | `bucket_names` | One media bucket per enabled app in `external` mode — see [Object storage](#object-storage). |
 
 ### Watch out

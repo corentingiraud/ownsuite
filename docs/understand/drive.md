@@ -1,7 +1,7 @@
 # Drive application
 
 **Drive** (the [suitenumerique](https://github.com/suitenumerique/drive) file manager) is
-OwnSuite's recommended second core app, wired to the same shared foundation as Docs, so
+wired to the same shared foundation as Docs, so
 someone you add once has Docs **and** Drive — with no extra setup per app. Like every app
 it is **opt-in / off by default**; enable it with `OWNSUITE_APP_DRIVE=true` (or via the
 installer prompt).

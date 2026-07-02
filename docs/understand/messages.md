@@ -1,6 +1,6 @@
 # Mailbox application
 
-The **optional, advanced** add-on: a mailbox (off by default).
+A mailbox (off by default).
 **[suitenumerique/messages](https://github.com/suitenumerique/messages)** is La Suite's own mail
 app — a full provider with its own Postfix MTA, a Django MDA that stores and indexes mail, and an
 **integrated webmail**. It is federated to the same Keycloak, so a user provisioned once reaches it

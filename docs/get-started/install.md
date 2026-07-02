@@ -44,7 +44,7 @@ it and re-run `make install` to resume:
    [Provision the server](provision.md).
 1. **Config.** Interactive prompts collect the domain, admin email, server SSH target,
    object-storage mode (arrow-key select), backups (yes/no), and **which apps to enable**
-   (a checkbox — every app is off by default; Docs + Drive are the recommended first pair),
+   (a checkbox — every app is off by default),
    and writes the non-secret values to a git-ignored `.env`. Every prompt — and many more
    optional knobs — maps to an `OWNSUITE_*` variable; the full list is the
    [Configuration reference](../reference/configuration.md).
