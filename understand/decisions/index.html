@@ -1,0 +1,3582 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Self-host La Suite numérique, production-ready, on a single server, for a non-profit — K3s, Helmfile, shared SSO, backups included.">
+      
+      
+      
+        <link rel="canonical" href="https://corentingiraud.github.io/ownsuite/understand/decisions/">
+      
+      
+        <link rel="prev" href="../meet/">
+      
+      
+        <link rel="next" href="../../reference/cli/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Design decisions - OwnSuite</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#architecture-decision-records-adr" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="OwnSuite" class="md-header__button md-logo" aria-label="OwnSuite" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            OwnSuite
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Design decisions
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/corentingiraud/ownsuite" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    corentingiraud/ownsuite
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="OwnSuite" class="md-nav__button md-logo" aria-label="OwnSuite" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    OwnSuite
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/corentingiraud/ownsuite" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    corentingiraud/ownsuite
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/provision/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0. Provision (Terraform)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/bootstrap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare the server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operate
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operate
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operate/users/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operate/sizing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server sizing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operate/status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Status & monitoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operate/upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Upgrading
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operate/backups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backups & restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How it works
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How it works
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../platform/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Under the hood
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../projects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Projects
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mailbox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../meet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design decisions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#adr-001-k3s-helmfile-not-compose-or-raw-helm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-001 — K3s + Helmfile (not Compose or raw Helm)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-002-ansible-for-the-host-not-nix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-002 — Ansible for the host (not Nix)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-003-pluggable-object-storage-garage-or-external-eu-s3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-003 — Pluggable object storage: Garage or external EU S3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-004-cloudnativepg-valkey-leaving-bitnami" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-004 — CloudNativePG + Valkey (leaving Bitnami)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-005-shared-keycloak-jit-provisioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-005 — Shared Keycloak, JIT provisioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-006-backups-and-tested-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-006 — Backups and tested restore
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-007-upgrade-model-semver-releases-backup-gated-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-007 — Upgrade model: semver releases + backup-gated CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-008-mailbox-out-of-scope-for-v1-feasible-as-an-add-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-008 — Mailbox out of scope for v1 (feasible as an add-on)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-009-documentation-mkdocs-material-llmstxt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-009 — Documentation: MkDocs Material + llms.txt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-010-testing-ci-strategy-a-layered-evolving-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-010 — Testing &amp; CI strategy: a layered, evolving harness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-011 — Keycloak via the codecentric/keycloakx chart (not the Operator)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-012 — Secrets derived from a single secretSeed via Helm templating
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-013-tls-issuance-cert-manager-http-01-per-subdomain-wildcard-dns-01-deferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-013 — TLS issuance: cert-manager HTTP-01 per-subdomain (wildcard DNS-01 deferred)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-014-operator-control-plane-local-workstation-ssh-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-014 — Operator control plane: local workstation + SSH tunnel
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-015 — In-cluster object storage: Garage (single-node), deterministic key
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-016 — Docs (impress) integration: one namespace, Traefik ingress, OIDC split
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-017 — Backups &amp; tested restore: Barman Cloud Plugin, rclone, off-site by design
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-018-guided-installer-suite-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-018 — Guided installer (suite install)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-019-tls-staging-first-issuance-dns-01-deferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-019 — TLS: staging-first issuance, DNS-01 deferred
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-020 — Keycloak realm convergence: idempotent OIDC client upsert
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-021 — Mailbox: suitenumerique/messages, outbound via EU relay
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-022 — Drive integration: reuse the Docs seam, per-app buckets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-023-user-provisioning-suite-user-admin-rest-over-the-tunnel-jit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-023 — User provisioning: suite user, admin REST over the tunnel, JIT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-024 — Grist integration: local chart, public-issuer OIDC, PVC storage, off by default
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-025 — Projects integration: local chart, public-issuer OIDC, PVC storage, off by default
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-026 — Mailbox integration: messages, Django OIDC split, reuse the seam, OpenSearch deferred
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-027 — Non-HTTP ingress: inbound SMTP on port 25 via K3s ServiceLB
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-028-resource-requestslimits-and-probes-for-every-workload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-028 — Resource requests/limits and probes for every workload
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-029-per-app-nightly-e2e-one-app-per-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-029 — Per-app nightly e2e: one app per cluster
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-030-n-bucket-off-site-object-backup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-030 — N-bucket off-site object backup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-031-projects-uploads-on-s3-eliminating-the-pvc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-031 — Projects uploads on S3, eliminating the PVC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-032-standardised-reusable-off-site-pvc-backup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-032 — Standardised reusable off-site PVC backup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-033-suite-status-for-monitoring-cli-no-in-cluster-workload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-033 — suite status for monitoring (CLI, no in-cluster workload)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-034 — suite upgrade (backup-gated snapshot → diff → apply → health → rollback)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-035-every-app-off-by-default-opt-in-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-035 — Every app off by default; opt-in install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-036-suite-restore-backup-gated-clean-cluster-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-036 — suite restore (backup-gated, clean-cluster recovery)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-037-one-entrypoint-for-operators-every-action-is-a-suite-cli-verb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-037 — One entrypoint for operators: every action is a suite CLI verb
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-038 — Hosting provider: Scaleway recommended (Infomaniak alternative)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-039-meet-media-ports-single-udp-mux-tcp-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-039 — Meet media ports: single UDP mux + TCP fallback
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-040-suite-on-path-via-a-global-pipx-install-static-shell-completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-040 — suite on PATH via a global pipx install + static shell completion
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    suite CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../project/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Status &amp; roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../project/for-ai-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For AI agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#adr-001-k3s-helmfile-not-compose-or-raw-helm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-001 — K3s + Helmfile (not Compose or raw Helm)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-002-ansible-for-the-host-not-nix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-002 — Ansible for the host (not Nix)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-003-pluggable-object-storage-garage-or-external-eu-s3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-003 — Pluggable object storage: Garage or external EU S3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-004-cloudnativepg-valkey-leaving-bitnami" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-004 — CloudNativePG + Valkey (leaving Bitnami)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-005-shared-keycloak-jit-provisioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-005 — Shared Keycloak, JIT provisioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-006-backups-and-tested-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-006 — Backups and tested restore
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-007-upgrade-model-semver-releases-backup-gated-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-007 — Upgrade model: semver releases + backup-gated CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-008-mailbox-out-of-scope-for-v1-feasible-as-an-add-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-008 — Mailbox out of scope for v1 (feasible as an add-on)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-009-documentation-mkdocs-material-llmstxt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-009 — Documentation: MkDocs Material + llms.txt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-010-testing-ci-strategy-a-layered-evolving-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-010 — Testing &amp; CI strategy: a layered, evolving harness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-011 — Keycloak via the codecentric/keycloakx chart (not the Operator)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-012 — Secrets derived from a single secretSeed via Helm templating
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-013-tls-issuance-cert-manager-http-01-per-subdomain-wildcard-dns-01-deferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-013 — TLS issuance: cert-manager HTTP-01 per-subdomain (wildcard DNS-01 deferred)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-014-operator-control-plane-local-workstation-ssh-tunnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-014 — Operator control plane: local workstation + SSH tunnel
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-015 — In-cluster object storage: Garage (single-node), deterministic key
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-016 — Docs (impress) integration: one namespace, Traefik ingress, OIDC split
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-017 — Backups &amp; tested restore: Barman Cloud Plugin, rclone, off-site by design
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-018-guided-installer-suite-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-018 — Guided installer (suite install)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-019-tls-staging-first-issuance-dns-01-deferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-019 — TLS: staging-first issuance, DNS-01 deferred
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-020 — Keycloak realm convergence: idempotent OIDC client upsert
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-021 — Mailbox: suitenumerique/messages, outbound via EU relay
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-022 — Drive integration: reuse the Docs seam, per-app buckets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-023-user-provisioning-suite-user-admin-rest-over-the-tunnel-jit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-023 — User provisioning: suite user, admin REST over the tunnel, JIT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-024 — Grist integration: local chart, public-issuer OIDC, PVC storage, off by default
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-025 — Projects integration: local chart, public-issuer OIDC, PVC storage, off by default
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-026 — Mailbox integration: messages, Django OIDC split, reuse the seam, OpenSearch deferred
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-027 — Non-HTTP ingress: inbound SMTP on port 25 via K3s ServiceLB
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-028-resource-requestslimits-and-probes-for-every-workload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-028 — Resource requests/limits and probes for every workload
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-029-per-app-nightly-e2e-one-app-per-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-029 — Per-app nightly e2e: one app per cluster
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-030-n-bucket-off-site-object-backup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-030 — N-bucket off-site object backup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-031-projects-uploads-on-s3-eliminating-the-pvc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-031 — Projects uploads on S3, eliminating the PVC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-032-standardised-reusable-off-site-pvc-backup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-032 — Standardised reusable off-site PVC backup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-033-suite-status-for-monitoring-cli-no-in-cluster-workload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-033 — suite status for monitoring (CLI, no in-cluster workload)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-034 — suite upgrade (backup-gated snapshot → diff → apply → health → rollback)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-035-every-app-off-by-default-opt-in-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-035 — Every app off by default; opt-in install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-036-suite-restore-backup-gated-clean-cluster-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-036 — suite restore (backup-gated, clean-cluster recovery)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-037-one-entrypoint-for-operators-every-action-is-a-suite-cli-verb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-037 — One entrypoint for operators: every action is a suite CLI verb
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-038 — Hosting provider: Scaleway recommended (Infomaniak alternative)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-039-meet-media-ports-single-udp-mux-tcp-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-039 — Meet media ports: single UDP mux + TCP fallback
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-040-suite-on-path-via-a-global-pipx-install-static-shell-completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR-040 — suite on PATH via a global pipx install + static shell completion
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/corentingiraud/ownsuite/edit/main/docs/understand/decisions.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="architecture-decision-records-adr">Architecture Decision Records (ADR)<a class="headerlink" href="#architecture-decision-records-adr" title="Permanent link">&para;</a></h1>
+<p>A log of the structural choices, in a lightweight <em>Context → Decision → Consequences</em>
+format. Each decision is numbered so it can be referenced and revised.</p>
+<hr />
+<h2 id="adr-001-k3s-helmfile-not-compose-or-raw-helm">ADR-001 — K3s + Helmfile (not Compose or raw Helm)<a class="headerlink" href="#adr-001-k3s-helmfile-not-compose-or-raw-helm" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> La Suite's official production path is Helm; the apps' <code>compose.yml</code>
+files are flagged <em>dev only</em>. We target a single server.</p>
+<p><strong>Decision.</strong> A <strong>single-node K3s</strong> cluster orchestrated with <strong>Helmfile</strong>. Helmfile
+is <code>helm upgrade --install</code> done with discipline: it brings dependency ordering
+(<code>config → postgres → keycloak → apps</code>), a preview (<code>helmfile diff</code>) and environments.</p>
+<p><strong>Consequences.</strong> We reuse the official charts (less drift). Traefik and ServiceLB
+come bundled with K3s. Trade-off: a Kubernetes learning curve, hidden behind an
+installer and a <code>suite</code> CLI.</p>
+<hr />
+<h2 id="adr-002-ansible-for-the-host-not-nix">ADR-002 — Ansible for the host (not Nix)<a class="headerlink" href="#adr-002-ansible-for-the-host-not-nix" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> We must provision the server (firewall, fail2ban, swap, sysctl, patches,
+K3s install) reproducibly. Target audience: non-profit volunteers, not Kubernetes/Nix
+experts.</p>
+<p><strong>Decision.</strong> <strong>Ansible</strong> for host configuration and the K3s install.</p>
+<p><strong>Why not Nix.</strong> NixOS's headline advantage — atomic generation rollback — only
+restores the <strong>OS config</strong>, not the cluster state (K3s sqlite/etcd, volumes, app
+data). For a <strong>stateful</strong> stack, that rollback hands you an empty shell you must
+restore from backups anyway: you'd pay Nix's entry cost without reaping its real
+benefit. Add a much smaller contributor pool and scarce server images. A community NixOS
+variant remains possible later, off the main path.</p>
+<p><strong>Consequences.</strong> Low barrier for admins and contributors; re-runnable playbooks for
+OS/K3s version bumps. Drift is possible on manual edits (mitigated by idempotence and CI).</p>
+<hr />
+<h2 id="adr-003-pluggable-object-storage-garage-or-external-eu-s3">ADR-003 — Pluggable object storage: Garage or external EU S3<a class="headerlink" href="#adr-003-pluggable-object-storage-garage-or-external-eu-s3" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> MinIO (community) is <strong>archived</strong> (February 2026): console removed,
+binaries/images discontinued. Drive can store hundreds of GB.</p>
+<p><strong>Decision.</strong> <strong>Pluggable</strong> object storage via config: a <strong>managed EU S3</strong> (Scaleway,
+OVH, AWS) <strong>or</strong> <strong>Garage</strong> (self-hosted, French, lightweight). Recommended production
+default: <strong>external S3 on Scaleway</strong> — its Object Storage is CORS-capable, which Drive's
+browser uploads require (<a href="#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative">ADR-038</a>).</p>
+<p><strong>Consequences.</strong> No storage ops with external S3, smaller server disk, simpler backups;
+Garage for full sovereignty or CORS-incapable hosts (Infomaniak's Swift+s3api). Even with
+external S3, an <strong>off-site application-level backup</strong> of the objects is still required
+(accidental deletion, lock-in).</p>
+<hr />
+<h2 id="adr-004-cloudnativepg-valkey-leaving-bitnami">ADR-004 — CloudNativePG + Valkey (leaving Bitnami)<a class="headerlink" href="#adr-004-cloudnativepg-valkey-leaving-bitnami" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Broadcom locked down the free Bitnami catalog (August 28, 2025), moving
+images to the unmaintained <code>bitnamilegacy</code>. The reference solution depended on it
+(<code>bitnami/postgresql</code>, <code>bitnami/redis</code>).</p>
+<p><strong>Decision.</strong> <strong>CloudNativePG</strong> (operator) for PostgreSQL — with <strong>native</strong> WAL/PITR
+backups to S3. <strong>Valkey</strong> (open Redis fork) for cache/broker.</p>
+<p><strong>Consequences.</strong> A maintained, libre foundation; Postgres backup becomes an operator
+feature rather than a homegrown script. CNPG adds an operator to run (acceptable).</p>
+<hr />
+<h2 id="adr-005-shared-keycloak-jit-provisioning">ADR-005 — Shared Keycloak, JIT provisioning<a class="headerlink" href="#adr-005-shared-keycloak-jit-provisioning" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> A "suite" implies a single identity across apps. ProConnect is not open
+to non-profits.</p>
+<p><strong>Decision.</strong> Self-hosted <strong>Keycloak</strong>, <strong>1 realm</strong>, <strong>1 OIDC client per app</strong>
+(secrets derived from a single <code>secretSeed</code>). Creating a user <strong>once</strong> → access to all
+apps via <strong>JIT</strong> provisioning.</p>
+<p><strong>Consequences.</strong> Real SSO plus a simple admin journey. Each app's OIDC quirks must be
+validated one by one (possible residual ProConnect assumptions).</p>
+<hr />
+<h2 id="adr-006-backups-and-tested-restore">ADR-006 — Backups and tested restore<a class="headerlink" href="#adr-006-backups-and-tested-restore" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Existing solutions ship <strong>no</strong> backups. This is the heart of
+"production-ready".</p>
+<p><strong>Decision.</strong> Back up the <strong>three sources of state</strong>: PostgreSQL (CNPG PITR to S3),
+objects (bucket replication or <code>restic</code>/<code>rclone</code> off-site), Keycloak realm (scheduled
+export). All encrypted, with GFS retention. <strong>Restore is tested</strong> (<code>make restore</code> /
+<code>suite restore</code>), not just the backup.</p>
+<p><strong>Consequences.</strong> Credible disaster recovery. Cost: a CI pipeline that replays
+install → upgrade → restore to keep the promise true over time.</p>
+<hr />
+<h2 id="adr-007-upgrade-model-semver-releases-backup-gated-cli">ADR-007 — Upgrade model: semver releases + backup-gated CLI<a class="headerlink" href="#adr-007-upgrade-model-semver-releases-backup-gated-cli" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> The project aggregates ~6 upstream charts plus infrastructure, all moving
+fast. Long-term administration and upgrades are a design criterion.</p>
+<p><strong>Decision.</strong> The non-profit tracks <strong>the project's releases (semver)</strong>, not upstream
+directly: each tag pins a <strong>tested matrix</strong> <code>{chart versions, image tags, K3s
+version}</code>. Upgrades run through a <strong><code>suite</code> CLI</strong> that is <em>backup-gated</em>: snapshot →
+<code>helmfile diff</code>/<code>apply</code> → migrations → health check → auto-rollback on failure.
+<strong>Renovate/Dependabot</strong> opens bump PRs, tested in CI before a release.</p>
+<p><strong>Consequences.</strong> Sustainable maintenance; upgrades = a git operation plus one
+command. GitOps (Flux/ArgoCD) is possible later; deemed overkill for a single server in v1.</p>
+<p><strong>Concrete tooling.</strong> <strong>Renovate</strong> (<code>renovate.json</code>), not Dependabot — one
+tool that tracks <em>every</em> pin we ship: Python tooling (<code>requirements-*.txt</code>), <strong>Ansible
+Galaxy collections</strong> (<code>ansible/requirements.yml</code>, <code>molecule/requirements.yml</code>), GitHub
+Actions, and the <strong>K3s release</strong> in <code>ansible/group_vars/all.yml</code> (via a custom manager
+against the <code>k3s-io/k3s</code> releases). Dependabot would only cover a subset and would race
+Renovate with duplicate PRs, so it is intentionally omitted. Each bump is a PR gated by
+the <a href="#adr-010-testing-ci-strategy-a-layered-evolving-harness">ADR-010</a> test harness, so
+"stay current" never means "stay untested".</p>
+<hr />
+<h2 id="adr-008-mailbox-out-of-scope-for-v1-feasible-as-an-add-on">ADR-008 — Mailbox out of scope for v1 (feasible as an add-on)<a class="headerlink" href="#adr-008-mailbox-out-of-scope-for-v1-feasible-as-an-add-on" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Superseded in part by <a href="#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay">ADR-021</a>.</strong> The "out of v1, optional add-on" stance and
+the "relay outbound through a reputable EU SMTP" workaround still hold; the mail stack is now
+<strong>suitenumerique/messages</strong>, not Stalwart.</p>
+</blockquote>
+<p><strong>Context.</strong> La Suite numérique provides <strong>no</strong> mail server. The request "create
+<code>firstname@assoc.org</code> with their mailbox" requires a separate stack.</p>
+<p><strong>Decision.</strong> <strong>Out of v1.</strong> Architecturally feasible later: a mail server
+(<strong>Stalwart</strong> recommended, native OIDC) federated to the <strong>same Keycloak</strong>, with
+MX/SPF/DKIM/DMARC records added to the DNS flow and provisioning wired into the
+<code>suite</code> CLI.</p>
+<p><strong>Why deferred.</strong> Outbound email is the hard part (port 25 often blocked, rDNS/PTR at
+the host, IP reputation). Recommended workaround when the time comes: self-host the
+mailboxes but <strong>relay outbound through a reputable EU SMTP</strong>. Since backups and DNS are
+already shared, the add-on blocks none of the earlier work.</p>
+<hr />
+<h2 id="adr-009-documentation-mkdocs-material-llmstxt">ADR-009 — Documentation: MkDocs Material + llms.txt<a class="headerlink" href="#adr-009-documentation-mkdocs-material-llmstxt" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Docs must be published on GitHub Pages and <strong>usable by AI</strong> for future
+development.</p>
+<p><strong>Decision.</strong> <strong>MkDocs + Material</strong>. The decisive "AI-friendly" criterion is a
+<strong>pure-Markdown source</strong> (an agent reads <code>docs/**/*.md</code> with no noise), which rules out
+Docusaurus (MDX/JSX). The <code>mkdocs-llmstxt</code> plugin publishes <code>/llms.txt</code> and
+<code>/llms-full.txt</code>.</p>
+<p><strong>Consequences.</strong> A site that's readable for humans, an ideal raw source for agents,
+and a fetchable full-text dump. Per-version docs via <code>mike</code>, aligned with releases
+(to enable later).</p>
+<hr />
+<h2 id="adr-010-testing-ci-strategy-a-layered-evolving-harness">ADR-010 — Testing &amp; CI strategy: a layered, evolving harness<a class="headerlink" href="#adr-010-testing-ci-strategy-a-layered-evolving-harness" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> ADR-002 makes Ansible the host provisioner and ADR-006 promises a CI
+pipeline that replays <strong>install → upgrade → restore</strong> so the backup/restore promise
+stays true over time. We need automated tests from the start that are cheap enough to run
+on every change, yet able to grow into that full pipeline without being rebuilt.</p>
+<p><strong>Decision.</strong> A <strong>three-layer</strong> test harness, established at the outset and extended
+incrementally. The <em>harness</em> (Molecule + Testinfra + a Debian 12/13 matrix) is the
+stable contract; each increment only adds scenarios and assertions.</p>
+<ol>
+<li><strong>Static</strong> — <code>yamllint</code>, <code>ansible-lint</code> (production profile),
+   <code>ansible-playbook --syntax-check</code>. Runs on every PR in seconds (<code>make lint</code>).</li>
+<li><strong>Per-role container</strong> — Molecule (Docker driver, systemd-enabled Debian images)
+   converges the host-prep roles, asserts <strong>idempotence</strong> (a second run changes
+   nothing), then <strong>Testinfra</strong> asserts the resulting state (swap, sysctl, ufw rules,
+   fail2ban, SSH hardening). Runs on every PR across Debian 12 and 13 (<code>make test</code>).</li>
+<li><strong>Full definition-of-done</strong> — Molecule's <code>full</code> scenario runs the <em>entire</em> bootstrap
+   incl. a real, pinned K3s install in a privileged systemd container, then asserts the
+   node reaches <code>Ready</code> and the core components (CoreDNS, Traefik, local-path) are up.
+   Heavy, so it runs <strong>nightly and when the K3s role changes</strong> (<code>make test-full</code>).</li>
+</ol>
+<p><strong>Why layered.</strong> Most changes are caught in seconds by layers 1–2; the expensive
+real-cluster check (layer 3) is reserved for what actually affects the cluster. The DoD
+is still machine-verified, just not on every PR.</p>
+<p><strong>How it evolves.</strong> The shared-infra work adds a scenario asserting <code>helmfile sync</code> brings
+the shared infra up; the backup work adds the install → upgrade → <strong>restore</strong> replay ADR-006
+mandates. The Helmfile layer runs on <strong>k3d</strong> (purpose-built for in-cluster Helm e2e) with the
+same pytest-style assertions, kept in a dedicated, cost-aware workflow
+(<code>helmfile-e2e.yml</code>) — the layered philosophy holds; only the substrate fits the tool. The
+apps — every one of them — get their boot definition of done in a per-app
+matrix (<a href="#adr-029-per-app-nightly-e2e-one-app-per-cluster">ADR-029</a>), one app per fresh cluster,
+which is the <strong>single source</strong> of each app's boot DoD. The full suite e2e therefore asserts <strong>no
+application</strong>: it is platform + <code>suite install</code> + backup/restore only.
+The same reasoning applies <em>within</em> the Helmfile layer: the full suite e2e (<code>make test-platform</code>,
+~15 images, 20–45 min, prone to shared-runner flakiness) is too heavy and slow to gate every PR,
+so a change to one component gets an <strong>isolated, fast component e2e</strong> that boots only that
+component's dependencies and runs the <strong>same shared assertion code</strong> as the full suite. The first
+is the PVC backup/restore round-trip (<a href="#adr-032-standardised-reusable-off-site-pvc-backup">ADR-032</a>),
+which gates PRs in ~3 min via <code>make test-pvc-backup</code>; the full suite moved to nightly / <code>main</code> /
+<code>workflow_dispatch</code> only. The shared round-trip lives in <code>helmfile/tests/lib.sh</code>, so the fast and
+full harnesses can never drift.</p>
+<p><strong>Consequences.</strong> Robust feedback proportional to risk, and a test foundation that the
+later work inherits instead of reinventing. Cost: Molecule/Testinfra are Python dev
+dependencies, and the nightly full run consumes CI minutes (bounded to the two Debian
+targets).</p>
+<hr />
+<h2 id="adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator">ADR-011 — Keycloak via the <code>codecentric/keycloakx</code> chart (not the Operator)<a class="headerlink" href="#adr-011-keycloak-via-the-codecentrickeycloakx-chart-not-the-operator" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> ADR-005 mandates a self-hosted Keycloak (1 realm, 1 OIDC client per app).
+Bitnami is banned (ADR-004). Three credible install methods remain: the
+<code>codecentric/keycloakx</code> Helm chart, the official <strong>Keycloak Operator</strong> (Quarkus, with
+<code>Keycloak</code>/<code>KeycloakRealmImport</code> CRs), or a hand-rolled local chart. The deciding
+criterion is long-term <strong>upgradeability</strong> on a single server (ADR-007).</p>
+<p><strong>Decision.</strong> Use <strong><code>codecentric/keycloakx</code></strong> — the chart <code>lasuite-platform</code> already
+relies on, with realm import via <code>--import-realm</code> from a ConfigMap that
+<code>platform-configuration</code> generates.</p>
+<p><strong>Why not the Operator.</strong> What makes a Keycloak upgrade risky — the Liquibase DB schema
+migration on first boot — is identical for every method; safety comes from the
+backup-gated upgrade flow (ADR-006/007), not the installer. Given that, the chart is the
+<em>better</em> fit for our constraints: the Keycloak version is just an image tag we control,
+<strong>decoupled</strong> from the chart and tracked by Renovate, so a security patch is a one-line
+bump (<code>helmfile apply</code> = <code>helm upgrade</code>, <code>helm rollback</code> for the objects). The Operator
+instead couples the operator and Keycloak versions, ships an OLM auto-update footgun that
+fights our "everything pinned, explicit diffs" rule, runs an always-on controller for a
+single instance, and offers a Job-based realm import with no advantage over <code>--import-realm</code>
+for our seed-derived realm.</p>
+<p><strong>Consequences.</strong> Minimal moving parts, upgrades that slot straight into Renovate + CI +
+the future <code>suite</code> CLI. Residual risk: dependence on a third-party chart — mitigated
+because the Keycloak image is independently pinned and the thin chart can be vendored
+locally if its maintenance ever lapses.</p>
+<hr />
+<h2 id="adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating">ADR-012 — Secrets derived from a single <code>secretSeed</code> via Helm templating<a class="headerlink" href="#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Every credential (Postgres roles, Keycloak admin/DB, Valkey, S3, per-app
+OIDC client secrets) must exist without committing any plaintext (hard rule), on a target
+that is a <strong>single server</strong> run by non-experts. Options range from a secrets manager
+(Vault/External Secrets) or SOPS to in-template derivation.</p>
+<p><strong>Decision.</strong> Derive <strong>everything from one <code>secretSeed</code></strong> with a Helm template helper —
+<code>deriveSecret = sha256sum("&lt;seed&gt;:&lt;id&gt;")</code> truncated, with an optional <code>secretOverrides</code>
+map. The seed is supplied at sync time via <code>requiredEnv "OWNSUITE_SECRET_SEED"</code> and is
+<strong>never</strong> written to the repo or stored in the cluster. Derivation lives in exactly one
+place (the <code>platform-configuration</code> chart, which emits Kubernetes Secrets); consumers
+reference those by <code>secretKeyRef</code>/<code>existingSecret</code> rather than re-deriving.</p>
+<p><strong>Why not SOPS / External Secrets.</strong> Both add an operational component (a KMS, an
+operator, key rotation) that a volunteer must run and recover during a restore — overkill
+for one node. Deterministic derivation means Keycloak and an app compute the <em>same</em> secret
+for the same id with zero sync, and disaster recovery needs only the seed.</p>
+<p><strong>Consequences.</strong> No secret material in git, a single high-value secret to protect
+(<code>$OWNSUITE_SECRET_SEED</code>), and reproducible credentials across rebuilds. Trade-off:
+rotating one derived secret means changing the seed (rotates all) or adding an explicit
+override; SOPS/External Secrets remain a possible later evolution if requirements grow.</p>
+<hr />
+<h2 id="adr-013-tls-issuance-cert-manager-http-01-per-subdomain-wildcard-dns-01-deferred">ADR-013 — TLS issuance: cert-manager HTTP-01 per-subdomain (wildcard DNS-01 deferred)<a class="headerlink" href="#adr-013-tls-issuance-cert-manager-http-01-per-subdomain-wildcard-dns-01-deferred" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> The foundation's goal is <strong>Keycloak reachable over HTTPS</strong>. Traefik is
+bundled with K3s; cert-manager handles certificates. ACME offers HTTP-01 (per host, needs
+port 80 + public DNS) or DNS-01 (wildcards, needs a DNS-provider API credential).</p>
+<p><strong>Decision.</strong> Use cert-manager with a <strong><code>letsencrypt-http01</code></strong> ClusterIssuer per subdomain
+through the Traefik ingress for production, and a <strong><code>selfsigned</code></strong> ClusterIssuer for CI/dev
+(no public DNS). The Keycloak ingress selects the issuer via <code>tls.issuer</code>.</p>
+<p><strong>Why not DNS-01 wildcard now.</strong> A <code>*.{domain}</code> certificate needs a chosen DNS provider and
+an API credential — exactly the "domain → DNS" experience <strong>the installer</strong> owns. HTTP-01 needs
+nothing but the port 80 the firewall already opens, so it is the right minimum for the foundation.</p>
+<p><strong>Consequences.</strong> HTTPS works on a bare server with no DNS-provider integration, and CI proves
+end-to-end TLS termination with the self-signed issuer (Let's Encrypt cannot be exercised
+without public DNS). DNS-01 wildcard becomes an additive ClusterIssuer in the installer — no
+rework of the issuer-selection seam.</p>
+<hr />
+<h2 id="adr-014-operator-control-plane-local-workstation-ssh-tunnel">ADR-014 — Operator control plane: local workstation + SSH tunnel<a class="headerlink" href="#adr-014-operator-control-plane-local-workstation-ssh-tunnel" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> The Ansible bootstrap (ADR-002) runs remotely (workstation → server over
+SSH). The Helmfile layer needs the Kubernetes API (port 6443), but the
+firewall opens only 22/80/443 and the fetched kubeconfig points at
+<code>https://127.0.0.1:6443</code>. We must decide where <code>helmfile</code>/<code>kubectl</code>/the future <code>suite</code>
+CLI run, and how they reach the API.</p>
+<p><strong>Decision.</strong> The <strong>operator's workstation is the single control plane</strong>. The repo is
+cloned locally once; nothing is installed on the server beyond what the bootstrap lays
+down. <code>helmfile</code>/<code>kubectl</code>/the <code>suite</code> CLI reach the cluster through an <strong>SSH tunnel</strong>
+to <code>127.0.0.1:6443</code> (<code>make tunnel</code>). The K8s API is <strong>never exposed</strong> — 6443 stays out
+of the firewall. The bootstrap-fetched kubeconfig is used <strong>unchanged</strong>: its
+<code>127.0.0.1:6443</code> server is correct through the tunnel, and the K3s API certificate
+lists <code>127.0.0.1</code> in its SANs, so TLS verification holds (no rewriting, no <code>--insecure</code>).</p>
+<p><strong>Why not run on the server.</strong> It would mean cloning the repo and installing tooling on
+the box, splitting the workflow across two machines. <strong>Why not expose 6443.</strong> It
+enlarges the attack surface for no benefit on a single server; a tunnel is free and keeps
+the API private.</p>
+<p><strong>Consequences.</strong> One place to operate from, a minimal server, and a private API. The
+tunnel must be open during <code>sync</code> (a manual <code>make tunnel</code> for now). The
+installer / the <code>suite</code> CLI will open the tunnel automatically, making this
+invisible — they implement this model rather than change it.</p>
+<hr />
+<h2 id="adr-015-in-cluster-object-storage-garage-single-node-deterministic-key">ADR-015 — In-cluster object storage: Garage (single-node), deterministic key<a class="headerlink" href="#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> <a href="#adr-003-pluggable-object-storage-garage-or-external-eu-s3">ADR-003</a> made
+object storage pluggable — Garage (self-hosted) or external EU S3 — and the foundation only
+<em>derived</em> the S3 credentials; nothing was deployed. The Docs app needs a real
+bucket, and the hermetic k3d e2e (<a href="#adr-010-testing-ci-strategy-a-layered-evolving-harness">ADR-010</a>)
+needs an S3 backend that exists with no external account. MinIO is banned (ADR-004).</p>
+<p><strong>Decision.</strong> Deploy <strong>Garage</strong> in-cluster as a single-node <code>StatefulSet</code>, via a local
+chart (<code>helmfile/charts/garage</code>), gated on <code>objectStorage.mode == garage</code>. Garage runs
+with <code>replication_factor = 1</code>; its RPC secret and admin token are seed-derived and
+injected as <code>GARAGE_RPC_SECRET</code> / <code>GARAGE_ADMIN_TOKEN</code> env vars, so <code>garage.toml</code> stays
+secret-free and committed-safe. A post-install Helm-hook <strong>bootstrap Job</strong> (least-privilege
+<code>kubectl exec</code> into the pod) idempotently assigns the cluster layout, <strong>imports the
+seed-derived S3 access key/secret</strong> (the same <code>s3-credentials</code> the app consumes — no
+read-back, no manual sync), creates the bucket, and grants access. <code>helm --wait</code> blocks
+the release — and Docs, which <code>needs</code> it — until the store is usable.</p>
+<p><strong>Why import the key rather than generate it.</strong> Derivation stays one-way (ADR-012): the
+single seed reproduces both the app's credentials and Garage's. Garage's <code>key import</code>
+accepts arbitrary conforming strings (id ≥8 alnum/<code>-_.</code>, secret ≥16 graphic ASCII), so the
+existing derived creds are imported as-is. <strong>Production default stays external S3</strong> (ADR-003):
+in <code>external</code> mode nothing is deployed and Docs points at the configured endpoint.</p>
+<p><strong>Consequences.</strong> A real, sovereign object store on one node and a fully hermetic e2e, at a
+tiny footprint (Rust; ~128Mi request). Off-site object backup is still required (ADR-006,
+off-site object backup). The bootstrap Job depends on a pinned community <code>kubectl</code> image — acceptable, and
+the only non-distroless piece (Garage's own image ships no shell).</p>
+<hr />
+<h2 id="adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split">ADR-016 — Docs (impress) integration: one namespace, Traefik ingress, OIDC split<a class="headerlink" href="#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> The first app wired in is <strong>Docs</strong> (<code>suitenumerique</code> / impress) — connected to the
+whole foundation. Three integration choices were left open by the foundation: where apps live
+(namespace), how the upstream chart's <strong>nginx</strong>-oriented ingress maps onto our <strong>Traefik</strong>
+(K3s-bundled), and how a backend inside the cluster talks OIDC to a Keycloak that issues
+browser-facing URLs.</p>
+<p><strong>Decision.</strong>
+- <strong>One workloads namespace.</strong> Docs runs in the same <code>ownsuite</code> namespace as the foundation
+  infra, reusing the secrets already there. No per-app namespaces or cross-namespace secret
+  reflector in v1 — unnecessary moving parts for a single server. (Per-app namespaces remain a
+  clean later evolution.)
+- <strong>Traefik ingress.</strong> The official chart ships nginx annotations; we override them for
+  Traefik. Websockets need no annotation (Traefik proxies them natively), and a single
+  y-provider replica removes the need for room-sticky routing. Authenticated <strong>media
+  serving</strong> is reproduced with two Traefik middlewares (a <code>forwardAuth</code> to the backend
+  media-auth endpoint + a path rewrite to the bucket), defined in <code>platform-configuration</code>.
+  cert-manager issues one <code>docs-tls</code> certificate on the main ingress; the sibling ingresses
+  reuse it for the same host.
+- <strong>OIDC external/internal endpoint split.</strong> The browser-facing endpoints
+  (authorization, logout) point at <code>https://auth.{domain}</code>; the backend-to-Keycloak
+  endpoints (JWKS, token, userinfo) point at the in-cluster service
+  <code>keycloak-keycloakx-http</code>. <code>OIDC_VERIFY_SSL</code> is off under the self-signed issuer. The
+  <code>docs</code> OIDC client (confidential, secret derived from the same seed id the app reads) is
+  appended to <code>keycloak.clients</code>, so the realm and the app agree with no manual sync.</p>
+<p><strong>Realm import on an existing install.</strong> <code>--import-realm</code> only imports on Keycloak's
+<strong>first</strong> boot, so adding the <code>docs</code> client to an <em>already-imported</em> realm has no effect on
+upgrade. Acceptable for a fresh install / CI (the path Docs proves). For an existing
+install the client must be added out-of-band (Keycloak admin API / <code>kcadm</code>, or a one-shot
+upsert Job); this is documented and slated for the installer / the <code>suite</code> CLI,
+which own the upgrade flow.</p>
+<p><strong>Consequences.</strong> Docs is reachable over HTTPS with real SSO and persistent storage, proven
+by CI. The DoD is verified at the API level (a Keycloak-issued token creates and reads back
+a document — see <a href="#adr-010-testing-ci-strategy-a-layered-evolving-harness">ADR-010</a>); a full
+browser-driven SSO/collaboration check is deferred to a targeted job. The one-namespace and
+realm-import-on-first-boot choices are explicit simplifications to revisit as the suite
+broadens.</p>
+<hr />
+<h2 id="adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design">ADR-017 — Backups &amp; tested restore: Barman Cloud Plugin, rclone, off-site by design<a class="headerlink" href="#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> <a href="#adr-006-backups-and-tested-restore">ADR-006</a> commits to backing up the <strong>three
+sources of state</strong> and to a <strong>tested</strong> restore. This ADR implements it on the running stack:
+CNPG (operator <strong>1.29.1</strong>, chart 0.28.3), Keycloak + Docs databases, an object store that is
+in-cluster Garage <em>or</em> external S3, and cert-manager already deployed. The decisions left open
+were the PostgreSQL backup mechanism, the object-copy tool, the off-site destination + its
+credentials, the depth of Keycloak backup, and how to prove the cycle hermetically in CI.</p>
+<p><strong>Decision.</strong></p>
+<ul>
+<li><strong>PostgreSQL → CNPG Barman Cloud Plugin</strong> (<a href="https://github.com/cloudnative-pg/plugin-barman-cloud">v0.13.0</a>,
+  the CNPG-I plugin), not the in-tree <code>.spec.backup.barmanObjectStore</code> (deprecated since CNPG
+  1.26). The plugin is installed from its <strong>pinned, vendored</strong> release manifest
+  (<code>charts/barman-cloud-plugin</code>) into <code>cnpg-system</code>, reusing cert-manager for its TLS. A
+  <code>barmancloud.cnpg.io/v1</code> <strong><code>ObjectStore</code></strong> describes the off-site S3; the <code>Cluster</code> references
+  it via <code>spec.plugins</code> (<code>isWALArchiver</code>) for continuous WAL archiving + base backups; a
+  <code>ScheduledBackup</code> (<code>method: plugin</code>) anchors the recovery window. Recovery is a fresh
+  <code>Cluster</code> with <code>bootstrap.recovery</code> + an <code>externalClusters</code> plugin entry pointing at the same
+  store — restoring the <strong>whole instance</strong>, hence both the <code>keycloak</code> and <code>docs</code> databases. The
+  restored cluster <em>reads</em> the original <code>serverName</code> but <em>archives</em> under a distinct one
+  (<code>&lt;cluster&gt;-restored</code>): CNPG runs <code>barman-cloud-check-wal-archive</code> first and refuses a
+  destination that already holds an archive, so reusing the source <code>serverName</code> would block it.</li>
+<li><strong>Objects (media) → <code>rclone</code></strong> (pinned image), an S3→S3 <code>sync</code> CronJob from the primary
+  bucket to the off-site store, <strong>client-side encrypted</strong> through an rclone <code>crypt</code> remote. A
+  one-shot Job syncs back during restore. Chosen over <code>restic</code> because the source is already an
+  S3 bucket (no filesystem to snapshot). Required in <strong>both</strong> garage and external modes (ADR-006).</li>
+<li><strong>Keycloak → PITR only.</strong> Keycloak keeps realm + users in its <code>keycloak</code> database, which CNPG
+  recovery restores verbatim (the user's subject/id is stable, so JIT-provisioned app accounts
+  map back). This <strong>refines</strong> ADR-006's "scheduled realm export": a separate <code>kc.sh</code> export adds
+  a recurring Job and RAM pressure on a single server for portability we don't need in v1. Deferred,
+  not forbidden — it stays an easy add-on for migration/portability later.</li>
+<li><strong>Off-site by construction.</strong> The backup destination is a <strong>distinct</strong> S3 (<code>OWNSUITE_BACKUP_S3_*</code>)
+  that must survive loss of the server — <strong>never</strong> the in-cluster Garage being backed up. In
+  <strong>production</strong> it is a managed S3 in a <em>different account/provider</em> than the primary; in <strong>CI</strong>
+  it is a <strong>second in-cluster Garage</strong> (<code>garage-backup</code>, own PVC/service/bucket) that is <em>kept</em>
+  when the primary is destroyed — hermetic, and respecting the no-MinIO rule. The off-site
+  credentials and the rclone crypt passphrase are <strong>seed-derived by default</strong> (so CI and
+  self-controlled targets need no manual sync) and <strong>overridable</strong> (<code>secretOverrides</code> ids
+  <code>backup-s3-access</code> / <code>backup-s3-secret</code> / <code>rclone-crypt</code>, or an untracked Secret) for a real
+  external account (<a href="#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating">ADR-012</a>).</li>
+</ul>
+<p><strong>Why not the in-tree barmanObjectStore.</strong> It is deprecated (CNPG 1.26+) and slated for removal;
+building the backups on it would mean migrating immediately. The plugin is the supported path on our
+version, its only extra dependency (cert-manager) is already present, and the image is pinned
+inside the vendored manifest (Renovate-tracked, re-vendored on bump).</p>
+<p><strong>Encryption &amp; retention — honest limits.</strong> PostgreSQL backups rely on <strong>TLS in transit</strong> plus
+the destination's <strong>at-rest</strong> protection (optional S3 SSE <code>AES256</code> via
+<code>OWNSUITE_BACKUP_PG_ENCRYPTION</code>, left off for S3-compatible stores like Garage that don't support
+it); <strong>objects</strong> get <strong>client-side</strong> encryption via the rclone <code>crypt</code> remote. Retention is a
+Barman <strong>recovery window</strong> (e.g. <code>30d</code>) for PITR, not true grandfather-father-son — GFS-style
+retention is expressed on the object copy / bucket lifecycle. Full GFS for PostgreSQL is a later
+enhancement.</p>
+<p><strong>Tested in CI (the deliverable).</strong> The k3d e2e (<a href="#adr-010-testing-ci-strategy-a-layered-evolving-harness">ADR-010</a>)
+runs one hermetic <strong>backup → destroy → restore</strong> cycle: sync with backups on, provision a
+<code>suite user</code> (the survivor user), seed a media object, exercise a PVC backup round-trip, take an
+on-demand base backup + an off-site object copy, <strong>destroy</strong> the primary state (DB + primary store +
+apps; keep <code>platform-configuration</code> + <code>garage-backup</code> + the operators), <code>make restore</code>, then assert
+all <strong>three storage classes survived</strong>: the Keycloak user (Postgres PITR), the media object (rclone
+object-copy) and the PVC document (<code>pvc_backup_roundtrip</code>). The survivor is <strong>app-agnostic</strong> — the
+user is looked up through the Keycloak admin REST API (the path <code>suite user</code> uses), not an app's OIDC
+client, so the restore DoD no longer needs any application booted. (It originally read back a Docs
+document; once apps went off-by-default — <a href="#adr-035-every-app-off-by-default-opt-in-install">ADR-035</a> —
+the survivor was decoupled so the full suite asserts no app. Docs stays enabled in the harness
+<em>solely</em> to give the object-copy check a primary bucket — a fixture, not an app DoD.) Kept on the
+existing cost-aware triggers (nightly + on <code>helmfile/**</code>), with the same fail-fast watchdog. This is
+the machine-checked backup/restore definition of done and the seed of the install→upgrade→restore
+replay ADR-006/ADR-010 promise; <code>make restore</code> prefigures the backup-gated <code>suite restore</code>
+(<a href="#adr-007-upgrade-model-semver-releases-backup-gated-cli">ADR-007</a>).</p>
+<p><strong>Consequences.</strong> Credible, <em>proven</em> disaster recovery from off-site backups with one seed and
+one command. Cost: a heavier nightly e2e, a small barman sidecar next to PostgreSQL, an rclone
+CronJob, and (in CI) a second Garage — all kept on modest <code>requests</code>/<code>limits</code> so Keycloak and
+Docs are not starved on a single server. Operator guide: <a href="../../operate/backups/">Backups &amp; restore</a>.</p>
+<hr />
+<h2 id="adr-018-guided-installer-suite-install">ADR-018 — Guided installer (<code>suite install</code>)<a class="headerlink" href="#adr-018-guided-installer-suite-install" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> The earlier work leaves a working stack driven by a <strong>manual sequence</strong> (<code>make bootstrap</code>
+→ edit/source <code>.env</code> → <code>make tunnel</code> → <code>make sync</code> → curl-check HTTPS — see
+<a href="../platform/">platform.md</a>). The installer's promise is "bare server + a domain →
+all-in-HTTPS by following the screen". We must decide the installer's form and language, how it
+reaches the cluster, and how it handles the single secret.</p>
+<p><strong>Decision.</strong> A small <strong>Python package <code>suite/</code></strong> (standard library only — <code>argparse</code>,
+<code>secrets</code>, <code>urllib</code>, <code>subprocess</code>), invoked as <code>python -m suite install</code> and wrapped by
+<code>make install</code>. It <strong>orchestrates the existing layers</strong> rather than reimplementing them: capture
+config → (optional) <code>make bootstrap</code> → detect the server public IP over SSH → print the exact DNS
+records → wait for propagation → open the SSH tunnel (ADR-014) → <code>helmfile sync</code> → issue
+certificates (ADR-019) → verify HTTPS per host. Every step is idempotent, so the replay story is
+simply <strong>re-running <code>suite install</code></strong> (no resume bookkeeping). The <strong>seed is generated with
+<code>secrets.token_hex(24)</code>, shown once, and never written to the repo</strong>; on re-run the operator
+re-exports <code>OWNSUITE_SECRET_SEED</code> (non-secret <code>OWNSUITE_*</code> are saved to the git-ignored <code>.env</code>).
+A <code>--non-interactive</code> / <code>--no-tunnel</code> / <code>--tls-mode</code> surface lets CI drive the same code path
+against k3d.</p>
+<p><strong>Why Python, standard-library only.</strong> pytest is already the harness (ADR-010), so the
+DNS-record generation and propagation logic are unit-tested with fakes, and Python prefigures the
+<code>suite</code> CLI (ADR-007). <strong>No third-party runtime dependency is added</strong>: propagation shells
+out to <code>dig</code> (ubiquitous), HTTPS verification uses the standard library's own TLS trust check, and
+everything else is <code>subprocess</code> to <code>ssh</code>/<code>helmfile</code>/<code>kubectl</code> — tools the operator already has.
+The installer runs on the operator's workstation, adding nothing to the single server.</p>
+<p><strong>Consequences.</strong> One command takes an operator from a bare server to HTTPS, the SSH tunnel becomes
+invisible, and the manual flow stays documented as the fallback. The installer is a thin
+orchestrator with no privileged cluster component. It only <em>prefigures</em> the <code>suite</code> CLI: a single
+<code>install</code> verb, with upgrades and restore landing later as
+<a href="#adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback"><code>suite upgrade</code></a> and
+<a href="#adr-036-suite-restore-backup-gated-clean-cluster-recovery"><code>suite restore</code></a>.</p>
+<hr />
+<h2 id="adr-019-tls-staging-first-issuance-dns-01-deferred">ADR-019 — TLS: staging-first issuance, DNS-01 deferred<a class="headerlink" href="#adr-019-tls-staging-first-issuance-dns-01-deferred" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> ADR-013 shipped the issuer seam (<code>tls.issuer</code> selects a ClusterIssuer <strong>by name</strong>;
+the ingress annotation follows it) with <code>selfsigned</code> and <code>letsencrypt-http01</code>, and explicitly
+handed the wildcard DNS-01 issuer to the installer "as an additive ClusterIssuer — no rework of the
+seam". The installer must issue <em>real</em> certificates without burning Let's Encrypt's tight
+<strong>production</strong> rate limits on a misconfiguration.</p>
+<p><strong>Decision.</strong> Add an <strong>additive <code>letsencrypt-staging</code> ClusterIssuer</strong> (HTTP-01 via Traefik, the
+Let's Encrypt staging directory, a <em>distinct</em> account-key Secret so the staging and production
+ACME accounts never collide) and wire the previously-dead <code>acmeServer</code>/<code>acmeStagingServer</code> chart
+values through. The installer issues against <strong>staging first</strong>, verifies the path end to end, then
+<strong>promotes to production</strong> by re-syncing with <code>tls.issuer=letsencrypt-http01</code> and waiting for the
+same <code>keycloak-tls</code>/<code>docs-tls</code> certificates to go Ready again. No ingress or Certificate resource
+changes — the annotation already follows <code>tls.issuer</code>.</p>
+<p><strong>Wildcard record ≠ wildcard certificate; DNS-01 deferred.</strong> The installer generates an apex
+<strong>A/AAAA</strong> plus a wildcard <strong>CNAME</strong> (<code>*.{domain}</code> → apex) so every subdomain resolves off a
+single address record, but v1 keeps issuing <strong>per-host certificates</strong> (<code>auth.</code>, <code>docs.</code>) over
+HTTP-01 — which needs only the port 80 the firewall already opens. A true <code>*.{domain}</code> <em>certificate</em> would require explicit Certificate CRs and pointing the
+ingresses at a shared secret — exactly the seam rework ADR-013 forbids — so the <strong>DNS-01 wildcard
+issuer is deferred</strong>. The seam stays ready: a future <code>letsencrypt-dns01</code> ClusterIssuer (with a
+DNS-provider token Secret — the first credential <em>not</em> derived from the seed) is purely additive.</p>
+<p><strong>Consequences.</strong> Real HTTPS on a bare server with <strong>zero DNS-provider credentials</strong>, proven
+staging-first so production rate limits stay safe. CI keeps using <code>selfsigned</code> (no public DNS).
+The single-seed invariant (ADR-012) is preserved in v1 because no DNS-provider credential is
+introduced yet.</p>
+<hr />
+<h2 id="adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert">ADR-020 — Keycloak realm convergence: idempotent OIDC client upsert<a class="headerlink" href="#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> ADR-016 noted that Keycloak's <code>--import-realm</code> only seeds the realm on its <strong>first</strong>
+boot, so adding or changing an OIDC client on an already-imported realm has no effect on upgrade —
+and slated the fix for "the installer / the <code>suite</code> CLI". This ADR ships it.</p>
+<p><strong>Decision.</strong> A new local chart <strong><code>keycloak-config</code></strong>, deployed as a Helmfile release ordered
+after Keycloak (<code>needs: keycloak</code>), runs an idempotent <strong><code>kcadm</code> upsert Job</strong> (a
+post-install/post-upgrade Helm hook with <code>before-hook-creation</code> delete, so it re-runs on every
+sync — mirroring the Garage bootstrap Job of ADR-015). For each <code>keycloak.clients</code> entry it
+create-or-updates the OIDC client (redirect URIs, web origins, flags, secret) with <code>kcadm.sh</code> from
+the <strong>already-pinned Keycloak image</strong> — no new image, and no Kubernetes API access (it talks to the
+in-cluster Keycloak HTTP service). Per ADR-012, derivation stays in one place:
+<code>platform-configuration</code> emits a <code>keycloak-oidc-clients</code> Secret (one key per client, derived from
+the same <code>&lt;clientId&gt;-oidc</code> id the app and the realm import use), which the Job consumes by
+secretKeyRef — it never re-derives.</p>
+<p><strong>Consequences.</strong> Adding or changing an app's OIDC client now takes effect on a <strong>running</strong>
+install, not just a fresh one — the day-2 path ADR-016 deferred. <code>helm --wait</code> blocks the sync
+until the clients are reconciled, and the e2e exercises the Job on every run (the SSO
+definition-of-done mints a token with the upserted <code>docs</code> client). The realm import remains the
+first-boot seed; the Job is the authoritative reconciler thereafter.</p>
+<hr />
+<h2 id="adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay">ADR-021 — Mailbox: suitenumerique/messages, outbound via EU relay<a class="headerlink" href="#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Refined by <a href="#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred">ADR-026</a> (app integration) and <a href="#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb">ADR-027</a> (port-25 ingress).</strong>
+Two component specifics below were revisited against the verified-current upstream
+(<code>suitenumerique/messages</code> v0.8.0, June 2026):</p>
+<ul>
+<li><strong>OpenSearch is now optional upstream</strong> — every <code>OPENSEARCH_*</code> variable is optional and an
+  unset <code>OPENSEARCH_URL</code> simply disables full-text mail search; delivery, storage and reading
+  are unaffected. To keep the single-VPS RAM budget honest (OpenSearch single-node is ~1–2 GB
+  of JVM heap), v1 ships <strong>without</strong> it; search returns behind its own flag later. The
+  "heavier than Stalwart" consequence below stands but is lighter than first feared.</li>
+<li><strong>DKIM key is supplied, not DB-generated.</strong> messages accepts <code>MESSAGES_DKIM_PRIVATE_KEY_B64</code>,
+  so the installer generates the keypair once and treats it as an external override (the S3-creds
+  pattern), publishing the public key as a TXT record up front — no two-step DNS dance.</li>
+</ul>
+</blockquote>
+<p><strong>Context.</strong> ADR-008 deferred mail and tentatively recommended Stalwart. Since then,
+<strong>suitenumerique/messages</strong> has become La Suite's own mail app, so adopting it keeps the
+mailbox consistent with the rest of the suite (same look-and-feel, same Keycloak SSO) instead
+of bolting on a foreign server + separate webmail. The earlier "IMAP + generic webmail" path
+(Stalwart + Roundcube) was the lighter option but loses the integrated La Suite UX.</p>
+<p><strong>Decision.</strong> The mailbox is <strong>suitenumerique/messages</strong>, federated to the <strong>same
+Keycloak</strong> via OIDC. It is a full mail provider, not an IMAP client:</p>
+<ul>
+<li><strong>Inbound:</strong> its own <strong>Postfix MTA-in</strong> receives directly from the internet (domain MX →
+  port 25) and relays to a Django <strong>MDA</strong> that stores and indexes mail (Postgres + Redis +
+  <strong>OpenSearch</strong>).</li>
+<li><strong>Webmail:</strong> ships its own <strong>integrated web UI</strong>. <strong>No IMAP/POP3 by design</strong> — users read
+  mail in messages, not in Thunderbird/Apple Mail. Accepted trade-off.</li>
+<li><strong>Outbound:</strong> <strong>never direct from the VPS IP.</strong> <code>MTA_OUT_MODE=relay</code> points the MTA-out at a
+  reputable SMTP relay (STARTTLS, <code>MTA_OUT_RELAY_*</code> credentials,
+  <code>MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure</code>). On the recommended Scaleway host that relay is native
+  <strong>Transactional Email (TEM)</strong>, <code>smtp.tem.scaleway.com:2587</code> — the alternate port matters because
+  Scaleway Instances block outbound 25/465/587 (<a href="#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative">ADR-038</a>).
+  Any EU relay works as an alternative (Infomaniak <code>mail.infomaniak.com:587</code>).</li>
+</ul>
+<p><strong>Why.</strong> Owning the easy half (receiving) and renting the hard half (deliverability) is the
+same stance ADR-008 took — outbound from a fresh VPS IP loses on reputation/PTR/port-25. The
+relay carries SPF/DKIM alignment; messages signs DKIM for the domain and SPF <code>include</code>s the relay.</p>
+<p><strong>Consequences.</strong></p>
+<ul>
+<li>Integrated La Suite webmail; SSO and UX consistent with Docs/Drive. No second webmail to run.</li>
+<li><strong>No IMAP/POP3</strong> — desktop/mobile mail clients are not supported; the web UI is the only client.</li>
+<li><strong>Heavier than the Stalwart path:</strong> adds <strong>OpenSearch</strong> (RAM-hungry on a single VPS) + Redis +
+  two Postfix containers. Server sizing must budget for it; the mailbox stays <strong>optional and
+  isolated</strong>, blocking no earlier work.</li>
+<li><strong>Outbound is rate-capped by the relay</strong> (Infomaniak: 1440 msg/24h, 100 recipients/msg). Set
+  messages' <code>THROTTLE_MAILBOX_OUTBOUND_EXTERNAL_RECIPIENTS</code> /
+  <code>THROTTLE_MAILDOMAIN_OUTBOUND_EXTERNAL_RECIPIENTS</code> below that ceiling so it fails gracefully
+  in-app. Not suitable for bulk/newsletters — that's a separate product.</li>
+<li>Supersedes ADR-008's "Stalwart recommended" note; ADR-008's "optional add-on" and "relay
+  outbound" decisions carry over unchanged.</li>
+</ul>
+<hr />
+<h2 id="adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets">ADR-022 — Drive integration: reuse the Docs seam, per-app buckets<a class="headerlink" href="#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> As the suite broadens, <strong>Drive</strong> (<code>suitenumerique</code> / drive) is the
+DoD-critical second app: <code>suite user add</code> must grant Docs <strong>and</strong> Drive immediately. Drive
+is a <code>suitenumerique</code> sibling of Docs — same Django/Next.js shape, same official Helm chart
+pattern, the same mozilla-django-oidc login — so the question is not <em>how to integrate a new
+kind of app</em> but <em>what, if anything, the existing Docs seam
+(<a href="#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split">ADR-016</a>) must
+grow</em> to host a second one. Drive needs no People/teams service (sharing is per-item), so it
+takes on no new dependency.</p>
+<p><strong>Decision.</strong> Add Drive as a Helmfile release that <strong>mirrors Docs almost verbatim</strong>, and make
+the few shared pieces multi-app instead of forking them:</p>
+<ul>
+<li><strong>Same foundation, per-app instances.</strong> Drive reuses CNPG (its own <code>drive</code> database +
+  owner role), Valkey, the pluggable S3 seam, and Keycloak SSO. Each app gets its <strong>own</strong>
+  database, its <strong>own</strong> S3 bucket (<code>drive-media-storage</code>), and its <strong>own</strong> OIDC client
+  (<code>drive</code>) — derived from the same seed
+  (<a href="#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating">ADR-012</a>) by the
+  same <code>&lt;id&gt;</code> convention the realm import and the app already share. Adding <code>drive</code> to
+  <code>keycloak.clients</code> is all the realm + the idempotent upsert Job
+  (<a href="#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert">ADR-020</a>) need.</li>
+<li><strong>Distinct Valkey databases.</strong> Docs and Drive share the one in-cluster Valkey, so Drive
+  uses Redis <strong>db 2</strong> (cache) and <strong>db 3</strong> (Celery broker); Docs keeps 0/1. A separate broker
+  db keeps the two apps' Celery queues from cross-consuming each other's tasks — the one real
+  trap of co-tenanting a broker.</li>
+<li><strong>Garage creates a list of buckets.</strong> The Garage bootstrap Job
+  (<a href="#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key">ADR-015</a>) is
+  generalised from one bucket to a <strong>list</strong> (the enabled apps' buckets); the single
+  seed-derived S3 key owns them all. In <code>external</code> S3 mode the operator pre-creates the Drive
+  bucket alongside the Docs one, exactly as before.</li>
+<li><strong>Traefik media glue, sibling chart.</strong> Drive's authenticated media serving is the Docs
+  pattern with two cosmetic differences: the media-auth endpoint is <code>/api/v1.0/items/</code>
+  (Drive calls them <em>items</em>, not <em>documents</em>) and the rewrite targets the Drive bucket. A
+  <code>drive-ingress</code> chart carries those two Middleware CRs, mirroring <code>docs-ingress</code>. Drive's
+  upstream chart already routes <code>/api</code> + <code>/external_api</code> to the backend on the main ingress,
+  so no extra API ingress is needed.</li>
+<li><strong>No realtime collaboration.</strong> Drive is a file manager, not a collaborative editor, so it
+  ships <strong>no y-provider</strong> — its values are the Docs wiring minus the collaboration server and
+  its websocket/api ingresses.</li>
+<li><strong>Individually enable-able.</strong> Each app is gated on its own <code>apps.&lt;name&gt;.enabled</code> flag
+  (<code>OWNSUITE_APP_DOCS</code> / <code>OWNSUITE_APP_DRIVE</code>). Both are <strong>off by default</strong> like every other app
+  (<a href="#adr-035-every-app-off-by-default-opt-in-install">ADR-035</a>); the installer offers them as the
+  recommended first pair and the Docs+Drive DoD enables them explicitly.</li>
+</ul>
+<p><strong>Consequences.</strong> Drive comes up over HTTPS with real SSO and per-app isolated state, proven
+at the API level by the same kind of token→create→read-back e2e as Docs (the DoD). The
+seam now hosts N apps without forking: a future app is another <code>keycloak.clients</code> entry, a
+bucket in the list, a database, and a values file. <strong>Deferred:</strong> the media-<strong>preview</strong>
+(thumbnail) ingress — a visual nicety whose upstream rewrite path needs validating against our
+Traefik setup, not part of the DoD; it is left off with a <code>ponytail:</code> marker and enabled once
+proven. External-S3 media keeps the same pre-existing limitation as Docs (the media upstream
+points at the in-cluster Garage), out of scope here.</p>
+<hr />
+<h2 id="adr-023-user-provisioning-suite-user-admin-rest-over-the-tunnel-jit">ADR-023 — User provisioning: <code>suite user</code>, admin REST over the tunnel, JIT<a class="headerlink" href="#adr-023-user-provisioning-suite-user-admin-rest-over-the-tunnel-jit" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> The definition of done is <code>suite user add firstname@assoc.org</code> → that person
+immediately has Docs <strong>and</strong> Drive. ADR-005 already decided <strong>one Keycloak identity, JIT into
+every app</strong>, and ADR-018 built the <code>suite</code> CLI (pure standard library) that prefigured this
+verb. What was left open: <em>where</em> user provisioning runs, <em>how</em> it reaches Keycloak, and <em>how
+the admin authenticates</em> — without exposing the admin API or storing a second secret.</p>
+<p><strong>Decision.</strong> Extend the existing <code>suite</code> package with <code>suite user add|disable|passwd &lt;email&gt;</code>:</p>
+<ul>
+<li><strong>JIT only — no per-app calls.</strong> <code>add</code> creates <strong>one</strong> Keycloak user (username = email,
+  <code>emailVerified</code>, enabled) and sets an initial password. Because every app authenticates
+  through the same realm and provisions its local account from the token on first login
+  (<a href="#adr-005-shared-keycloak-jit-provisioning">ADR-005</a>), that single create grants access to
+  <strong>all enabled apps</strong> — the CLI never touches Docs/Drive/etc. directly, so a newly added app
+  needs no change here. <code>disable</code> deactivates the user (revoking access everywhere at once);
+  <code>passwd</code> resets the password. Generated passwords are <strong>temporary</strong> by default (forced reset
+  at first login) and shown once.</li>
+<li><strong>Admin REST over the in-cluster service, through the tunnel.</strong> The CLI talks the Keycloak
+  <strong>admin REST API</strong> (stdlib <code>urllib</code>, no HTTP-client dependency) to the in-cluster
+  <code>keycloak-keycloakx-http</code> service, reached over the existing SSH tunnel
+  (<a href="#adr-014-operator-control-plane-local-workstation-ssh-tunnel">ADR-014</a>) plus a short-lived
+  <code>kubectl port-forward</code>. Admin traffic therefore <strong>stays private</strong> — it never crosses the
+  public <code>auth.{domain}</code> endpoint — consistent with ADR-014 (the API is never exposed) and
+  ADR-020 (the upsert Job also talks to the in-cluster service).</li>
+<li><strong>Admin password derived from the seed, not read from the cluster.</strong> The admin credential is
+  re-derived locally from <code>$OWNSUITE_SECRET_SEED</code> with the same helper id (<code>keycloak-admin</code>)
+  the platform used (<a href="#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating">ADR-012</a>),
+  so the CLI needs only the seed the operator already guards — no new secret, no <code>kubectl get
+  secret</code>.</li>
+<li><strong>HTTP transport is injectable.</strong> The <code>KeycloakAdmin</code> client takes its transport as a
+  parameter, so the create/disable/reset logic is unit-tested against an in-memory fake admin
+  API (no live Keycloak), matching the harness's existing fake-the-boundary style
+  (<a href="#adr-010-testing-ci-strategy-a-layered-evolving-harness">ADR-010</a>). The tunnel/port-forward
+  glue is thin orchestration, exercised by the k3d e2e instead.</li>
+</ul>
+<p><strong>Why not kcadm-exec or the public admin API.</strong> <code>kubectl exec … kcadm.sh</code> (as the ADR-020 Job
+does in-cluster) would couple the CLI to pod internals and a shell session file, and is awkward
+to unit-test; the public <code>auth.{domain}/admin</code> API would expose admin operations to the
+internet. Admin REST to the in-cluster service keeps clean idempotent semantics <em>and</em> a private
+surface.</p>
+<p><strong>Consequences.</strong> A non-profit admin provisions people with one command and no Kubernetes
+knowledge; the verb is app-count-agnostic by construction (JIT). The same path is what the e2e
+drives to prove the DoD (create a user via the CLI → it reaches Docs <strong>and</strong> Drive). <code>suite
+upgrade</code> / <code>suite restore</code> remain later verbs (ADR-007). Residual: the CLI assumes the realm's
+default (no password policy); a stricter policy would need the generated password to conform.</p>
+<hr />
+<h2 id="adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default">ADR-024 — Grist integration: local chart, public-issuer OIDC, PVC storage, off by default<a class="headerlink" href="#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Two "honest limits" below have since been closed.</strong> The documents PVC <strong>is</strong> now backed up
+off-site (the reusable volume copy of <a href="#adr-032-standardised-reusable-off-site-pvc-backup">ADR-032</a>,
+built on the N-bucket object copy of <a href="#adr-030-n-bucket-off-site-object-backup">ADR-030</a>), and
+Grist <strong>is</strong> now booted in CI on its own cluster
+(<a href="#adr-029-per-app-nightly-e2e-one-app-per-cluster">ADR-029</a>). The local chart, public-issuer
+OIDC and off-by-default decisions still hold.</p>
+</blockquote>
+<p><strong>Context.</strong> The suite broadens beyond the DoD apps. <strong>Grist</strong> (getgrist — spreadsheets
+that behave like a database) is the next one. Unlike Drive
+(<a href="#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets">ADR-022</a>), Grist is <strong>not</strong> a
+<code>suitenumerique</code>/impress sibling: it is a single-container Node app, it ships <strong>no official Helm
+chart</strong>, and its OIDC and storage models differ from the Django apps. So the question ADR-022
+answered ("what must the Docs seam grow") does not apply — Grist needs its own small chart and a
+fresh look at three couplings: how it talks OIDC to our Keycloak, where its documents live, and
+whether it is safe to ship enabled. The design was scoped against three facts discovered while
+wiring it, which overrode an earlier sketch (internal-discovery + S3 doc storage):</p>
+<ol>
+<li><strong>Grist does OIDC by single-issuer discovery only.</strong> It takes one <code>GRIST_OIDC_IDP_ISSUER</code>
+   and discovers every endpoint from that issuer's <code>/.well-known/openid-configuration</code>. It has
+   <strong>no</strong> per-endpoint override, so the external/internal split Docs/Drive rely on
+   (<a href="#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split">ADR-016</a>) is not
+   expressible for Grist.</li>
+<li><strong>The off-site object backup copies a single bucket.</strong> <code>object-backup</code>
+   (<a href="#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design">ADR-017</a>)
+   syncs only the Docs media bucket today, so putting Grist documents in a <em>new</em> S3 bucket would
+   <strong>not</strong> make them off-site-backed without first reworking the restore machinery — defeating the
+   one reason ("close the backup gap") to prefer S3 over a volume.</li>
+<li><strong>Grist is not part of the DoD</strong> (Docs + Drive), and the constrained CI runner is
+   already near its ceiling under the existing stack (the restore step had to shed Drive to stay
+   within the node's memory — see <code>run-e2e.sh</code>).</li>
+</ol>
+<p><strong>Decision.</strong> Add Grist as a Helmfile release backed by a <strong>small local chart</strong>
+(<code>helmfile/charts/grist</code>), reusing the shared seams, with these specific choices:</p>
+<ul>
+<li><strong>Local chart, not Bitnami, not a fork.</strong> One <code>Deployment</code> (single replica,
+  <code>strategy: Recreate</code> so the read-write-once volume is never double-mounted across a rollout),
+  one <code>Service</code>, one <code>PersistentVolumeClaim</code>, one Traefik <code>Ingress</code>. The chart renders standalone
+  (<code>helm lint helmfile/charts/*</code>) like the Garage chart; the pinned image tag (<code>gristlabs/grist</code>,
+  versions.yaml) is injected by Helmfile.</li>
+<li><strong>OIDC via the public issuer (discovery), no Keycloak change.</strong> <code>GRIST_OIDC_IDP_ISSUER</code> is the
+  <strong>public</strong> realm URL <code>https://auth.{domain}/realms/{realm}</code>; the browser and the Grist backend
+  both reach Keycloak there. In production the backend hairpins to <code>auth.{domain}</code> with the real
+  Let's Encrypt certificate (standard for an OIDC client that happens to run in-cluster), so no
+  TLS-skip or CA wiring is needed. This is the documented Grist↔Keycloak path. <strong>Rejected:</strong>
+  pointing Grist at the in-cluster Keycloak service and enabling
+  <code>KC_HOSTNAME_BACKCHANNEL_DYNAMIC</code> on the <em>shared</em> Keycloak — it would make the discovery
+  document's <code>issuer</code> (still the public host) disagree with the URL Grist discovered against,
+  risking an openid-client issuer-mismatch, and it perturbs the Keycloak that Docs/Drive depend on
+  for no benefit Grist needs. The <code>grist</code> OIDC client is one more <code>keycloak.clients</code> entry; the
+  existing realm-import + upsert-Job templates already emit <code>redirectUris: https://grist.{domain}/*</code>
+  (covering Grist's <code>/oauth2/callback</code>) and the <code>profile</code>+<code>email</code> scopes Grist maps to its user —
+  so no client-template change (<a href="#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert">ADR-020</a>).</li>
+<li><strong>Storage: a PVC for documents, CNPG for the home DB.</strong> Grist keeps its document SQLite files on
+  its <code>/persist</code> volume (a <code>PersistentVolumeClaim</code>) and its home database (orgs, users, ACLs) in a
+  dedicated CNPG <code>grist</code> database via <code>TYPEORM_*</code>. <strong>No S3, no Redis</strong> — those exist in Grist for
+  multi-worker, horizontally-scaled deployments, which a single node is not, and (per Context #2)
+  S3 would not even buy off-site backup yet. The session secret and OIDC client secret are
+  seed-derived (<a href="#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating">ADR-012</a>)
+  in a <code>grist-secrets</code> Secret; the home-DB password reuses the per-app <code>grist-db</code> Secret.</li>
+<li><strong>Formula sandbox: unsandboxed by default, overridable.</strong> Grist runs document formulas in a
+  Python sandbox; <code>gvisor</code> (the image default) needs node capabilities that stock K3s/containerd
+  does not reliably grant unprivileged, which would block boot. OwnSuite is a <strong>single trusted
+  organisation</strong> — only its own members author documents — so <code>GRIST_SANDBOX_FLAVOR=unsandboxed</code>
+  is an acceptable, boot-reliable default, surfaced as <code>OWNSUITE_GRIST_SANDBOX</code> for anyone who has
+  set their node up for gvisor.</li>
+<li><strong>Off by default, fully gated.</strong> Every Grist piece (release, OIDC client, <code>grist</code> database,
+  secrets) is gated on <code>apps.grist.enabled</code>, which defaults <strong>false</strong> (<code>OWNSUITE_APP_GRIST</code>).
+  Reasons: it is outside the hard DoD, it is not yet booted in the constrained CI e2e (Context #3),
+  and enabling is a single flag. Because it is gated off, the e2e renders and deploys <strong>identically</strong>
+  to before; the chart is validated cheaply by <code>helm template</code> + kubeconform on every change.</li>
+</ul>
+<p><strong>Consequences.</strong> A non-profit gets Grist over HTTPS with real SSO by flipping one flag, reusing
+Keycloak + CNPG with no new infrastructure and no change to the apps already in the DoD. <strong>Honest
+limits, each with an upgrade path:</strong> (a) the documents PVC is <strong>not</strong> off-site-backed — the same
+pre-existing gap as Drive's bucket (Context #2); closing it means teaching <code>object-backup</code> to copy
+N buckets / a volume, deferred until Grist graduates from off-by-default. (b) <code>unsandboxed</code>
+formulas trust the document authors (true for one org); switch to <code>gvisor</code> on a suitably-configured
+node otherwise. (c) Grist is <strong>template/lint-validated, not yet CI-booted</strong>; a targeted boot check
+(enable Grist on a beefier/nightly runner and assert a Keycloak user reaches it) is the natural next
+step before it becomes a default app. The public-issuer OIDC choice assumes the in-cluster backend
+can reach <code>auth.{domain}</code> (DNS + hairpin), which holds on a normal single-server install.</p>
+<hr />
+<h2 id="adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default">ADR-025 — Projects integration: local chart, public-issuer OIDC, PVC storage, off by default<a class="headerlink" href="#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Superseded in part by <a href="#adr-031-projects-uploads-on-s3-eliminating-the-pvc">ADR-031</a>.</strong> The
+local chart, public-issuer OIDC and off-by-default stance still hold; Projects' uploads now live
+on <strong>S3</strong> (its own bucket on the shared seam), not the <code>projects-data</code> PVC — so the PVC and its
+not-off-site-backed limitation no longer apply. The "not yet CI-booted" limit below is also
+closed: Projects is now booted in CI on its own cluster
+(<a href="#adr-029-per-app-nightly-e2e-one-app-per-cluster">ADR-029</a>).</p>
+</blockquote>
+<p><strong>Context.</strong> The suite broadens beyond the DoD apps, and <strong>Projects</strong>
+(<code>suitenumerique/projects</code> — kanban boards / task management, a Sails.js fork of Planka) is the
+last broadening candidate after Drive
+(<a href="#adr-022-drive-integration-reuse-the-docs-seam-per-app-buckets">ADR-022</a>) and Grist
+(<a href="#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default">ADR-024</a>).
+It was first scoped as <em>defer</em> (was the seam ready for a second never-CI-booted app?); that call
+was <strong>reversed</strong> — Projects is <strong>built</strong>, on the same terms as Grist. Like Grist it is <strong>not</strong> a
+<code>suitenumerique</code>/impress app: a single-container Node app with <strong>no official Helm chart</strong> (a Docker
+image <code>lasuite/projects</code> + a docker-compose), so it needs its own small chart. The integration was
+scoped against the upstream <code>server/.env.sample</code> + <code>Dockerfile</code>:</p>
+<ul>
+<li><strong>Single container, port 1337</strong>, Node 22, serving its built React client from <code>public/</code>. <strong>No
+  Redis.</strong> Files (avatars, project backgrounds, attachments) are written to three local paths
+  (Planka heritage); the database is PostgreSQL via a single <code>DATABASE_URL</code>.</li>
+<li><strong>OIDC by single-issuer discovery</strong> (openid-client), exactly like Grist — one <code>OIDC_ISSUER</code>, no
+  per-endpoint split.</li>
+</ul>
+<p><strong>Decision.</strong> Add Projects as a Helmfile release backed by a <strong>small local chart</strong>
+(<code>helmfile/charts/projects</code>), reusing the shared seams and mirroring the Grist choices (ADR-024):</p>
+<ul>
+<li><strong>Local chart.</strong> One <code>Deployment</code> (single replica, <code>strategy: Recreate</code>), one <code>Service</code>, one
+  <code>Ingress</code>, and one <code>PersistentVolumeClaim</code> whose three subPaths back the upload directories
+  (<code>/app/public/user-avatars</code>, <code>/app/public/project-background-images</code>, <code>/app/private/attachments</code>).
+  The pinned image (<code>lasuite/projects</code>, versions.yaml) is injected by Helmfile.</li>
+<li><strong>OIDC via the public issuer, no Keycloak change.</strong> <code>OIDC_ISSUER</code> is the public realm URL
+  <code>https://auth.{domain}/realms/{realm}</code>; the backend hairpins with the real cert in production.
+  The <code>projects</code> OIDC client is one more <code>keycloak.clients</code> entry — the existing templates already
+  emit <code>redirectUris: https://projects.{domain}/*</code> (covering the callback) and the <code>profile</code>+<code>email</code>
+  scopes. <strong>One wrinkle vs Grist:</strong> our realm client signs the <strong>userinfo</strong> response RS256
+  (<code>user.info.response.signature.alg</code>) and Projects reads claims from userinfo
+  (<code>OIDC_CLAIMS_SOURCE=userinfo</code>), so <code>OIDC_USERINFO_SIGNED_RESPONSE_ALG=RS256</code> is set or
+  openid-client cannot parse the signed response.</li>
+<li><strong><code>DATABASE_URL</code> built in one place.</strong> Projects wants a single connection string, not separate
+  vars, so the URL (embedding the seed-derived <code>projects-db</code> password) is assembled in
+  <code>platform-configuration</code> (<code>projects-secrets</code>) from the CNPG <code>-rw</code> host — keeping the password out
+  of the rendered values. <code>SECRET_KEY</code> and the OIDC client secret are seed-derived too
+  (<a href="#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating">ADR-012</a>).</li>
+<li><strong>PVC for uploads, no S3.</strong> Same reasoning as Grist: a single node doesn't need S3, and the
+  off-site copy is single-bucket today, so S3 wouldn't close the backup gap.</li>
+<li><strong>Off by default, fully gated.</strong> Every Projects piece (release, OIDC client, <code>projects</code>
+  database, secrets) is gated on <code>apps.projects.enabled</code>, default <strong>false</strong>
+  (<code>OWNSUITE_APP_PROJECTS</code>): outside the hard DoD and not yet CI-booted. Gated off, the e2e
+  renders/deploys identically; validated by <code>helm lint</code> + kubeconform.</li>
+</ul>
+<p><strong>Consequences.</strong> A non-profit gets Projects over HTTPS with real SSO by flipping one flag,
+reusing Keycloak + CNPG with no new infrastructure. <strong>Honest limits, with upgrade paths:</strong> the
+uploads PVC is <strong>not</strong> off-site-backed (the same gap as Grist's PVC / Drive's bucket), and Projects
+is <strong>template/lint-validated, not yet CI-booted</strong> — its OIDC env was wired from the upstream sample
++ our RS256 Keycloak, so the first real deployment should confirm login end to end. People remains
+the only documented-and-deferred item; the "add an app" seam now hosts Docs, Drive, Grist and
+Projects without forking.</p>
+<hr />
+<h2 id="adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred">ADR-026 — Mailbox integration: messages, Django OIDC split, reuse the seam, OpenSearch deferred<a class="headerlink" href="#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>The "not yet CI-booted" limit below is closed.</strong> The hermetic mail loopback this ADR
+describes as the intended boot check now runs in CI on the mailbox's own cluster
+(<a href="#adr-029-per-app-nightly-e2e-one-app-per-cluster">ADR-029</a>). OpenSearch and the off-CI
+external-deliverability check still stand as described.</p>
+</blockquote>
+<p><strong>Context.</strong> This ADR implements the mailbox decided in
+<a href="#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay">ADR-021</a>: <strong>suitenumerique/messages</strong>,
+La Suite's own mail app, federated to the same Keycloak. Where Grist
+(<a href="#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default">ADR-024</a>) and
+Projects (<a href="#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default">ADR-025</a>)
+asked <em>"how to bolt on a foreign single-container app"</em>, messages is the opposite: a
+<code>suitenumerique</code> Django sibling of Docs, so the question is again ADR-022's — <em>what the existing seam
+must grow</em> — plus the genuinely new mail machinery (port 25, DKIM/SPF/DMARC), which
+<a href="#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb">ADR-027</a> covers. The design was scoped against the verified-current upstream
+(v0.8.0, June 2026: <code>compose.yaml</code>, <code>docs/env.md</code>, the <code>core</code> management commands), <strong>not</strong> memory —
+an earlier scout pass wrongly claimed messages publishes no images and had no recent release.</p>
+<p><strong>Decision.</strong> Add messages as a Helmfile release backed by a <strong>small local chart</strong>
+(<code>helmfile/charts/messages</code>) — upstream ships images (<code>ghcr.io/suitenumerique/messages-{backend,frontend,mta-in,mta-out}</code>, semver-tagged, pinned <code>0.8.0</code>) but <strong>no</strong> Helm chart — reusing the shared seams:</p>
+<ul>
+<li><strong>OIDC by the external/internal split, like Docs.</strong> messages is <code>mozilla-django-oidc</code>, so it takes
+  the per-endpoint <code>OIDC_OP_{AUTHORIZATION,TOKEN,USER,JWKS}_ENDPOINT</code> + <code>OIDC_RP_CLIENT_{ID,SECRET}</code>
+  contract (<a href="#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split">ADR-016</a>),
+  <strong>not</strong> Grist/Projects single-issuer discovery: browser-facing endpoints at the public
+  <code>auth.{domain}</code>, token/userinfo/jwks hairpinned to the in-cluster Keycloak service. The <code>messages</code>
+  OIDC client is one more <code>keycloak.clients</code> entry; the existing realm-import + idempotent upsert Job
+  (<a href="#adr-020-keycloak-realm-convergence-idempotent-oidc-client-upsert">ADR-020</a>) need no template change.</li>
+<li><strong>Reuse the shared infrastructure, per-app instances.</strong> A dedicated CNPG <code>messages</code> database; the
+  shared <strong>Valkey</strong> with dedicated DB numbers (<strong>4</strong> cache / <strong>5</strong> Celery broker — Docs uses 0/1,
+  Drive 2/3, so the queues never cross-consume, the one real co-tenancy trap, ADR-022); a per-app
+  <strong>S3 bucket</strong> for mail blobs/attachments on the pluggable seam (mirror ADR-022 — messages stores
+  blobs in object storage, <code>create_bucket</code>/<code>verify_blobs</code>). The Django <code>SECRET_KEY</code>, the OIDC client
+  secret and the internal <code>MDA_API_SECRET</code> (MTA↔MDA) are seed-derived
+  (<a href="#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating">ADR-012</a>); the relay
+  credentials and the DKIM private key are <strong>external overrides</strong>, not derived (ADR-021 refinement).</li>
+<li><strong>OpenSearch deferred.</strong> Verified optional upstream (an unset <code>OPENSEARCH_URL</code> only turns off
+  full-text search); omitted from v1 to protect the single-VPS RAM budget, behind a future flag. This
+  is the one ADR-021 component we drop — it was the heaviest.</li>
+<li><strong>rspamd and socks-proxy skipped.</strong> rspamd (inbound spam filter) is not on the path to the DoD
+  ("outbound reaches the inbox, not spam" is an SPF/DKIM/DMARC-via-relay property); mta-in delivers to
+  the MDA without it. socks-proxy only serves <code>MTA_OUT_MODE=direct</code>, and we relay. Both carry a
+  <code>ponytail:</code> marker and a one-line re-enable path.</li>
+<li><strong>Outbound relayed, throttled.</strong> <code>MTA_OUT_MODE=relay</code>, <code>MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure</code> to
+  the EU relay (Infomaniak <code>mail.infomaniak.com:587</code>); <code>THROTTLE_{MAILBOX,MAILDOMAIN}_OUTBOUND_EXTERNAL_RECIPIENTS</code>
+  set below the relay's 1440 msg/24h ceiling so it fails gracefully in-app.</li>
+<li><strong>Mailbox provisioning needs no <code>suite user add</code> change.</strong> A maildomain with <code>oidc_autojoin=True</code>
+  auto-creates a user's mailbox on first OIDC login — exactly the JIT model the CLI already relies on
+  (ADR-023). The one new piece is a <strong>one-time maildomain seed Job</strong> (mirrors <code>keycloak-config</code>) that
+  creates the domain, enables autojoin and registers the supplied DKIM key.</li>
+<li><strong>Off by default, fully gated.</strong> Every piece (release, OIDC client, <code>messages</code> DB, bucket, secrets,
+  seed Job) is gated on <code>apps.messages.enabled</code>, default <strong>false</strong> (<code>OWNSUITE_APP_MESSAGES</code>): it is the
+  optional, advanced add-on. Gated off, the e2e renders/deploys identically; the chart is validated by
+  <code>helm lint</code> + kubeconform on every change. Like Grist and Projects
+  (<a href="#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default">ADR-024</a>,
+  <a href="#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default">ADR-025</a>),
+  it is <strong>not booted in the constrained k3d e2e</strong> — heavier still (five pods), it would push the runner,
+  already shedding Drive during the restore step, over its memory ceiling. The hermetic loopback below
+  is the natural next step on a beefier/nightly runner.</li>
+</ul>
+<p><strong>Consequences.</strong> A non-profit gets an integrated webmail over HTTPS with real SSO by enabling one
+flag and supplying a relay account — reusing Keycloak, CNPG, Valkey and the S3 seam with <strong>one</strong> new
+heavy dependency removed (OpenSearch). <strong>Honest limits, each with an upgrade path:</strong> no full-text mail
+search until OpenSearch is re-enabled; <strong>no IMAP/POP3</strong> by design (ADR-021); the mail bucket shares
+Drive/Grist's not-yet-off-site backup gap; and messages is <strong>template/lint-validated, not yet CI-booted</strong>
+(runner footprint). The intended boot check is the <strong>hermetic loopback</strong> — pods converge, webmail 200s,
+OIDC login works, and a message delivered between two local mailboxes reads back via the API (the Docs
+create-and-read-back analog) — run on a beefier/nightly runner. <strong>Real external deliverability</strong>
+(SPF/DKIM/DMARC-aligned, inbox-not-spam) is an <strong>off-CI human check</strong> on a real domain + relay account,
+exactly as real ACME issuance is validated off-CI.</p>
+<hr />
+<h2 id="adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb">ADR-027 — Non-HTTP ingress: inbound SMTP on port 25 via K3s ServiceLB<a class="headerlink" href="#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Every public port in the stack so far is HTTP/S, carried by Traefik with cert-manager
+TLS. The mailbox (ADR-026) needs the stack's <strong>first non-HTTP public port</strong>: its Postfix MTA-in must
+receive mail from the internet on <strong>port 25</strong> (domain <code>MX</code> → port 25). Traefik's web/websecure
+entrypoints don't carry raw SMTP, so port 25 needs a different ingress path on single-node K3s.</p>
+<p><strong>Decision.</strong> Expose mta-in with a Kubernetes <strong><code>Service</code> of <code>type: LoadBalancer</code></strong>, which K3s'
+bundled <strong>ServiceLB (klipper-lb)</strong> — already in the cluster and already fronting Traefik — realizes by
+binding host port <strong>25</strong> and routing it to the mta-in pod. No new controller, no MetalLB, no Traefik
+TCP entrypoint to configure.</p>
+<ul>
+<li><strong>Firewall.</strong> The Ansible <code>security</code> role must allow <strong>inbound TCP 25</strong> (it is closed by default);
+  this is the only host-firewall change the mailbox needs. Added there, gated on the mailbox being
+  enabled.</li>
+<li><strong>Outbound 25 stays blocked — fine.</strong> Most VPS providers block <em>outbound</em> 25; we never send directly
+  (ADR-021 relays out via 587), so only <em>inbound</em> 25 matters. The installer documents confirming the
+  provider permits inbound 25 as a pre-flight check.</li>
+<li><strong>rDNS / PTR is a manual host step.</strong> A correct reverse-DNS record for the server IP is set at the
+  provider/host level and <strong>cannot</strong> be set in-cluster; the install flow documents it as a manual step
+  alongside the MX/SPF/DKIM/DMARC records (the relay carries most reputation, but PTR still matters).</li>
+</ul>
+<p><strong>Consequences.</strong> The mailbox receives mail with no addition to the cluster's networking stack —
+ServiceLB was already there. The seam now distinguishes HTTP apps (Traefik + cert-manager, the norm)
+from the single raw-TCP exception (port 25), documented so it isn't mistaken for a Traefik route.
+<strong>Trade-off:</strong> ServiceLB is single-node-simple and binds the host port directly; a multi-node or
+HA mail setup would need a real LB / MetalLB — out of scope for the single-server target.</p>
+<h2 id="adr-028-resource-requestslimits-and-probes-for-every-workload">ADR-028 — Resource requests/limits and probes for every workload<a class="headerlink" href="#adr-028-resource-requestslimits-and-probes-for-every-workload" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Production hardening for a non-expert operator means two things the cluster can act on
+without a human: a workload must declare what it costs (so the scheduler protects the node and the
+operator can size a VPS), and it must say when it is healthy (so a wedged pod recovers and a rollout
+waits for readiness). Most workloads already had requests/probes, but with gaps: the messages chart
+shipped one shared resource block for five very different components, the single-container apps
+(Grist, Projects, messages) had a <em>readiness</em> probe only — no liveness, and the boot delay was
+faked with a large <code>initialDelaySeconds</code> — and the PostgreSQL <code>Cluster</code> and Valkey ran with no
+declared resources at all.</p>
+<p><strong>Decision.</strong> Give every workload OwnSuite directly defines sane requests/limits and a
+startup/readiness/liveness probe set.</p>
+<ul>
+<li><strong>Memory limit, no CPU limit.</strong> Each workload <em>requests</em> CPU + memory (its guaranteed floor) and
+  <em>limits</em> memory only. A CPU limit throttles queries, migrations and first-boot work on a shared
+  single node; a memory limit stops one app OOM-ing its neighbours. This is the convention every
+  chart now follows.</li>
+<li><strong>startupProbe gates the boot; liveness/readiness run fast after.</strong> A <code>startupProbe</code> with a
+  generous <code>failureThreshold</code> (~5 min budget) absorbs the first-boot DB migration, so readiness and
+  liveness no longer need a long <code>initialDelaySeconds</code> hack. Once startup passes, <strong>readiness</strong> gates
+  the Service/rollout and <strong>liveness</strong> restarts a pod that has wedged (a deadlock readiness alone
+  would only pull from the Service, never recover). The probe action (httpGet/tcpSocket) is defined
+  once per chart and reused for all three.</li>
+<li><strong>Per-component sizing where components differ.</strong> The messages chart sizes each component
+  separately — the Django backend/worker are heavier than the lightweight Postfix MTAs — instead of
+  one shared block.</li>
+<li><strong>PostgreSQL and Valkey get explicit resources.</strong> The CNPG <code>Cluster</code> and the Valkey release now
+  declare requests + a memory limit like everything else.</li>
+</ul>
+<p>A few <strong>upstream</strong> operator/sidecar pods (cert-manager, the CNPG operator, Drive's Celery split)
+keep their chart defaults rather than being force-overridden — fragile to track per chart version,
+and small/stable enough to fall under the recommended-RAM headroom. The
+<a href="../../operate/sizing/">server sizing guide</a> accounts for them and is derived by summing these
+declarations.</p>
+<p><strong>Consequences.</strong> The scheduler can protect the node, rollouts wait for genuine readiness, wedged
+pods self-heal, and a volunteer can read one <a href="../../operate/sizing/">sizing guide</a> to buy the right
+VPS. <strong>Trade-off:</strong> the limits are deliberately generous ceilings (headroom for migrations and
+upgrade overlap), so steady-state usage sits well below them — the recommended-RAM figure is a safe
+buy, not a tight one.</p>
+<hr />
+<h2 id="adr-029-per-app-nightly-e2e-one-app-per-cluster">ADR-029 — Per-app nightly e2e: one app per cluster<a class="headerlink" href="#adr-029-per-app-nightly-e2e-one-app-per-cluster" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> <a href="#adr-010-testing-ci-strategy-a-layered-evolving-harness">ADR-010</a> runs the combined
+end-to-end check (<code>helmfile-e2e.yml</code>) on a single k3d cluster: the shared infrastructure plus the
+<strong>Docs + Drive</strong> core, then a full backup → restore cycle. The optional apps (Grist, Projects,
+messages) are deliberately <strong>left out</strong> of that run — bringing them up alongside the core, the
+operators, Keycloak and a CNPG recovery would push the GitHub runner past its memory ceiling.
+messages alone is five pods. So the optional apps were lint/template-validated but never actually
+booted in CI, and the messages mail loopback stayed an off-CI manual check. That is the last
+coverage gap before any of them could graduate to on-by-default.</p>
+<p><strong>Decision.</strong> A <strong>dedicated workflow</strong> (<code>apps-e2e.yml</code>) with a <strong>matrix, one app per
+job, each on its own fresh k3d cluster</strong>. Because each job holds only the platform plus one app,
+none competes for RAM. Per job it brings the app up, asserts it converges, that its UI is reachable
+over HTTPS through Traefik, and an app-appropriate read-back:</p>
+<ul>
+<li><strong>Grist</strong> — the health endpoint answers and an unauthenticated visit bounces to the SSO login page.</li>
+<li><strong>Projects</strong> — the UI is reachable over HTTPS (its SSO redirect happens client-side, so the bounce
+  target is not asserted; the browser flow stays a human check on first deployment).</li>
+<li><strong>messages</strong> — the local mail-delivery loopback: a message injected over SMTP to the inbound MTA
+  is delivered (MTA → delivery agent → mailbox) and reads back via the API, with no external relay,
+  so nothing leaves the cluster. This finally exercises the inbound mail path in CI.</li>
+<li><strong>Docs</strong> — an SSO user (seeded realm user, direct-access grant) creates a document through the API
+  and reads it back, proving OIDC client wiring + DB persistence.</li>
+<li><strong>Drive</strong> — a user created through the <code>suite user</code> CLI is just-in-time provisioned on its first
+  authenticated call, proven by <code>/users/me/</code> echoing its email.</li>
+</ul>
+<p><strong>Update (Docs/Drive folded in).</strong> Docs and Drive originally kept their boot DoD in the full suite
+(<a href="#adr-010-testing-ci-strategy-a-layered-evolving-harness">ADR-010</a>) because that suite already booted
+them as the restore survivor. Once apps went off-by-default (<a href="#adr-035-every-app-off-by-default-opt-in-install">ADR-035</a>)
+they are optional like the rest, so they now get the <strong>same fast per-app PR gate</strong> here — making this
+workflow the single source of <strong>all five</strong> apps' boot DoD. The full suite (<code>run-e2e.sh</code>) keeps Docs
+enabled only as the object-bucket vehicle for the object-copy restore check (a fixture, not an app
+DoD) and asserts no application; its restore survivor is decoupled accordingly (see
+<a href="#adr-006-backups-and-tested-restore">ADR-006</a>/<a href="#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design">ADR-017</a>).</p>
+<p>The fail-fast watchdog, the cert wait, the failure diagnostics and the PVC backup/restore round-trip
+are <strong>factored into a shared <code>helmfile/tests/lib.sh</code></strong> sourced by <code>run-e2e.sh</code>, <code>run-app-e2e.sh</code> and
+<code>run-pvc-backup-e2e.sh</code>, so the harnesses share one implementation. Locally: <code>make test-app
+APP=&lt;grist|projects|messages&gt;</code>.</p>
+<p>The workflow is <strong>split like <code>helmfile-e2e.yml</code></strong> (the same cost-aware pattern as the
+<a href="#adr-032-standardised-reusable-off-site-pvc-backup">ADR-032 PVC backup gate</a>): the full
+five-app matrix runs nightly and on demand, but a <strong>PR that touches an app's chart or
+values boots only <em>that</em> app</strong> as a fast, fail-fast gate, so a change to one app gets a real boot
+signal in minutes — not just lint/template — without waiting on (or paying for) the other four. A
+change to the shared harness (<code>lib.sh</code>, <code>run-app-e2e.sh</code>, <code>test_apps.py</code>) or the workflow itself
+fans out to all five, since it can affect any of them. Docs and Drive have no <code>charts/&lt;app&gt;/</code>
+directory (they are upstream charts + a local <code>*-ingress</code> chart + a values file), so the <code>detect</code>
+mapping watches <code>charts/docs-ingress/**</code> + <code>values/docs.yaml.gotmpl</code> (and the drive equivalents).</p>
+<p>GitHub <code>paths:</code> filters gate a <em>workflow</em>, not a matrix entry — they cannot say "this app changed,
+run only its job". Two ways to bridge that, and we rejected both: <strong>(a) one workflow file per app</strong>,
+each with its own <code>paths:</code> filter, duplicates the tool-install boilerplate five ways and drifts;
+<strong>(b) a single matrix that boots all five on any app change</strong> wastes four clusters' runner time
+whenever one app changes. Instead a tiny <code>detect</code> job diffs the PR against its base and emits a JSON
+matrix of only the changed app(s) — one file, no duplication, no wasted clusters. The cost is one
+extra ~30 s job and a small amount of shell; cheap next to a 15–20 min app boot.</p>
+<p><strong>Consequences.</strong> Every shipped app is now actually booted in CI, the messages mail loopback is
+automated rather than manual, and the optional apps have the boot evidence they need to graduate
+later. A PR that changes one app now gets that app's boot signal pre-merge at the cost of a single
+cluster; the full five-app sweep stays nightly. Real external mail deliverability
+(<a href="#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay">ADR-021</a>) remains the one check a
+hermetic cluster cannot stand in for: it needs a real domain, relay and inbox.</p>
+<hr />
+<h2 id="adr-030-n-bucket-off-site-object-backup">ADR-030 — N-bucket off-site object backup<a class="headerlink" href="#adr-030-n-bucket-off-site-object-backup" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> The off-site object copy (<a href="#adr-006-backups-and-tested-restore">ADR-006</a>,
+<a href="#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design">ADR-017</a>) copied a
+<strong>single</strong> bucket — Docs' <code>docs-media-storage</code>. As the suite grew per-app buckets (Drive, Mailbox,
+and now Projects on <a href="#adr-031-projects-uploads-on-s3-eliminating-the-pvc">ADR-031</a>), every bucket
+but Docs' was an unbacked gap: enabling Drive, Projects or the Mailbox meant media that no off-site
+copy covered.</p>
+<p><strong>Decision.</strong> Generalise the <code>object-backup</code> chart to copy a <strong>list of buckets</strong> instead of one. The
+Helmfile values drive the list from the <strong>enabled apps' buckets</strong> (<code>docs</code>/<code>drive</code>/<code>messages</code>/
+<code>projects</code>), mirroring the Garage <code>buckets:</code> list so backup coverage always tracks what is deployed.
+The sync script loops the list, copying each <code>primary:&lt;bucket&gt;</code> to its <strong>own sub-path</strong> under the
+existing rclone <code>crypt</code> overlay (<code>offsitecrypt:&lt;bucket&gt;</code>), so the buckets never collide and the
+restore path stays symmetric (each restored from its own sub-path).</p>
+<ul>
+<li><strong>Invariants preserved.</strong> The off-site store is still a <strong>different</strong> account/Garage than the
+  primary (the off-site-≠-primary rule), and every copy is still <strong>client-side encrypted</strong> by the
+  same <code>crypt</code> remote — only the number of buckets changed.</li>
+<li><strong>No new secret, no new image.</strong> The shared seed-derived S3 key still owns every bucket, and the
+  already-pinned rclone image runs the loop.</li>
+</ul>
+<p><strong>Consequences.</strong> Turning on any media-storing app now backs up its bucket with no extra config — the
+single-bucket gap is closed. <strong>Trade-off:</strong> the copy runs the buckets sequentially in one CronJob
+pass (simple, and fine at single-VPS data volumes); a future parallel/per-bucket schedule is a small
+change if data ever outgrows it.</p>
+<hr />
+<h2 id="adr-031-projects-uploads-on-s3-eliminating-the-pvc">ADR-031 — Projects uploads on S3, eliminating the PVC<a class="headerlink" href="#adr-031-projects-uploads-on-s3-eliminating-the-pvc" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Projects (<a href="#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default">ADR-025</a>)
+stored its uploads (avatars, project backgrounds, attachments) on the <code>projects-data</code> PVC, which
+forced <code>strategy: Recreate</code> (a read-write-once volume must never be double-mounted) and — like
+Grist's and Drive's earlier gaps — was <strong>not</strong> off-site-backed. Upstream <code>suitenumerique/projects</code>
+ships an <strong>S3 file manager</strong> that activates when <code>S3_ENDPOINT</code>/<code>S3_REGION</code> are set (verified against
+<code>server/.env.sample</code> + <code>api/hooks/s3</code>), exposing
+<code>S3_ENDPOINT</code>/<code>S3_REGION</code>/<code>S3_ACCESS_KEY_ID</code>/<code>S3_SECRET_ACCESS_KEY</code>/<code>S3_BUCKET</code>/<code>S3_FORCE_PATH_STYLE</code>.</p>
+<p><strong>Decision.</strong> Switch Projects' uploads to <strong>S3</strong> on the shared object-storage seam, exactly as Docs,
+Drive and Mailbox do, and <strong>remove the PVC</strong>:</p>
+<ul>
+<li><strong>Its own bucket</strong> (<code>projects-media-storage</code>), provisioned by the Garage bootstrap in <code>garage</code> mode
+  (or pre-created on external S3), joining the N-bucket off-site copy
+  (<a href="#adr-030-n-bucket-off-site-object-backup">ADR-030</a>) — so uploads are now backed up.</li>
+<li><strong>Shared credentials, mode-aware endpoint.</strong> The S3 key/secret are the same seed-derived
+  <code>s3-credentials</code> pair; the endpoint/region follow the garage-vs-external split used by the other
+  apps.</li>
+<li><strong>Chart simplified.</strong> The <code>projects-data</code> PVC, its three subPath mounts, <code>strategy: Recreate</code> and
+  the storage knobs are gone; the Deployment is now a plain rolling-update single container.</li>
+</ul>
+<p><strong>Consequences.</strong> Projects gains off-site-backed uploads and a simpler chart, and the suite's per-app
+storage is uniformly S3 (no app-specific PVC for uploads). This <strong>supersedes the PVC part of
+ADR-025</strong>. <strong>Trade-off:</strong> Projects now requires the object-storage seam (Garage in <code>garage</code> mode, a
+pre-created bucket on external S3) where before it needed only a volume — acceptable, since the seam
+is already mandatory for the core apps.</p>
+<hr />
+<h2 id="adr-032-standardised-reusable-off-site-pvc-backup">ADR-032 — Standardised reusable off-site PVC backup<a class="headerlink" href="#adr-032-standardised-reusable-off-site-pvc-backup" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Some state lives on a <strong>volume</strong>, not S3: Grist keeps its documents as SQLite files in
+<code>/persist/docs</code> (no upstream S3 document store), so the N-bucket object copy
+(<a href="#adr-030-n-bucket-off-site-object-backup">ADR-030</a>) cannot cover it. Rather than bolt a one-off
+backup onto Grist, the volume case deserves the same reusable treatment the object copy gives
+buckets — any future PVC-backed app should get off-site backup by adding one list entry.</p>
+<p><strong>Decision.</strong> Add a small reusable <strong><code>pvc-backup</code></strong> local chart: a CronJob (and a restore Job)
+<strong>parametrised by a list of <code>{pvcName, subPath}</code></strong>. For each volume it mounts the PVC, and copies the
+subtree to the off-site store with the <strong>same rclone <code>crypt</code> overlay and off-site config</strong> the object
+copy uses (off-site-≠-primary, client-side encrypted), under a per-PVC sub-path. The restore Job
+(rendered in restore mode, a <code>post-install</code> hook) copies the encrypted copy back into the freshly
+bound PVC before the app reads it — symmetric with the object restore.</p>
+<ul>
+<li><strong>First consumer: Grist.</strong> <code>grist-persist</code> (<code>/persist</code>, holding the document SQLite). The release
+  is gated on backups <strong>and</strong> Grist enabled, and <code>needs</code> the Grist release so the PVC exists before
+  the Job mounts it; on restore the documents land before any document is opened (Grist reads
+  document files lazily, not on boot).</li>
+<li><strong>Reuse, not a new dependency.</strong> The already-pinned rclone image and the existing
+  <code>backup-s3-credentials</code> + crypt passphrase are reused; no new image or secret.</li>
+<li><strong>Single-node mount.</strong> The backup CronJob mounts the PVC read-only alongside the app pod, which is
+  fine on single-node K3s (same node); a multi-node setup would need a volume-snapshot seam, noted in
+  the chart.</li>
+</ul>
+<p><strong>Consequences.</strong> Grist's documents are now backed up off-site and restored on recovery, closing the
+last PVC backup gap, and the pattern is ready for any future volume-backed app by adding a list
+entry. An e2e proves a seeded Grist document survives a PVC backup → wipe → restore — packaged as
+an <strong>isolated, fast harness</strong> (<code>make test-pvc-backup</code> / <code>run-pvc-backup-e2e.sh</code>) that boots only a
+single off-site <code>garage-backup</code> store and runs the shared <code>pvc_backup_roundtrip</code>
+(<a href="#adr-010-testing-ci-strategy-a-layered-evolving-harness">ADR-010</a>), so it gates every PR in ~3 min
+instead of waiting on the heavy full suite. <strong>Trade-off:</strong>
+the backup container mounts the live volume rather than a snapshot, so a copy taken mid-write captures
+a crash-consistent (not quiesced) state — acceptable for SQLite documents on a single VPS; snapshotting
+is the upgrade path if needed.</p>
+<hr />
+<h2 id="adr-033-suite-status-for-monitoring-cli-no-in-cluster-workload">ADR-033 — <code>suite status</code> for monitoring (CLI, no in-cluster workload)<a class="headerlink" href="#adr-033-suite-status-for-monitoring-cli-no-in-cluster-workload" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> A non-expert operator needs a quick, trustworthy answer to "is my OwnSuite
+healthy?" — node, database, certificates, off-site backups, and each enabled app. The
+single-server target makes a full monitoring stack (Prometheus/Grafana/Alertmanager) a poor
+trade: it costs RAM and operational surface on a node sized for the apps themselves, and it is
+one more thing the volunteer must learn, secure, and keep alive.</p>
+<p><strong>Decision.</strong> Add a read-only <code>suite status</code> subcommand that reads live state over the existing
+SSH tunnel (ADR-014) with <code>kubectl get -o json</code> and prints a readable, line-per-check summary.
+It reuses the CLI's tunnel/kubectl plumbing — no new server-side workload, no extra Helm
+release, no scrape endpoints. The k8s/CNPG/cert/backup JSON is parsed by small pure functions
+that are unit-tested against fixtures, so the parsing has coverage without a live cluster. Only
+the apps switched on (via <code>OWNSUITE_APP_*</code>, same precedence the Helmfile uses) are reported.</p>
+<p><strong>Consequences.</strong> The operator gets an at-a-glance health check with nothing extra running on
+the server, on demand, over the private tunnel. <strong>Trade-off:</strong> it is a point-in-time snapshot,
+not continuous alerting — there is no history and nothing pages you when something breaks at
+3am. For the single-server, volunteer-run target that is the right altitude; a deployment that
+outgrows it can layer a real monitoring stack on top later.</p>
+<h2 id="adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback">ADR-034 — <code>suite upgrade</code> (backup-gated snapshot → diff → apply → health → rollback)<a class="headerlink" href="#adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Version bumps land as Renovate-proposed edits to the pinned versions (ADR-007),
+gated by CI. Applying them on a live server is the dangerous moment: a bad upgrade can wedge an
+app or, worse, touch data with no undo. The operator needs a single safe path that makes the
+right thing the easy thing — never an upgrade without a fresh restore point, and automatic
+recovery when an upgrade fails its health check.</p>
+<p><strong>Decision.</strong> Add <code>suite upgrade</code>, the operationalisation of ADR-007's "explicit, reviewable,
+CI-gated bump" into a safe apply:</p>
+<ol>
+<li><strong>Refuse if backups are disabled.</strong> A destructive operation requires a recovery net; with
+   <code>OWNSUITE_BACKUP_ENABLED</code> not true, the command stops before doing anything (ADR-006).</li>
+<li><strong>Pre-upgrade snapshot.</strong> It reuses the <code>make backup</code> machinery (CNPG base backup + off-site
+   object copy) — the backup path is not reinvented.</li>
+<li><strong>Show the diff and confirm.</strong> <code>helmfile diff</code> is printed and confirmed interactively,
+   skippable with <code>--yes</code> like <code>suite install</code>'s non-interactive mode.</li>
+<li><strong>Apply</strong> with <code>helmfile apply</code>.</li>
+<li><strong>Health-check</strong> by reusing <code>suite.verify</code> against single sign-on and each enabled app's
+   public HTTPS host.</li>
+<li><strong>Roll back on failure.</strong> Each host that fails its health check has its Helm release rolled
+   back to the previous revision; the command then exits with an error naming what failed.</li>
+</ol>
+<p>The flow's branching — the backup gate and the rollback-on-health-failure path in particular —
+is unit-tested with mocked subprocess and HTTPS calls, no live cluster.</p>
+<p><strong>Consequences.</strong> Upgrades become a one-command, low-anxiety operation: there is always a fresh
+snapshot, the change is shown before it applies, and a regression self-heals back to the working
+version. <strong>Trade-off:</strong> a rollback restores the previous <em>version</em>, not the data — the
+pre-upgrade snapshot is the only undo for data changes, which is exactly why backups are a hard
+precondition. The health check is HTTPS-reachability of each app, not a deep functional test;
+deeper assertions live in the nightly e2e (ADR-010), not in the hot upgrade path.</p>
+<hr />
+<h2 id="adr-035-every-app-off-by-default-opt-in-install">ADR-035 — Every app off by default; opt-in install<a class="headerlink" href="#adr-035-every-app-off-by-default-opt-in-install" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Until now Docs and Drive defaulted <strong>on</strong> (the core DoD wants both immediately),
+while Grist, Projects and the mailbox defaulted <strong>off</strong>
+(<a href="#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default">ADR-024</a>,
+<a href="#adr-025-projects-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default">ADR-025</a>,
+<a href="#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred">ADR-026</a>). That split was an accident of sequencing, not
+a principle: a fresh <code>suite install</code> brought up two apps the operator might not want, on a
+single-server box where every pod competes for the same RAM (ADR-029). It also made the default
+footprint a moving target as more apps land.</p>
+<p><strong>Decision.</strong> <strong>No app is enabled by default — only Keycloak and the shared platform
+(cert-manager, CNPG, Valkey, Garage, backups) come up unattended.</strong> Every app, Docs and Drive
+included, is now gated the same way: <code>apps.&lt;name&gt;.enabled</code> defaults to <code>false</code>, flipped per app
+via <code>OWNSUITE_APP_&lt;NAME&gt;=true</code>. The operator opts in explicitly:</p>
+<ul>
+<li>The guided installer (ADR-018) <strong>prompts for each app</strong> (Docs and Drive presented as the
+  recommended first pair), all defaulting off.</li>
+<li><code>suite install</code> now issues and HTTPS-verifies <strong>Keycloak always, plus a cert + public host for
+  each enabled app</strong> — the same "Keycloak + enabled apps" shape <code>suite upgrade</code> already used
+  (<a href="#adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback">ADR-034</a>). A
+  platform-only install no longer hangs waiting on a <code>docs-tls</code> that was never requested.</li>
+<li><code>suite status</code> mirrors the new defaults (all off) when reporting which apps are on.</li>
+</ul>
+<p>Docs+Drive remain the <strong>recommended</strong> core and the machine-checked DoD: the full platform e2e
+(<code>run-e2e.sh</code>, ADR-010/029) enables them explicitly and still asserts the token→create→read-back
+round-trip and the restore survival. The per-app boot gate (ADR-029) is unchanged — Grist,
+Projects and messages each boot on their own cluster.</p>
+<p>The always-provisioned <code>docs</code>/<code>drive</code> databases and S3 buckets are <strong>left in place</strong> even when the
+apps are off: an empty database and an unused bucket name cost nothing, and gating them would add
+surface area (the derived owner secrets, the Garage bootstrap) for no operational gain. Only the
+heavier optional apps' databases (Grist/Projects/messages) stay conditionally provisioned, as before.</p>
+<p><strong>Consequences.</strong> The default install is now the smallest honest thing — SSO and the platform,
+nothing presumed. Operators choose their apps up front, and the resource footprint is whatever
+they switched on rather than a baked-in pair. <strong>Trade-off:</strong> a brand-new operator who expected
+Docs out of the box must now tick it (or set <code>OWNSUITE_APP_DOCS=true</code>); the installer prompt and
+the docs make that the obvious first step, so the cost is one keystroke, not a surprise.</p>
+<hr />
+<h2 id="adr-036-suite-restore-backup-gated-clean-cluster-recovery">ADR-036 — <code>suite restore</code> (backup-gated, clean-cluster recovery)<a class="headerlink" href="#adr-036-suite-restore-backup-gated-clean-cluster-recovery" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> Disaster recovery already worked: <code>make restore</code> runs a Helmfile sync in restore
+mode (CNPG recovery + the object/PVC restore Jobs, ADR-006/ADR-017), and the nightly e2e proves
+the full backup → destroy → restore cycle (ADR-010). But the operator-facing surface stopped at
+<code>install</code> / <code>user</code> / <code>status</code> / <code>upgrade</code>; restore was a bare <code>make</code> target with two sharp edges.
+First, it renders nothing without <code>OWNSUITE_SECRET_SEED</code> and means nothing without a backup source,
+yet failed late and opaquely when either was missing. Second — and worse — it assumes a <strong>clean</strong>
+cluster: CNPG recovery and the restore Jobs expect no prior data, so running it over a live install
+can clobber the very data it is meant to protect. ADR-018 anticipated a matching <code>suite restore</code>
+verb to close this gap.</p>
+<p><strong>Decision.</strong> Add <code>suite restore</code>, the disaster-recovery counterpart of
+<a href="#adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback"><code>suite upgrade</code></a> and built
+on the same idioms (shared connection flags, the SSH tunnel of ADR-014, <code>OWNSUITE_SECRET_SEED</code>
+required up front, reuse of <code>make</code>/<code>helmfile</code> and <code>suite.verify</code> rather than reimplementation):</p>
+<ol>
+<li><strong>Require the seed.</strong> Fail clearly if <code>OWNSUITE_SECRET_SEED</code> is not exported — Helmfile cannot
+   render without it (ADR-012).</li>
+<li><strong>Require a backup source.</strong> Refuse unless off-site backups are enabled
+   (<code>OWNSUITE_BACKUP_ENABLED</code>) and a target store is configured — restoring from nothing is
+   meaningless (ADR-006).</li>
+<li><strong>Safety gate: refuse on a non-clean cluster.</strong> Over the tunnel it probes for prior state (an
+   existing CNPG <code>Cluster</code> or bound PVCs in the <code>ownsuite</code> namespace). Because this is destructive,
+   the override is an <strong>explicit typed confirmation</strong> ("type <code>restore</code>"), not a bare <code>y/N</code>;
+   <code>--yes</code> skips it for unattended runs.</li>
+<li><strong>Restore + verify.</strong> It runs the restore-mode sync
+   (<code>OWNSUITE_RESTORE=true OWNSUITE_BACKUP_ENABLED=true helmfile sync</code>) — exactly what <code>make restore</code>
+   runs — then verifies single sign-on and each enabled app over HTTPS, surfacing what came back.</li>
+</ol>
+<p><code>make restore</code> stays the <strong>low-level mechanism the CLI wraps</strong>: the nightly e2e keeps driving it
+directly (a clean cluster by construction, no guardrails needed). The gates and the restore-mode
+env handed to Helmfile are unit-tested with mocked subprocess/HTTPS calls, no live cluster.</p>
+<p><strong>Consequences.</strong> Recovery becomes a single guarded command that fails fast on the two ways a
+restore goes wrong silently (no seed, no source) and cannot quietly destroy a live install. <strong>Safety
+gate trade-off:</strong> the clean-cluster check is a heuristic (CNPG cluster + bound PVCs), not a proof of
+emptiness — a partially-provisioned cluster could slip through, and a genuinely fresh one with leftover
+PVCs would prompt unnecessarily. We accept both: the typed confirmation makes the destructive override
+deliberate, and <code>--yes</code> keeps automation unblocked. Like <code>suite upgrade</code>, verification is HTTPS
+reachability, not a deep functional test — the nightly e2e remains the deep check.</p>
+<hr />
+<h2 id="adr-037-one-entrypoint-for-operators-every-action-is-a-suite-cli-verb">ADR-037 — One entrypoint for operators: every action is a <code>suite</code> CLI verb<a class="headerlink" href="#adr-037-one-entrypoint-for-operators-every-action-is-a-suite-cli-verb" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> The operator surface had drifted across two tools. Setup and provisioning lived as
+<code>make</code> targets (<code>make deps</code>, <code>make bootstrap</code>, <code>make check</code>), while the lifecycle lived on the
+<code>suite</code> CLI (<code>install</code> / <code>user</code> / <code>status</code> / <code>upgrade</code> / <code>restore</code>, ADR-018 onward). An operator
+had to know <em>which</em> tool a given action lived on, and the installer itself shelled out to
+<code>make bootstrap</code> from inside Python — a CLI calling a Makefile calling Ansible. The <code>make</code> surface
+also mixed two audiences: genuine CI/dev plumbing (lint, the Molecule/e2e harnesses) and
+operator-facing commands, with nothing signalling which was which.</p>
+<p><strong>Decision.</strong> <strong>Every user-facing operation is a <code>suite</code> CLI verb; <code>make</code> is CI/dev shorthand
+only.</strong> The three setup/provisioning targets become verbs in a new <code>suite/bootstrap.py</code>:</p>
+<ul>
+<li><code>suite deps</code> — install the Python tooling + Ansible collections (pip + <code>ansible-galaxy</code>).
+  <code>suite</code> is pure standard library, so this runs from a bare checkout with nothing pre-installed.</li>
+<li><code>suite bootstrap</code> — provision the server via the Ansible playbook (ADR-002), the work
+  <code>make bootstrap</code> used to do.</li>
+<li><code>suite check</code> — the same playbook with <code>--check --diff</code>, a no-op dry-run.</li>
+</ul>
+<p><code>suite install</code> now calls <code>bootstrap.provision()</code> directly instead of shelling out to <code>make</code>, so
+the installer no longer depends on a Makefile being present. The remaining <code>make</code> targets are
+exactly the CI/dev set — <code>lint*</code>, <code>test*</code>, and the low-level helmfile/ssh helpers the CLI wraps
+(<code>tunnel</code> / <code>sync</code> / <code>diff</code> / <code>destroy</code> / <code>backup</code>, plus <code>restore</code> as the documented low-level
+mechanism behind <a href="#adr-036-suite-restore-backup-gated-clean-cluster-recovery"><code>suite restore</code></a>).
+<code>make install</code> is kept as a one-line alias to the canonical <code>suite install</code>. The new verbs are
+flag-free (they read the repo's requirements files and the Ansible inventory) and unit-tested with
+mocked subprocess/tool-discovery calls, no pip/Ansible/server.</p>
+<p><strong>Consequences.</strong> There is one place to look for anything an operator does (<code>suite --help</code>), and the
+docs lead with <code>python3 -m suite …</code> throughout. The CLI/Makefile layering inverts cleanly: Python is
+the entrypoint, Ansible/helmfile/kubectl are the tools it drives, and <code>make</code> stops being part of the
+operator's mental model. <strong>Trade-off:</strong> the headline commands grow one token longer
+(<code>make bootstrap</code> → <code>python3 -m suite bootstrap</code>) until a <code>suite</code> shim is on <code>PATH</code> — now
+resolved by <a href="#adr-040-suite-on-path-via-a-global-pipx-install-static-shell-completion">ADR-040</a>. CI is
+unaffected because it already invoked <code>pip</code>/<code>ansible-galaxy</code> directly rather than through <code>make deps</code>.</p>
+<hr />
+<h2 id="adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative">ADR-038 — Hosting provider: Scaleway recommended (Infomaniak alternative)<a class="headerlink" href="#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> OwnSuite provisions its infrastructure half with Terraform (<a href="../../get-started/provision/">Provision</a>),
+and two providers now ship. The first target was <strong>Infomaniak</strong> Public Cloud (OpenStack) for its
+low EU/CH price, but a full end-to-end trial surfaced two structural limits: (a) its object storage
+is <strong>Swift with an <code>s3api</code> layer that does not implement bucket CORS</strong> (<a href="https://bugs.launchpad.net/swift/+bug/2077629">OpenStack bug #2077629</a>),
+which Drive's browser-direct uploads need in <code>external</code> mode; and (b) it has <strong>no native
+transactional-email product</strong>, so the Mailbox's outbound relay must be bolted on separately.</p>
+<p><strong>Decision.</strong> <strong>Scaleway is the recommended host; Infomaniak stays a supported alternative.</strong> Both
+ship as sibling Terraform modules behind the <strong>same output contract</strong> (<code>public_ip</code>, <code>ssh_target</code>,
+<code>s3_endpoint</code>, <code>s3_region</code>, <code>buckets</code>, <code>s3_access_key</code>, <code>s3_secret_key</code>), so bootstrap and Helmfile
+are provider-agnostic (<a href="#adr-003-pluggable-object-storage-garage-or-external-eu-s3">ADR-003</a>). Scaleway
+wins on the two limits above:</p>
+<ul>
+<li><strong>Object Storage is fully S3-compatible and CORS-capable</strong> → <code>external</code> mode works end-to-end,
+  including Drive uploads (the module sets a bucket CORS rule); no in-cluster Garage required.</li>
+<li><strong>Transactional Email (TEM)</strong> is a native relay → the Mailbox gets deliverability with no third
+  party. Because Scaleway Instances <strong>block outbound 25/465/587</strong>, the module wires TEM's alternate
+  port <strong>2587</strong> (STARTTLS) (<a href="#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay">ADR-021</a>,
+  <a href="#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb">ADR-027</a>).</li>
+</ul>
+<p>The Scaleway module is also <strong>shorter</strong> than the OpenStack one (no floating-IP-via-port indirection,
+no Swift/S3 namespace split):</p>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Infomaniak (OpenStack)</th>
+<th>Scaleway (native)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Server</td>
+<td><code>openstack_compute_instance_v2</code> + boot volume</td>
+<td><code>scaleway_instance_server</code> (root <code>sbs_volume</code>; PRO2 has no local SSD)</td>
+</tr>
+<tr>
+<td>Public IP</td>
+<td>floating IP + port + associate</td>
+<td><code>scaleway_instance_ip</code> (attached to the server)</td>
+</tr>
+<tr>
+<td>Firewall</td>
+<td><code>openstack_networking_secgroup*</code></td>
+<td><code>scaleway_instance_security_group</code></td>
+</tr>
+<tr>
+<td>SSH key</td>
+<td><code>openstack_compute_keypair_v2</code></td>
+<td><code>scaleway_iam_ssh_key</code> (project, injected via cloud-init)</td>
+</tr>
+<tr>
+<td>Object storage</td>
+<td>EC2 credential + <code>aws</code> provider → S3</td>
+<td><code>scaleway_object_bucket</code> + <code>scaleway_iam_application</code>/<code>policy</code>/<code>api_key</code></td>
+</tr>
+<tr>
+<td>Outbound mail</td>
+<td>external SMTP relay</td>
+<td><code>scaleway_tem_domain</code> (native)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Consequences.</strong> The happy path is <code>external</code> S3 + TEM on Scaleway, with Garage and an external
+relay as the fallbacks for Infomaniak or full sovereignty. Two Scaleway specifics the module already
+handles but operators must know: <strong>Object Storage is IAM-authorized</strong> — the S3 key needs a policy
+(<code>ObjectStorageFullAccess</code>) scoped to the project <em>and</em> <code>default_project_id</code> set to that project, or
+every S3 call 403s; and the Terraform key itself needs <strong><code>IAMManager</code></strong> (org-scoped) to mint the
+apps' S3 key. Scaleway also <strong>caps API-key lifetime</strong> (~1 year), so the apps' key must be rotated
+and re-applied before it lapses. Scaleway Debian images log in as <strong><code>root</code></strong> (Infomaniak uses
+<code>debian</code>); the bootstrap hardens root afterward.</p>
+<h2 id="adr-039-meet-media-ports-single-udp-mux-tcp-fallback">ADR-039 — Meet media ports: single UDP mux + TCP fallback<a class="headerlink" href="#adr-039-meet-media-ports-single-udp-mux-tcp-fallback" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> <a href="../meet/">Meet</a> (<code>suitenumerique/meet</code>) is built on <strong>LiveKit</strong>, so
+unlike every other app it cannot run entirely behind Traefik: WebRTC media is <strong>UDP</strong> (with a TCP
+fallback), not HTTP. LiveKit's default deployment opens a <strong>10 000-port UDP range</strong> (50000–60000)
+and can bundle a TURN server — far more surface than a single small association VPS wants, and
+awkward for a firewall that is otherwise 22/80/443 (+25 for the mailbox).</p>
+<p><strong>Decision.</strong> Run LiveKit in its <strong>smallest reachable footprint</strong> and open the media path with a
+dedicated <code>enable_meet</code> flag, reusing the port-25 seam from
+<a href="#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb">ADR-027</a> — now extended to UDP:</p>
+<ul>
+<li><strong>One muxed UDP port <code>7882</code></strong> (<code>rtc.udp_port</code>, range zeroed) for all media, plus <strong>one TCP port
+  <code>7881</code></strong> (<code>rtc.tcp_port</code>) as a fallback for UDP-hostile clients. <strong>No port range, no TURN.</strong></li>
+<li>LiveKit runs with <strong><code>hostNetwork</code></strong> and binds those two ports on the node directly
+  (<code>use_external_ip: true</code> to advertise the server's public IP). Signaling stays a normal Traefik
+  ingress on 443 (<code>wss://livekit.{domain}</code>).</li>
+<li><strong><code>enable_meet</code></strong> opens <code>7881/tcp</code> + <code>7882/udp</code> in both the Terraform security group (Scaleway +
+  Infomaniak) and the Ansible UFW rules — a boolean mirror of <code>enable_mailbox</code>. Off by default.</li>
+<li>Recording (LiveKit Egress) writes to its own <strong><code>meet-recordings</code></strong> S3 bucket; the AI/transcription
+  components ship at zero replicas.</li>
+</ul>
+<p><strong>Consequences.</strong> A single UDP port keeps the firewall and k3s host-port model simple and is enough
+for association-scale concurrency. The trade-offs, recorded so they are a choice not an omission:
+a client on a network that blocks <strong>both</strong> UDP/7882 and TCP/7881 cannot connect until embedded
+TURN/TLS is added; and authenticated recording <strong>download</strong> (the upstream nginx <code>auth_request</code>
+<code>/media/</code> path) is deferred — recordings are stored in S3 but a Traefik media-proxy for downloads
+is a follow-up, as for Docs.</p>
+<p><strong>Update (issue #55).</strong> Both trade-offs above are now resolved, without changing the default
+footprint:</p>
+<ul>
+<li><strong>Recording/file download proxy shipped.</strong> A <code>meet-media-proxy</code> release (the shared
+  <code>charts/media-proxy</code>, as for Docs/Drive) serves <code>/media/recordings/</code> and <code>/media/files/</code> on
+  Traefik, each authorized by its own backend media-auth route. No new ports.</li>
+<li><strong>Embedded TURN/TLS is now opt-in.</strong> Set <code>OWNSUITE_MEET_TURN=true</code> (app side) <strong>and</strong>
+  <code>enable_meet_turn=true</code> (Terraform/Ansible) to have LiveKit terminate TURN/TLS on the node at
+  <strong><code>5349/tcp</code></strong>, reusing the <code>livekit-tls</code> cert on <code>livekit.{domain}</code> — so no extra certificate
+  and no new DNS record. Off by default: it is only needed for clients blocked on both media ports,
+  and it adds one open port. <code>enable_meet_turn</code> mirrors <code>enable_meet</code> in both the Terraform security
+  group and the Ansible UFW rules.</li>
+</ul>
+<hr />
+<h2 id="adr-040-suite-on-path-via-a-global-pipx-install-static-shell-completion">ADR-040 — <code>suite</code> on PATH via a global pipx install + static shell completion<a class="headerlink" href="#adr-040-suite-on-path-via-a-global-pipx-install-static-shell-completion" title="Permanent link">&para;</a></h2>
+<p><strong>Context.</strong> <a href="#adr-037-one-entrypoint-for-operators-every-action-is-a-suite-cli-verb">ADR-037</a> made
+every operator action a <code>suite</code> verb but left the CLI unpackaged: with no <code>pyproject.toml</code>, nothing
+puts a <code>suite</code> executable on <code>PATH</code>, so every command is spelled <code>python3 -m suite …</code>. ADR-037
+flagged this as a deferred trade-off ("until a <code>suite</code> shim is on <code>PATH</code>"). There was also <strong>no shell
+completion</strong> — argparse gives <code>--help</code> but no tab-completion, and completion keys off a command name
+on <code>PATH</code>, so it was blocked on the shim.</p>
+<p><strong>Decision.</strong> Ship a minimal <code>pyproject.toml</code> (setuptools/PEP 621, distribution name <code>ownsuite</code>,
+import package stays <code>suite</code>) with a <code>[project.scripts] suite = "suite.cli:main"</code> entry point, and
+install the command <strong>globally with <code>pipx install --editable .</code></strong>. pipx keeps the CLI in its own
+isolated environment yet exposes <code>suite</code> on <code>PATH</code> in <strong>every</strong> shell, active virtualenv or not; the
+CLI operates on cwd-relative paths (<code>ansible/</code>, <code>helmfile/</code>, <code>.env</code>), so a global command run from
+the checkout works. pyproject reads the pinned runtime dep from <code>requirements.txt</code> via <code>dynamic</code>
+dependencies, so <code>requirements.txt</code> stays the single source of truth (AGENTS.md). <code>suite deps</code>
+keeps installing that runtime dep (<code>pip install -r requirements.txt</code>) plus the dev/Ansible tooling,
+for the <code>python -m suite</code> path; it does <strong>not</strong> install the <code>suite</code> command. <code>python -m suite</code> is
+unchanged and always works from a bare checkout, including the first <code>suite deps</code> itself. For
+completion, ship <strong>hand-written <code>completions/suite.{bash,zsh}</code></strong> an operator sources from their shell
+rc — no runtime dependency (keeps the base CLI pure standard library), unlike <code>argcomplete</code>. A unit
+test (<code>tests/test_completion.py</code>) parses <code>build_parser()</code> and asserts every subcommand appears in
+both completion scripts, so a new verb can't ship with a stale completion.</p>
+<p><strong>Rejected: <code>pip install -e .</code> inside the project venv.</strong> It was the first cut (issue #69) but puts
+<code>suite</code> only on the <em>venv's</em> <code>PATH</code>. Outside the venv — and with zsh <code>AUTO_CD</code>, which the maintainer
+runs — a bare <code>suite</code> typed in the repo root is silently read as <code>cd suite/</code> (the package directory),
+not "command not found", because the executable isn't on <code>PATH</code>. A global pipx install puts the
+command on <code>PATH</code> unconditionally, so the shell always resolves it as the command and <code>AUTO_CD</code> never
+fires. pipx over a system-wide <code>pip install</code> because it isolates the CLI's dependency and is the
+standard way to install a Python end-user CLI.</p>
+<p><strong>Consequences.</strong> The docs' canonical <code>suite &lt;verb&gt;</code> spelling is now literally runnable in any shell,
+closing ADR-037's trade-off. pipx is an extra prerequisite for the short form, but it is optional —
+<code>python -m suite &lt;verb&gt;</code> needs nothing beyond the checkout. The completion scripts are maintained by
+hand — accepted, guarded by the drift test, and cheaper than adding <code>argcomplete</code> as a runtime
+dependency, preserving the "pure standard library, no dependency to run" property that lets
+<code>python -m suite deps</code> work from a bare clone.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../meet/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Meet">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Meet
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../reference/cli/" class="md-footer__link md-footer__link--next" aria-label="Next: suite CLI">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                suite CLI
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Documentation released under an open-source license — OwnSuite.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.top", "navigation.footer", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

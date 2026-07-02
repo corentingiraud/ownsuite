@@ -1,0 +1,67 @@
+# OwnSuite
+
+> Self-host **[La Suite numérique](https://github.com/suitenumerique)**, *production-ready*, on a **single server**, for a **non-profit**.
+
+The goal: a volunteer shows up with a domain name and some technical know-how, and walks away with a full collaborative suite (documents, files, directory…) served over **HTTPS**, with **single sign-on (SSO)** and **backups** that run on their own.
+
+## The promise, in 6 steps
+
+1. Get a server — a cloud VM, a dedicated host, or a home server — and a domain name.
+1. Run the **[guided installer](https://corentingiraud.github.io/ownsuite/get-started/install/index.md)**, answer ~5 questions (domain, admin email, **which apps to enable**).
+1. The installer prints **the exact list of DNS records** to add at the registrar.
+1. DNS propagates → every app you enabled responds over HTTPS, with **shared SSO**.
+1. The admin creates `firstname@assoc.org` **once** → instant access to every enabled app.
+1. **Backups** are encrypted, off-site, and **restore is tested**.
+
+## Why this project exists
+
+Each La Suite app ships a `compose.yml` flagged *"experimental, dev only"* — the official production path is Kubernetes/Helm. But the guides deploy each app **in isolation**, with no shared infrastructure and no common SSO.
+
+**This project's value is integration:** a single stack that shares the database, cache, storage and — above all — **one SSO** across every app, plus everything real production needs: **backups, tested restore, controlled upgrades**.
+
+What's ready today
+
+The platform is built and tested in CI: server setup, shared single sign-on, off-site backups with a restore that's actually tested, and the guided installer. **Every app is off by default — you choose which to deploy.** Docs, Drive, Grist, Projects, a Mailbox and Meet are all available. See [Choosing which apps to deploy](https://corentingiraud.github.io/ownsuite/reference/configuration/#choosing-which-apps-to-deploy) and the [feature list](https://corentingiraud.github.io/ownsuite/project/roadmap/index.md).
+
+## The apps
+
+One Keycloak identity reaches every enabled app (single sign-on, just-in-time). **Every app is off by default** — you pick which to deploy.
+
+| App                                                                                    | What it is                               | Flag                    |
+| -------------------------------------------------------------------------------------- | ---------------------------------------- | ----------------------- |
+| **[Docs](https://corentingiraud.github.io/ownsuite/understand/docs/index.md)**         | Collaborative documents                  | `OWNSUITE_APP_DOCS`     |
+| **[Drive](https://corentingiraud.github.io/ownsuite/understand/drive/index.md)**       | File manager                             | `OWNSUITE_APP_DRIVE`    |
+| **[Grist](https://corentingiraud.github.io/ownsuite/understand/grist/index.md)**       | Spreadsheets that behave like a database | `OWNSUITE_APP_GRIST`    |
+| **[Projects](https://corentingiraud.github.io/ownsuite/understand/projects/index.md)** | Kanban boards / task management          | `OWNSUITE_APP_PROJECTS` |
+| **[Mailbox](https://corentingiraud.github.io/ownsuite/understand/messages/index.md)**  | Mail provider + webmail                  | `OWNSUITE_APP_MESSAGES` |
+| **[Meet](https://corentingiraud.github.io/ownsuite/understand/meet/index.md)**         | Video conferencing (LiveKit)             | `OWNSUITE_APP_MEET`     |
+
+Some upstream La Suite apps (People, Calendars…) are deliberately not packaged — see [Not supported](https://corentingiraud.github.io/ownsuite/project/roadmap/#not-supported-and-why).
+
+## Where to start
+
+**Installing it?** Follow the steps in order:
+
+- **[0. Provision](https://corentingiraud.github.io/ownsuite/get-started/provision/index.md)** *(optional)* — Terraform spins up the server and storage on Scaleway (or Infomaniak). Already have a Debian server and an S3 bucket? Skip to step 1.
+- **[1. Prepare the server](https://corentingiraud.github.io/ownsuite/get-started/bootstrap/index.md)** — one command turns a bare Debian server into a ready K3s cluster.
+- **[2. Install](https://corentingiraud.github.io/ownsuite/get-started/install/index.md)** — the guided installer takes you from there to the apps you choose, on HTTPS, by following the screen.
+
+**Running it day to day?**
+
+- **[Add your people](https://corentingiraud.github.io/ownsuite/operate/users/index.md)** — one command per person, instant access to every app.
+- **[Backups & restore](https://corentingiraud.github.io/ownsuite/operate/backups/index.md)** — off-site, encrypted, with a restore you can trust.
+- **[Pick a server size](https://corentingiraud.github.io/ownsuite/operate/sizing/index.md)** — how much RAM, CPU and disk to rent.
+
+**Curious how it works?**
+
+- **[How it works](https://corentingiraud.github.io/ownsuite/understand/overview/index.md)** — the moving parts, in plain terms.
+- **[What's included](https://corentingiraud.github.io/ownsuite/project/roadmap/index.md)** — the apps and features, and what's coming.
+
+## Documentation built for AI
+
+This documentation is **pure Markdown** and automatically publishes:
+
+- **`/llms.txt`** — a structured index of the whole documentation;
+- **`/llms-full.txt`** — the entire content concatenated into a single file.
+
+Any AI tool can fetch these files to load the full project context. See [For AI agents](https://corentingiraud.github.io/ownsuite/project/for-ai-agents/index.md).
