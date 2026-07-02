@@ -1360,7 +1360,7 @@ docs lead with `python3 -m suite …` throughout. The CLI/Makefile layering inve
 the entrypoint, Ansible/helmfile/kubectl are the tools it drives, and `make` stops being part of the
 operator's mental model. **Trade-off:** the headline commands grow one token longer
 (`make bootstrap` → `python3 -m suite bootstrap`) until a `suite` shim is on `PATH` — now
-resolved by [ADR-040](#adr-040-suite-on-path-via-editable-install-static-shell-completion). CI is
+resolved by [ADR-040](#adr-040-suite-on-path-via-a-global-pipx-install-static-shell-completion). CI is
 unaffected because it already invoked `pip`/`ansible-galaxy` directly rather than through `make deps`.
 
 ---
@@ -1452,7 +1452,7 @@ footprint:
 
 ---
 
-## ADR-040 — `suite` on PATH via editable install + static shell completion
+## ADR-040 — `suite` on PATH via a global pipx install + static shell completion
 
 **Context.** [ADR-037](#adr-037-one-entrypoint-for-operators-every-action-is-a-suite-cli-verb) made
 every operator action a `suite` verb but left the CLI unpackaged: with no `pyproject.toml`, nothing
@@ -1462,20 +1462,31 @@ completion** — argparse gives `--help` but no tab-completion, and completion k
 on `PATH`, so it was blocked on the shim.
 
 **Decision.** Ship a minimal `pyproject.toml` (setuptools/PEP 621, distribution name `ownsuite`,
-import package stays `suite`) with a `[project.scripts] suite = "suite.cli:main"` entry point.
-`suite deps` now runs `pip install -e .` instead of `pip install -r requirements.txt`: the editable
-install puts `suite` on `PATH` **and** pulls the pinned runtime deps, which pyproject reads from
-`requirements.txt` via `dynamic` dependencies — so `requirements.txt` stays the single source of
-truth for the pin (AGENTS.md). `python -m suite` is unchanged and remains the way to run the CLI
-from a bare checkout, including the first `suite deps` itself (chicken-and-egg: the shim exists only
-after `deps`). For completion, ship **hand-written `completions/suite.{bash,zsh}`** an operator
-sources from their shell rc — no runtime dependency (keeps the base CLI pure standard library),
-unlike `argcomplete`. A unit test (`tests/test_completion.py`) parses `build_parser()` and asserts
-every subcommand appears in both completion scripts, so a new verb can't ship with a stale completion.
+import package stays `suite`) with a `[project.scripts] suite = "suite.cli:main"` entry point, and
+install the command **globally with `pipx install --editable .`**. pipx keeps the CLI in its own
+isolated environment yet exposes `suite` on `PATH` in **every** shell, active virtualenv or not; the
+CLI operates on cwd-relative paths (`ansible/`, `helmfile/`, `.env`), so a global command run from
+the checkout works. pyproject reads the pinned runtime dep from `requirements.txt` via `dynamic`
+dependencies, so `requirements.txt` stays the single source of truth (AGENTS.md). `suite deps`
+keeps installing that runtime dep (`pip install -r requirements.txt`) plus the dev/Ansible tooling,
+for the `python -m suite` path; it does **not** install the `suite` command. `python -m suite` is
+unchanged and always works from a bare checkout, including the first `suite deps` itself. For
+completion, ship **hand-written `completions/suite.{bash,zsh}`** an operator sources from their shell
+rc — no runtime dependency (keeps the base CLI pure standard library), unlike `argcomplete`. A unit
+test (`tests/test_completion.py`) parses `build_parser()` and asserts every subcommand appears in
+both completion scripts, so a new verb can't ship with a stale completion.
 
-**Consequences.** The docs' canonical `suite <verb>` spelling is now literally runnable, closing
-ADR-037's trade-off. Cost: `suite deps` performs an editable install (`ownsuite.egg-info/` is
-git-ignored), and the completion scripts are maintained by hand — accepted, guarded by the drift
-test, and cheaper than adding `argcomplete` as a runtime dependency. Chose static completion over
-`argcomplete` to preserve the "pure standard library, no dependency to run" property that lets
+**Rejected: `pip install -e .` inside the project venv.** It was the first cut (issue #69) but puts
+`suite` only on the *venv's* `PATH`. Outside the venv — and with zsh `AUTO_CD`, which the maintainer
+runs — a bare `suite` typed in the repo root is silently read as `cd suite/` (the package directory),
+not "command not found", because the executable isn't on `PATH`. A global pipx install puts the
+command on `PATH` unconditionally, so the shell always resolves it as the command and `AUTO_CD` never
+fires. pipx over a system-wide `pip install` because it isolates the CLI's dependency and is the
+standard way to install a Python end-user CLI.
+
+**Consequences.** The docs' canonical `suite <verb>` spelling is now literally runnable in any shell,
+closing ADR-037's trade-off. pipx is an extra prerequisite for the short form, but it is optional —
+`python -m suite <verb>` needs nothing beyond the checkout. The completion scripts are maintained by
+hand — accepted, guarded by the drift test, and cheaper than adding `argcomplete` as a runtime
+dependency, preserving the "pure standard library, no dependency to run" property that lets
 `python -m suite deps` work from a bare clone.

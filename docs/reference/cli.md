@@ -5,10 +5,25 @@ installs the stack, manages users, reports health, and applies upgrades. Every
 subcommand runs from **your workstation** and reaches the cluster over the SSH tunnel
 (the Kubernetes API is never exposed); it adds no Python dependencies of its own.
 
-Once the workstation is set up (`python -m suite deps`, below), `suite` is a command on
-your `PATH` — run it directly as `suite <command>`. Before that first install, or from a
-bare checkout, `python -m suite <command>` runs the exact same CLI without any install
-(ADR-040). Every operator action is a `suite` verb (ADR-037); `make` is now only CI/dev
+Two ways to invoke it (ADR-040):
+
+- **`python -m suite <command>`** — always works from the repo checkout, no install
+  step. This is what runs the first `suite deps`.
+- **`suite <command>`** — the short form, once you install the CLI on your `PATH`:
+
+  ```bash
+  pipx install --editable .    # global `suite` command, available in any shell
+  pipx ensurepath              # once, if pipx's bin dir isn't on your PATH yet
+  ```
+
+  `pipx` keeps the CLI in its own isolated environment yet on `PATH` everywhere — so
+  `suite` works whether or not a project virtualenv is active. (A plain
+  `pip install -e .` only puts `suite` on the venv's `PATH`; outside that venv, and with
+  zsh `AUTO_CD` enabled, a bare `suite` in the repo root is read as `cd suite/` instead of
+  the command. A global `pipx` install avoids that.) The docs use the `suite <command>`
+  spelling throughout; substitute `python -m suite <command>` if you skip the pipx install.
+
+Every operator action is a `suite` verb (ADR-037); `make` is now only CI/dev
 shorthand (lint, the test harnesses, low-level helmfile/ssh helpers). `make install` is
 kept as a one-line alias for `suite install`.
 
@@ -49,15 +64,16 @@ See the [configuration reference](configuration.md) for every `OWNSUITE_*` varia
 
 ## `suite deps`
 
-One-time workstation setup: installs the CLI itself (`pip install -e .`, which also puts a
-`suite` command on your `PATH`) plus the Ansible collections the bootstrap needs
-(`pip install -r requirements-dev.txt` + the pinned `ansible-galaxy` collections). Run it
-from a fresh checkout with `python -m suite` — `suite` is pure standard library, so no
-dependencies are needed to run `suite deps`; every later verb can then use the shorter
-`suite <command>`. Takes no flags.
+One-time workstation setup: installs the CLI's runtime dependency and the Ansible
+collections the bootstrap needs (`pip install -r requirements.txt`,
+`pip install -r requirements-dev.txt`, and the pinned `ansible-galaxy` collections). Run it
+from a fresh checkout with `python -m suite` — `suite` is pure standard library, so nothing
+needs to be installed first. Takes no flags. (This installs the tooling, not the short
+`suite` command itself — for that, `pipx install --editable .`; see the [top of this
+page](#suite-cli-reference).)
 
 ```bash
-python -m suite deps    # bootstraps the toolchain; afterwards `suite <command>` works
+python -m suite deps
 ```
 
 ### Shell autocomplete
