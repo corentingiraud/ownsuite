@@ -28,6 +28,11 @@ apps:
   meet:
     enabled: true
 
+# Transactional-email relay gate. False by default (no relay account) so the shared
+# email-relay Secret is not rendered standalone; Helmfile flips it on when a relay is set.
+email:
+  configured: false
+
 # In-cluster PostgreSQL service host, for apps that need a full connection URL
 # (e.g. Projects' DATABASE_URL). Helmfile passes the computed CNPG `-rw` service.
 postgres:

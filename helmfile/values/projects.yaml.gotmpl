@@ -76,8 +76,25 @@ env:
   # send by default ("NotImplemented" on PutObject); only checksum when required.
   AWS_REQUEST_CHECKSUM_CALCULATION: "when_required"
   AWS_RESPONSE_CHECKSUM_VALIDATION: "when_required"
+  {{- if .Values.email.configured }}
+  # --- Transactional email (invitations, notifications) via the shared platform relay
+  #     (nodemailer). SMTP_SECURE=false = STARTTLS on 587/2587, not implicit TLS/465. ---
+  SMTP_HOST: {{ first (splitList ":" .Values.email.host) | quote }}
+  SMTP_PORT: {{ last (splitList ":" .Values.email.host) | quote }}
+  SMTP_SECURE: "false"
+  SMTP_FROM: {{ .Values.email.from | quote }}
+  {{- end }}
 
 secretEnv:
+  {{- if .Values.email.configured }}
+  # Shared platform outbound-relay account (same one the mailbox mta-out uses).
+  - name: SMTP_USER
+    secretName: email-relay
+    secretKey: EMAIL_HOST_USER
+  - name: SMTP_PASSWORD
+    secretName: email-relay
+    secretKey: EMAIL_HOST_PASSWORD
+  {{- end }}
   - name: SECRET_KEY
     secretName: projects-secrets
     secretKey: SECRET_KEY

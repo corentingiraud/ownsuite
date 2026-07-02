@@ -168,6 +168,22 @@ apps:
 # Contact address used for app admin / superuser accounts.
 adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}
 
+# Transactional email (recording-ready links, share invitations, account
+# verification) for the apps. Delivered through the SAME external SMTP relay the
+# mailbox uses (OWNSUITE_MTA_RELAY_*) — one relay account for the whole platform.
+# Scaleway TEM is the recommended relay (smtp.tem.scaleway.com:2587) but ANY
+# authenticated SMTP relay works (Infomaniak, etc.). Optional: with no relay account
+# set the apps skip sending (Django falls back to a dummy backend; recordings stay
+# reachable via a presigned S3 URL). Enable by exporting the relay account below.
+email:
+  # Relay endpoint (host:port, STARTTLS). Shared with the mailbox mta-out relayHost.
+  host: {{ env "OWNSUITE_MTA_RELAY_HOST" | default "mail.infomaniak.com:587" | quote }}
+  # Envelope/From address on outgoing mail (must be an allowed sender on the relay).
+  from: {{ env "OWNSUITE_EMAIL_FROM" | default (printf "no-reply@%s" (env "OWNSUITE_DOMAIN" | default "ownsuite.localhost")) | quote }}
+  # True once the operator has supplied the relay account (username set) — same
+  # signal as apps.messages.relayConfigured (one account drives both).
+  configured: {{ ne (env "OWNSUITE_MTA_RELAY_USERNAME" | default "") "" }}
+
 postgres:
   enabled: true
   clusterName: ownsuite-pg

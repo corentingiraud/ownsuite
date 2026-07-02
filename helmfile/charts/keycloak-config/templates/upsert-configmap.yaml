@@ -57,6 +57,23 @@ data:
     done
     [ "$found" = "1" ] || echo "  no OIDC clients configured; nothing to do"
     echo "OIDC client reconciliation complete."
+    {{- if .Values.email.configured }}
+
+    # Realm SMTP relay for account emails (verification, password reset). Uses the
+    # shared platform relay account (SMTP_USER/SMTP_PASSWORD from the email-relay
+    # Secret); STARTTLS on the relay port. Idempotent — re-set on every sync.
+    echo "Configuring realm SMTP relay"
+    "$KCADM" update "realms/${KC_REALM}" --config "$CONFIG" \
+      -s 'smtpServer.host={{ .Values.email.host }}' \
+      -s 'smtpServer.port={{ .Values.email.port }}' \
+      -s 'smtpServer.from={{ .Values.email.from }}' \
+      -s 'smtpServer.starttls=true' \
+      -s 'smtpServer.ssl=false' \
+      -s 'smtpServer.auth=true' \
+      -s "smtpServer.user=${SMTP_USER}" \
+      -s "smtpServer.password=${SMTP_PASSWORD}"
+    echo "Realm SMTP configured."
+    {{- end }}
 {{- /* UserInfo is kept UNSIGNED (user.info.response.signature.alg=""). RS256 makes Keycloak
        return a signed JWT that Grist's openid-client cannot parse ("not valid JSON"); unsigned
        is the OIDC default every app here expects. Empty (not omitted) so a re-upsert clears any

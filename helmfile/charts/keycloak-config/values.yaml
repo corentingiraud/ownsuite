@@ -14,5 +14,13 @@ image:
 # both emitted by platform-configuration (ADR-012).
 adminSecretName: keycloak-admin
 oidcClientsSecretName: keycloak-oidc-clients
+# Realm SMTP for account emails. Off by default (no relay) so the Job stays a no-op
+# standalone; Helmfile flips `configured` on and feeds host/port/from + the secret.
+email:
+  configured: false
+  host: ""
+  port: ""
+  from: ""
+emailSecretName: email-relay
 # One entry per app: {clientId, directAccessGrants?}. Mirrors keycloak.clients.
 clients: []
