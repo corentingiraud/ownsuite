@@ -181,16 +181,15 @@ ingressAdmin:
     enabled: true
     secretName: drive-tls
 
-# Authenticated media serving: Traefik forwardAuth to the backend media-auth
-# endpoint, then a path rewrite to the bucket (path-style S3). The two Middleware
-# CRs live in the drive-ingress chart. The path is a clean Traefik prefix (the
-# chart's nginx-style "/media/(.*)" regex is replaced by the rewrite middleware).
-# In garage mode the /media/ route is served by the drive-ingress chart pointed at the
-# in-cluster Garage ClusterIP Service (finding #21): the chart's own media Ingress here
-# targets a portless ExternalName Service that Traefik cannot route. External mode keeps
-# this upstream route (external-S3 media is a separate pre-existing limitation).
+# Authenticated media serving (/media/ downloads AND /media/preview/ thumbnails) is
+# handled in BOTH modes by the drive-media-proxy release (a tiny nginx that does the
+# media-auth subrequest + SigV4 + rewrite to the store — Garage over http in garage
+# mode, the external S3 over TLS in external mode). The docs pattern; the two Middleware
+# CRs in the drive-ingress chart are unused by this route. The chart's own media Ingress
+# here targets a portless ExternalName Service that Traefik cannot route, so it is always
+# disabled in favour of the proxy.
 ingressMedia:
-  enabled: {{ not .Values.garage.enabled }}
+  enabled: false
   className: traefik
   host: {{ $host | quote }}
   path: /media/
@@ -200,9 +199,9 @@ ingressMedia:
     enabled: true
     secretName: drive-tls
 
-# ponytail: media-preview (thumbnail) ingress left disabled for v1. Previews are a
-# visual nicety, not part of the DoD, and the upstream rewrite path needs validating
-# against our Traefik setup; enable with its own middleware once proven (ADR-022).
+# The chart's own preview Ingress stays off: the drive-media-proxy's single /media/
+# location already serves /media/preview/ thumbnails (same media-auth endpoint, key
+# prefix preserved by the nginx rewrite), so no separate route is needed.
 ingressMediaPreview:
   enabled: false
 
@@ -213,9 +212,8 @@ posthog:
   ingressAssets:
     enabled: false
 
-# Media upstream: the in-cluster Garage S3 (path-style). Mirrors Docs; the rewrite
-# middleware prepends the Drive bucket. (External-S3 media has the same pre-existing
-# limitation as Docs and is out of Phase 5 scope.)
+# Unused: ingressMedia is disabled (the drive-media-proxy serves /media/ in both modes).
+# Kept only because the chart's media Service is templated off these values.
 serviceMedia:
   host: {{ printf "garage.%s.svc.cluster.local" $ns | quote }}
   port: 3900
