@@ -89,6 +89,22 @@ def test_summarise_app_pods_matches_release_prefixed_names():
     assert status.summarise_app_pods(pods, "grist") == (0, 0, False)
 
 
+def test_summarise_app_pods_ignores_job_pods():
+    # A healthy deployment pod plus failed CronJob pods (meet's clean_pending_files):
+    # the Job-owned pods must not count toward the app's service health.
+    pods = {"items": [
+        {"metadata": {"labels": {"app.kubernetes.io/name": "meet-backend"}},
+         "status": {"phase": "Running", "conditions": _conds(True)}},
+        {"metadata": {"labels": {"app.kubernetes.io/name": "meet-backend"},
+                      "ownerReferences": [{"kind": "Job", "name": "meet-clean-1"}]},
+         "status": {"phase": "Failed", "conditions": _conds(False)}},
+        {"metadata": {"labels": {"app.kubernetes.io/name": "meet-backend"},
+                      "ownerReferences": [{"kind": "Job", "name": "meet-purge-1"}]},
+         "status": {"phase": "Failed", "conditions": _conds(False)}},
+    ]}
+    assert status.summarise_app_pods(pods, "meet") == (1, 1, True)
+
+
 def test_enabled_apps_honours_env_then_defaults(monkeypatch):
     for app in ("DOCS", "DRIVE", "GRIST", "PROJECTS"):
         monkeypatch.delenv(f"OWNSUITE_APP_{app}", raising=False)
