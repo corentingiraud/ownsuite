@@ -49,6 +49,7 @@ the stack (argparse, no extra tooling). The commands:
 | `user add\|passwd\|disable` | Manage Keycloak users — one identity reaches every enabled app (JIT). |
 | `status` | Health summary — node, database, certs, backup, apps. |
 | `upgrade` | Backup-gated upgrade: snapshot → diff → apply → health-check → rollback on failure. |
+| `sync` | Apply one release (`-l`) or one app (`--app`) with the same rails, scoped. |
 | `restore` | Restore a clean cluster from the off-site backups. |
 
 Full reference: **[`suite` CLI](https://corentingiraud.github.io/ownsuite/reference/cli/)**.
