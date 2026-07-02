@@ -146,7 +146,15 @@ backend:
     LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX: "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
     # --- Recording (LiveKit Egress -> S3) ---
     RECORDING_ENABLE: "True"
-    RECORDING_STORAGE_EVENT_ENABLE: "True"
+    # The storage-event is an S3 bucket-notification -> backend callback that confirms
+    # the recording object landed, and is what marks a recording "ready" (triggering the
+    # recording-ready email — the only way a user reaches a finished recording). External
+    # object storage (Scaleway S3) has no such bucket->backend notification wired here, so
+    # the event never arrives and recordings stay stuck "processing" with no email. Disable
+    # it so the backend finalises the recording on the LiveKit egress_ended webhook it
+    # already receives. Re-enable only once a bucket notification is delivered (e.g. garage
+    # mode / a MinIO-style event hook). The token secret stays derived but unused.
+    RECORDING_STORAGE_EVENT_ENABLE: "False"
     RECORDING_STORAGE_EVENT_TOKEN:
       secretKeyRef:
         name: meet-secrets
