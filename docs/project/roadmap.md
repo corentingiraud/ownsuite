@@ -58,6 +58,10 @@ Production essentials, implemented and **proven in CI**:
 - **Backup-gated upgrades + health surfacing** — `suite upgrade` (snapshot → diff → apply →
   health check → rollback on failure) and `suite status`. See [Upgrade](../operate/upgrade.md)
   and [Status](../operate/status.md).
+- **Real external mail deliverability** — proven end-to-end on a real domain + relay: mail from
+  the Mailbox app lands in an external inbox **not in spam**, with SPF/DKIM/DMARC aligned. The
+  installer emits the records and `dns_check` verifies alignment. See
+  [Mailbox application](../understand/messages.md).
 
 ## Apps (all off by default)
 
@@ -99,15 +103,8 @@ single-server fit and real value over what the shared foundation already provide
 ## Planned
 
 The production-hardening goal — install, operate, upgrade and recover OwnSuite **without
-maintainer help** — is met: the items once planned here (probes/limits + sizing guide, per-app
-nightly boot checks, full backup coverage, `suite upgrade`/`status`) have all shipped above.
-
-What remains is the one thing CI cannot stand in for:
-
-- **Real external mail deliverability** — on a real domain + relay account, confirm mail lands
-  **not in spam** with SPF/DKIM/DMARC aligned. The installer already emits the records and the
-  `dns_check` command verifies alignment, but the final proof needs a human, a real domain and a
-  real external inbox. See [Mailbox application](../understand/messages.md).
+maintainer help** — is met. Everything once planned here has shipped above, including the last
+item CI could not stand in for: real external mail deliverability, now proven end-to-end.
 
 **Out of scope / deferred:** OpenSearch full-text search for the mailbox (deferred to protect
 single-VPS RAM — note the cost if re-enabled). For upstream apps we don't package, see

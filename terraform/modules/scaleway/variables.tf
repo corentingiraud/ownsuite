@@ -65,7 +65,7 @@ variable "enable_mailbox" {
 }
 
 variable "mail_domain" {
-  description = "Email/sending domain to register in Scaleway TEM (the mailbox's domain, = OWNSUITE_DOMAIN, e.g. fabrique.giraud.dev). Required when enable_mailbox = true."
+  description = "Email/sending domain to register in Scaleway TEM (the mailbox's domain, = OWNSUITE_DOMAIN, e.g. mail.example.org). Required when enable_mailbox = true."
   type        = string
   default     = ""
 }
@@ -89,7 +89,7 @@ variable "s3_key_expires_at" {
 }
 
 variable "cors_allowed_origins" {
-  description = "Browser origins allowed to make direct (presigned) requests to the buckets. Empty = no CORS rule. In external-S3 mode Drive/Docs/Projects/Messages upload+download straight from the browser, so on a CORS-capable provider (Scaleway RGW) set e.g. [\"https://*.fabrique.giraud.dev\"] — otherwise the upload preflight (OPTIONS) 403s. (Garage mode proxies same-origin and needs none.)"
+  description = "Browser origins allowed to make direct (presigned) requests to the buckets. Empty = no CORS rule. In external-S3 mode Drive/Docs/Projects/Messages upload+download straight from the browser, so on a CORS-capable provider (Scaleway RGW) set e.g. [\"https://*.example.org\"] — otherwise the upload preflight (OPTIONS) 403s. (Garage mode proxies same-origin and needs none.)"
   type        = list(string)
   default     = []
 }
