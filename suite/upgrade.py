@@ -43,10 +43,11 @@ RELEASE_BY_HOST = {
 def run_upgrade(args):
     cfg = config.load_env(args.env_file)
     ssh = getattr(args, "ssh", None) or cfg.get("OWNSUITE_SERVER_SSH", "")
-    seed = os.environ.get("OWNSUITE_SECRET_SEED")
+    seed = os.environ.get("OWNSUITE_SECRET_SEED") or cfg.get("OWNSUITE_SECRET_SEED")
     if not seed:
         raise SuiteError(
-            "OWNSUITE_SECRET_SEED must be exported — helmfile needs it to render (ADR-012)."
+            "OWNSUITE_SECRET_SEED must be set (exported or in .env) — helmfile needs "
+            "it to render (ADR-012)."
         )
     _require_backups_enabled(cfg)
     _preflight(args, ssh)

@@ -53,7 +53,7 @@ def run_provision(args):
                step="terraform output")
     outputs = json.loads(proc.stdout or "{}")
 
-    env_updates = _env_from_outputs(outputs)
+    env_updates = {**_env_from_outputs(outputs), **_secrets_from_outputs(outputs)}
     if env_updates:
         config.write_env(args.env_file, {**cfg, **env_updates})
         print(f"\n==> Wrote infra values to {args.env_file}: {', '.join(env_updates)}")
@@ -144,6 +144,24 @@ def _env_from_outputs(outputs):
     return env
 
 
+def _secrets_from_outputs(outputs):
+    """External secrets (provider-minted S3 keys, relay account) that cannot be
+    seed-derived, mapped to their OWNSUITE_* keys. Written to the git-ignored .env so
+    `suite sync`/`upgrade` pick them up without a manual export (they read the seed and
+    these from .env, ADR-012)."""
+    env = {}
+    ak, sk = _out(outputs, "s3_access_key"), _out(outputs, "s3_secret_key")
+    if ak and sk:
+        env["OWNSUITE_S3_ACCESS_KEY"] = ak
+        env["OWNSUITE_S3_SECRET_KEY"] = sk
+    ru, rp = _out(outputs, "mta_relay_username"), _out(outputs, "mta_relay_password")
+    if ru and rp:
+        env["OWNSUITE_MTA_RELAY_USERNAME"] = ru
+        env["OWNSUITE_MTA_RELAY_PASSWORD"] = rp
+        env["OWNSUITE_MTA_RELAY_HOST"] = TEM_RELAY_HOST
+    return env
+
+
 def _inventory_yaml(ssh_target):
     user, sep, host = ssh_target.partition("@")
     if not sep:  # bare host, no user@ prefix
@@ -160,25 +178,18 @@ def _inventory_yaml(ssh_target):
 
 
 def _secret_banner(outputs):
-    lines = []
-    ak, sk = _out(outputs, "s3_access_key"), _out(outputs, "s3_secret_key")
-    if ak and sk:
-        lines += [f"export OWNSUITE_S3_ACCESS_KEY={ak}",
-                  f"export OWNSUITE_S3_SECRET_KEY={sk}"]
-    ru, rp = _out(outputs, "mta_relay_username"), _out(outputs, "mta_relay_password")
-    if ru and rp:
-        lines += [f"export OWNSUITE_MTA_RELAY_USERNAME={ru}",
-                  f"export OWNSUITE_MTA_RELAY_PASSWORD={rp}",
-                  f"export OWNSUITE_MTA_RELAY_HOST={TEM_RELAY_HOST}"]
-    if not lines:
-        return
-    print(
-        "\n" + "=" * 70 + "\n"
-        "EXTERNAL SECRETS — cannot be derived from the seed, so they are NOT written\n"
-        "to .env. Store them in your password manager and export them (like the seed)\n"
-        "before `suite install`:\n\n  " + "\n  ".join(lines) + "\n"
-        + "=" * 70
-    )
+    """The provider-minted secrets are written to the git-ignored .env (above); this
+    only reminds the operator to (a) also stash them in a password manager — .env is
+    disposable — and (b) publish the TEM email DNS records."""
+    ak = _out(outputs, "s3_access_key")
+    ru = _out(outputs, "mta_relay_username")
+    if ak or ru:
+        print(
+            "\n" + "=" * 70 + "\n"
+            "EXTERNAL SECRETS were written to .env (git-ignored) so `suite sync`/`upgrade`\n"
+            "can read them. They cannot be derived from the seed — ALSO store them in your\n"
+            "password manager, since .env is disposable.\n" + "=" * 70
+        )
     tem_dns = _out(outputs, "tem_dns")
     if tem_dns:
         print("\n==> Also publish the TEM SPF/DKIM/DMARC records:\n" + str(tem_dns))

@@ -8,13 +8,15 @@ import os
 import socket
 import subprocess
 import time
+from pathlib import Path
 
 from .errors import SuiteError
 
 # The bootstrap fetches the cluster kubeconfig here (ansible/kubeconfig — the
 # Ansible run's cwd is the `ansible/` dir, ADR-002). It points at 127.0.0.1:6443,
-# which this tunnel forwards.
-FETCHED_KUBECONFIG = os.path.join("ansible", "kubeconfig")
+# which this tunnel forwards. Resolve it against the repo root (this package's parent)
+# rather than the cwd, so `suite` finds it when run from a subdirectory too.
+FETCHED_KUBECONFIG = str(Path(__file__).resolve().parents[1] / "ansible" / "kubeconfig")
 
 
 def port_open(port, host="127.0.0.1"):
