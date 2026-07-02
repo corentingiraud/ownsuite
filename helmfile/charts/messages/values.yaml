@@ -138,7 +138,7 @@ components:
     #      authenticate first") and relayhost is garbage. De-indent those lines in
     #      the template before the entrypoint renders main.cf from it.
     # Create the dir, fix permissions, de-indent the relay block, then exec the entrypoint.
-    # ponytail: drop each once upstream ships the fixes (mkdir+set-permissions;
+    # drop each once upstream ships the fixes (mkdir+set-permissions;
     # de-indented main.cf.j2 — PR suitenumerique/messages#733).
     command:
       - sh

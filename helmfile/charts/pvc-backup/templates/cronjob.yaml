@@ -4,7 +4,7 @@ Scheduled off-site copy of each configured PVC subtree (ADR-032), encrypted clie
 via the rclone crypt remote. One CronJob per volume, each mounting its PVC read-only.
 On single-node K3s a RWO PVC mounts fine alongside the app pod (same node); a multi-node
 setup would need a snapshot/ReadOnlyMany seam instead.
-ponytail: read-only same-node mount; snapshot CSI if this ever runs multi-node.
+read-only same-node mount; snapshot CSI if this ever runs multi-node.
 The e2e triggers an immediate run with `kubectl create job --from=cronjob/<name>`.
 */}}
 {{- range .Values.volumes }}

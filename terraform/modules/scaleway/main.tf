@@ -31,7 +31,7 @@ resource "scaleway_iam_ssh_key" "this" {
 }
 
 # --- Public IP + firewall ---------------------------------------------------
-# ponytail: rDNS/PTR (mail.<domain>) for mailbox reputation is NOT set here —
+# rDNS/PTR (mail.<domain>) for mailbox reputation is NOT set here —
 # `reverse` is computed on scaleway_instance_ip in provider v2.77. Set it via the
 # console or the dedicated reverse-DNS resource once the mail.* A record resolves
 # (ADR-027). Not a blocker for install/ACME.
@@ -43,7 +43,7 @@ resource "scaleway_instance_security_group" "this" {
   inbound_default_policy  = "drop"
   outbound_default_policy = "accept"
 
-  # ponytail: SSH open to ssh_allowed_cidr (default world); narrow it per deploy.
+  # SSH open to ssh_allowed_cidr (default world); narrow it per deploy.
   inbound_rule {
     action   = "accept"
     protocol = "TCP"

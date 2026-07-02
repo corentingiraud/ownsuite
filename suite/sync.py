@@ -142,7 +142,7 @@ def _health_check(domain, releases):
 
 def _rollback(failed_hosts, releases):
     """Roll back only the selected releases whose app host failed its health check.
-    ponytail: covers app releases only — a platform release with no host is not rolled
+    covers app releases only — a platform release with no host is not rolled
     back (it has no HTTPS check to fail); re-run or `suite upgrade` if that ever matters."""
     print("\n==> Health check failed — rolling back the synced release(s)")
     for r in releases:

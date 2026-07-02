@@ -37,7 +37,7 @@ egress:
   insecure: {{ $insecure }}
   # Chrome's setuid sandbox needs host privileges unavailable on stock K3s. Egress
   # only ever loads our own trusted Meet room page, so run without it.
-  # ponytail: sandbox off (trusted content); enable + add the seccomp profile if the
+  # sandbox off (trusted content); enable + add the seccomp profile if the
   # recorder is ever pointed at untrusted URLs.
   enable_chrome_sandbox: false
   api_key: {{ $lkKey | quote }}
