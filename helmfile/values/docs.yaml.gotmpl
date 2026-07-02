@@ -22,7 +22,8 @@
 {{-   $s3Region = .Values.garage.region -}}
 {{- end -}}
 {{- $verifySsl := ternary "False" "True" (eq .Values.tls.issuer "selfsigned") -}}
-{{- $mediaMiddlewares := printf "%s-docs-media-auth@kubernetescrd,%s-docs-media-rewrite@kubernetescrd" $ns $ns }}
+{{- $mediaMiddlewares := printf "%s-docs-media-auth@kubernetescrd,%s-docs-media-rewrite@kubernetescrd" $ns $ns -}}
+{{- $emailParts := splitList ":" .Values.email.host }}
 
 image:
   repository: lasuite/impress-backend
@@ -143,6 +144,26 @@ backend:
       secretKeyRef:
         name: docs-secrets
         key: Y_PROVIDER_API_KEY
+    # --- Transactional email (external SMTP relay; Scaleway TEM recommended) ---
+    {{- if .Values.email.configured }}
+    EMAIL_HOST: {{ first $emailParts | quote }}
+    EMAIL_PORT: {{ last $emailParts | quote }}
+    EMAIL_HOST_USER:
+      secretKeyRef:
+        name: email-relay
+        key: EMAIL_HOST_USER
+    EMAIL_HOST_PASSWORD:
+      secretKeyRef:
+        name: email-relay
+        key: EMAIL_HOST_PASSWORD
+    EMAIL_USE_TLS: "True"
+    EMAIL_FROM: {{ .Values.email.from | quote }}
+    {{- else }}
+    # No SMTP relay set — skip sending so share invitations don't raise (the default
+    # smtp backend would try localhost:25). Set OWNSUITE_MTA_RELAY_USERNAME/PASSWORD
+    # to enable (Scaleway TEM recommended).
+    EMAIL_BACKEND: django.core.mail.backends.dummy.EmailBackend
+    {{- end }}
 
 frontend:
   replicas: 1

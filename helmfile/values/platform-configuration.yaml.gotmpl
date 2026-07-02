@@ -15,6 +15,9 @@ apps:
     enabled: {{ .Values.apps.messages.enabled }}
   meet:
     enabled: {{ .Values.apps.meet.enabled }}
+email:
+  # Gates the shared email-relay Secret (transactional email for all apps).
+  configured: {{ .Values.email.configured }}
 postgres:
   host: {{ printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName .Values.workloadsNamespace | quote }}
 databases:

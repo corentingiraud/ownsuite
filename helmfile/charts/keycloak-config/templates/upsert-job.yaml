@@ -54,6 +54,19 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.adminSecretName | quote }}
                   key: password
+            {{- if .Values.email.configured }}
+            # Shared platform relay account — used to set the realm SMTP server.
+            - name: SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.emailSecretName | quote }}
+                  key: EMAIL_HOST_USER
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.emailSecretName | quote }}
+                  key: EMAIL_HOST_PASSWORD
+            {{- end }}
           volumeMounts:
             - name: upsert
               mountPath: /config

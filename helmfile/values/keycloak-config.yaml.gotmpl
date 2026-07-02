@@ -10,6 +10,15 @@ image:
   tag: {{ .Values.imageVersions.keycloak | quote }}
 adminSecretName: keycloak-admin
 oidcClientsSecretName: keycloak-oidc-clients
+# Realm SMTP for account emails (verification, password reset). Set via kcadm by the
+# upsert Job, using the shared platform relay (email-relay Secret). Only applied when a
+# relay account is configured; otherwise Keycloak keeps its default (no SMTP).
+email:
+  configured: {{ .Values.email.configured }}
+  host: {{ first (splitList ":" .Values.email.host) | quote }}
+  port: {{ last (splitList ":" .Values.email.host) | quote }}
+  from: {{ .Values.email.from | quote }}
+emailSecretName: email-relay
 clients:
 {{- range .Values.keycloak.clients }}
   - clientId: {{ .clientId | quote }}
