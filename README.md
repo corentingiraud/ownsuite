@@ -27,7 +27,9 @@ Runs on any single server — a cloud VM, a dedicated host, or a home server.
 
 ```bash
 git clone https://github.com/corentingiraud/ownsuite.git && cd ownsuite
-python3 -m suite deps       # one-time: installs the CLI + tooling; puts `suite` on PATH
+python3 -m suite deps       # one-time: install the tooling + Ansible collections
+pipx install --editable .   # optional: the short `suite` command, on PATH in any shell
+                            # (run `pipx ensurepath` once if it isn't picked up yet)
 suite install               # guided: bare server + domain -> all-in-HTTPS
 ```
 
@@ -36,9 +38,9 @@ Then follow the screen. Prerequisites and the full step-by-step flow are in the
 
 ## The `suite` CLI
 
-`suite <command>` is the single entry point for both installing and operating the stack
-(argparse, no extra tooling). `suite deps` installs the CLI and puts `suite` on your `PATH`;
-before that first run, use `python3 -m suite <command>` from the checkout. The commands:
+`python3 -m suite <command>` is the single entry point for both installing and operating the
+stack (argparse, no extra tooling), and always works from the checkout. For the shorter
+`suite <command>` on your `PATH` in any shell, `pipx install --editable .`. The commands:
 
 | Command | What it does |
 |---|---|
