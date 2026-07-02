@@ -1359,8 +1359,9 @@ mocked subprocess/tool-discovery calls, no pip/Ansible/server.
 docs lead with `python3 -m suite …` throughout. The CLI/Makefile layering inverts cleanly: Python is
 the entrypoint, Ansible/helmfile/kubectl are the tools it drives, and `make` stops being part of the
 operator's mental model. **Trade-off:** the headline commands grow one token longer
-(`make bootstrap` → `python3 -m suite bootstrap`) until a `suite` shim is on `PATH`; CI is unaffected
-because it already invoked `pip`/`ansible-galaxy` directly rather than through `make deps`.
+(`make bootstrap` → `python3 -m suite bootstrap`) until a `suite` shim is on `PATH` — now
+resolved by [ADR-040](#adr-040-suite-on-path-via-editable-install-static-shell-completion). CI is
+unaffected because it already invoked `pip`/`ansible-galaxy` directly rather than through `make deps`.
 
 ---
 
@@ -1448,3 +1449,33 @@ footprint:
   and no new DNS record. Off by default: it is only needed for clients blocked on both media ports,
   and it adds one open port. `enable_meet_turn` mirrors `enable_meet` in both the Terraform security
   group and the Ansible UFW rules.
+
+---
+
+## ADR-040 — `suite` on PATH via editable install + static shell completion
+
+**Context.** [ADR-037](#adr-037-one-entrypoint-for-operators-every-action-is-a-suite-cli-verb) made
+every operator action a `suite` verb but left the CLI unpackaged: with no `pyproject.toml`, nothing
+puts a `suite` executable on `PATH`, so every command is spelled `python3 -m suite …`. ADR-037
+flagged this as a deferred trade-off ("until a `suite` shim is on `PATH`"). There was also **no shell
+completion** — argparse gives `--help` but no tab-completion, and completion keys off a command name
+on `PATH`, so it was blocked on the shim.
+
+**Decision.** Ship a minimal `pyproject.toml` (setuptools/PEP 621, distribution name `ownsuite`,
+import package stays `suite`) with a `[project.scripts] suite = "suite.cli:main"` entry point.
+`suite deps` now runs `pip install -e .` instead of `pip install -r requirements.txt`: the editable
+install puts `suite` on `PATH` **and** pulls the pinned runtime deps, which pyproject reads from
+`requirements.txt` via `dynamic` dependencies — so `requirements.txt` stays the single source of
+truth for the pin (AGENTS.md). `python -m suite` is unchanged and remains the way to run the CLI
+from a bare checkout, including the first `suite deps` itself (chicken-and-egg: the shim exists only
+after `deps`). For completion, ship **hand-written `completions/suite.{bash,zsh}`** an operator
+sources from their shell rc — no runtime dependency (keeps the base CLI pure standard library),
+unlike `argcomplete`. A unit test (`tests/test_completion.py`) parses `build_parser()` and asserts
+every subcommand appears in both completion scripts, so a new verb can't ship with a stale completion.
+
+**Consequences.** The docs' canonical `suite <verb>` spelling is now literally runnable, closing
+ADR-037's trade-off. Cost: `suite deps` performs an editable install (`ownsuite.egg-info/` is
+git-ignored), and the completion scripts are maintained by hand — accepted, guarded by the drift
+test, and cheaper than adding `argcomplete` as a runtime dependency. Chose static completion over
+`argcomplete` to preserve the "pure standard library, no dependency to run" property that lets
+`python -m suite deps` work from a bare clone.

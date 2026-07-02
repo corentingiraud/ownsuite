@@ -24,7 +24,7 @@ def test_deps_installs_pip_then_ansible_collections(monkeypatch):
     calls = _patch_run(monkeypatch)
     bootstrap.run_deps(SimpleNamespace())
     argvs = [c[0] for c in calls]
-    assert argvs[0] == ["pip", "install", "-r", bootstrap.REQUIREMENTS]
+    assert argvs[0] == ["pip", "install", "-e", "."]
     assert argvs[1] == ["pip", "install", "-r", bootstrap.REQUIREMENTS_DEV]
     assert argvs[2][:3] == ["ansible-galaxy", "collection", "install"]
     assert argvs[2][-1] == bootstrap.ANSIBLE_REQUIREMENTS

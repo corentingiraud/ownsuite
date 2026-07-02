@@ -37,10 +37,12 @@ help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
-# Workstation tooling + server provisioning are now CLI verbs (ADR-037):
-#   python3 -m suite deps        # install Python tooling + Ansible collections
-#   python3 -m suite bootstrap   # provision the server into a single-node K3s cluster
-#   python3 -m suite check       # dry-run the bootstrap (--check --diff)
+# Workstation tooling + server provisioning are now CLI verbs (ADR-037). Run the first
+# with `python3 -m suite`; `suite deps` puts a `suite` shim on PATH, so the rest can drop
+# the `python3 -m` prefix (ADR-040):
+#   python3 -m suite deps        # install the CLI + Ansible collections; puts `suite` on PATH
+#   suite bootstrap              # provision the server into a single-node K3s cluster
+#   suite check                  # dry-run the bootstrap (--check --diff)
 
 .PHONY: lint
 lint: lint-ansible lint-helm lint-py ## Static checks: Ansible + Helm/Helmfile + Python

@@ -1,0 +1,22 @@
+# Packaging for the `suite` CLI. Installing this (editable, via `suite deps`)
+# puts a `suite` command on PATH so operators run `suite <verb>` directly;
+# `python -m suite` keeps working from a bare checkout (ADR-040).
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ownsuite"                 # distribution name; the import package stays `suite`
+version = "0.1.0"
+description = "OwnSuite installer + admin CLI."
+requires-python = ">=3.11"
+dynamic = ["dependencies"]        # read from requirements.txt — the one source of truth
+
+[project.scripts]
+suite = "suite.cli:main"          # main() returns an int exit code
+
+[tool.setuptools]
+packages = ["suite"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
