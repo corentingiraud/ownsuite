@@ -18,6 +18,7 @@ selected releases:
 
 from __future__ import annotations
 
+import json
 import os
 
 from . import config, tunnel, verify
@@ -51,20 +52,36 @@ APP_RELEASES = {
 RELEASE_HOST = {r: app for app, rels in APP_RELEASES.items() for r in rels}
 RELEASE_HOST["keycloak"] = "auth"
 
+# The release that owns the shared, seed-derived secrets + config every app/keycloak
+# consumes by secretKeyRef (email-relay, db creds, OIDC secrets, S3 creds — ADR-012).
+# Every app release `needs: platform-configuration` in the helmfile, so syncing an app
+# WITHOUT it can leave the app referencing a secret that only this release creates
+# (e.g. email-relay when email is first enabled) — the pod then fails to start. So a
+# scoped sync of any such release pulls this one in too (helmfile orders it first).
+PLATFORM_CONFIG = "platform-configuration"
+NEEDS_PLATFORM_CONFIG = set(RELEASE_HOST)  # every app release + keycloak
+# Helm release statuses that are healthy to sync over; anything else (failed,
+# pending-*, uninstalling) is a leftover from an interrupted run worth flagging.
+HEALTHY_STATUSES = {"deployed", "superseded", "not-found"}
+
 
 def run_sync(args):
     cfg = config.load_env(args.env_file)
     ssh = getattr(args, "ssh", None) or cfg.get("OWNSUITE_SERVER_SSH", "")
-    seed = os.environ.get("OWNSUITE_SECRET_SEED")
+    seed = os.environ.get("OWNSUITE_SECRET_SEED") or cfg.get("OWNSUITE_SECRET_SEED")
     if not seed:
         raise SuiteError(
-            "OWNSUITE_SECRET_SEED must be exported — helmfile needs it to render (ADR-012)."
+            "OWNSUITE_SECRET_SEED must be set (exported or in .env) — helmfile needs "
+            "it to render (ADR-012)."
         )
-    releases = _resolve_releases(args)
+    releases = _add_platform_config(_resolve_releases(args))
     if not releases:
         raise SuiteError("nothing selected — pass --app <name> and/or -l <release>.")
+    diff_only = getattr(args, "diff", False)
     # The snapshot is the only undo for data loss; gate on backups only when we take one.
-    if not args.no_snapshot:
+    # --diff never mutates, so it needs neither the snapshot nor the backup gate.
+    take_snapshot = not args.no_snapshot and not diff_only
+    if take_snapshot:
         _require_backups_enabled(cfg)
     _preflight(args, ssh)
 
@@ -76,13 +93,20 @@ def run_sync(args):
 
     with tunnel.maybe(ssh, no_tunnel=args.no_tunnel):
         env["OWNSUITE_TLS_ISSUER"] = resolve_issuer()
-        if not args.no_snapshot:
+        _warn_stuck_releases(releases)
+        if take_snapshot:
             _snapshot()
         _show_diff(env, selector)
+        if diff_only:
+            print("\n==> --diff: showed pending changes only, nothing applied.")
+            return
         if not args.yes and not _confirm():
             print("Aborted — no changes applied.")
             return
         print(f"\n==> Syncing {', '.join(releases)} (helmfile sync)")
+        print("    Waits for each release's rollout to become healthy — the first pull "
+              "of a new image can take several minutes. Interrupting leaves that release "
+              "mid-upgrade (helm 'failed'); just re-run to reconcile it.")
         run(["helmfile", "-f", HELMFILE, "sync", *selector], env=env, step="helmfile sync")
         failed = _health_check(domain, releases)
         if failed:
@@ -108,6 +132,34 @@ def _resolve_releases(args):
     releases += args.selector or []
     seen = set()
     return [r for r in releases if not (r in seen or seen.add(r))]
+
+
+def _add_platform_config(releases):
+    """Prepend `platform-configuration` when any selected release depends on it, so the
+    shared secrets/config it owns are reconciled before (helmfile `needs` order) the
+    releases that consume them. No-op if nothing needs it or it's already selected."""
+    if not any(r in NEEDS_PLATFORM_CONFIG for r in releases) or PLATFORM_CONFIG in releases:
+        return releases
+    print(f"  including {PLATFORM_CONFIG} (owns the shared secrets/config the selected "
+          "release(s) depend on)")
+    return [PLATFORM_CONFIG, *releases]
+
+
+def _warn_stuck_releases(releases):
+    """Flag any selected release left in a non-healthy Helm state (e.g. `failed` /
+    `pending-upgrade` from an interrupted sync). Syncing reconciles it, but surfacing it
+    tells the operator why a re-run was needed. Best-effort: never blocks the sync."""
+    proc = run(["helm", "-n", NS, "list", "-a", "-o", "json"],
+               capture=True, check=False, step="helm list")
+    try:
+        status = {r["name"]: r.get("status", "") for r in json.loads(proc.stdout or "[]")}
+    except (ValueError, TypeError):
+        return
+    stuck = [(r, status[r]) for r in releases
+             if r in status and status[r] not in HEALTHY_STATUSES]
+    for name, st in stuck:
+        print(f"  NOTE {name} is in Helm state '{st}' (likely an interrupted run) — "
+              "this sync will reconcile it.")
 
 
 def _selector_args(releases):

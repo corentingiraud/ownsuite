@@ -42,9 +42,28 @@ def test_env_from_outputs_maps_ssh_and_object_storage_only():
     assert env["OWNSUITE_SERVER_SSH"] == "root@203.0.113.10"
     assert env["OWNSUITE_S3_ENDPOINT"] == "https://s3.fr-par.scw.cloud"
     assert env["OWNSUITE_S3_BUCKET"] == "mon-assoc-media"
-    # secrets are never written to .env
+    # _env_from_outputs stays non-secret; secrets come from _secrets_from_outputs.
     assert "OWNSUITE_S3_ACCESS_KEY" not in env
     assert "OWNSUITE_S3_SECRET_KEY" not in env
+
+
+def test_secrets_from_outputs_maps_s3_and_relay():
+    outputs = {
+        "s3_access_key": _out("SCWXXXX", sensitive=True),
+        "s3_secret_key": _out("secret", sensitive=True),
+        "mta_relay_username": _out("relay-user", sensitive=True),
+        "mta_relay_password": _out("relay-pass", sensitive=True),
+    }
+    env = provision._secrets_from_outputs(outputs)
+    assert env["OWNSUITE_S3_ACCESS_KEY"] == "SCWXXXX"
+    assert env["OWNSUITE_S3_SECRET_KEY"] == "secret"
+    assert env["OWNSUITE_MTA_RELAY_USERNAME"] == "relay-user"
+    assert env["OWNSUITE_MTA_RELAY_PASSWORD"] == "relay-pass"
+    assert env["OWNSUITE_MTA_RELAY_HOST"] == provision.TEM_RELAY_HOST
+
+
+def test_secrets_from_outputs_empty_when_absent():
+    assert provision._secrets_from_outputs({}) == {}
 
 
 def test_env_from_outputs_skips_placeholder_bucket_snippet():

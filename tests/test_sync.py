@@ -17,6 +17,7 @@ def _args(**kw):
         no_tunnel=kw.get("no_tunnel", True),   # no tunnel in tests
         yes=kw.get("yes", True),               # non-interactive
         no_snapshot=kw.get("no_snapshot", False),
+        diff=kw.get("diff", False),
         selector=kw.get("selector"),
         app=kw.get("app"),
     )
@@ -37,6 +38,8 @@ def _patch_common(monkeypatch, *, calls, cfg, health_failed):
     # `upgrade.run`; record those into the same list to see the full call order.
     monkeypatch.setattr(upgrade, "run", recorder)
     monkeypatch.setattr(sync, "_health_check", lambda domain, releases: list(health_failed))
+    # The stuck-release check does its own `helm list`; not the unit under test here.
+    monkeypatch.setattr(sync, "_warn_stuck_releases", lambda releases: None)
 
 
 BASE_CFG = {"OWNSUITE_DOMAIN": "assoc.org", "OWNSUITE_BACKUP_ENABLED": "true"}
@@ -73,6 +76,60 @@ def test_selector_args_uses_name_label():
     assert sync._selector_args(["drive", "drive-ingress"]) == [
         "-l", "name=drive", "-l", "name=drive-ingress",
     ]
+
+
+# --- platform-configuration auto-inclusion ----------------------------------------
+
+def test_add_platform_config_prepended_for_app_release():
+    assert sync._add_platform_config(["drive", "drive-media-proxy"]) == [
+        "platform-configuration", "drive", "drive-media-proxy",
+    ]
+
+
+def test_add_platform_config_noop_when_already_present():
+    assert sync._add_platform_config(["platform-configuration", "drive"]) == [
+        "platform-configuration", "drive",
+    ]
+
+
+def test_add_platform_config_noop_when_nothing_needs_it():
+    assert sync._add_platform_config(["postgres"]) == ["postgres"]
+
+
+# --- stuck-release warning ---------------------------------------------------------
+
+def test_warn_stuck_releases_flags_non_healthy(monkeypatch, capsys):
+    import json as _json
+    payload = _json.dumps([
+        {"name": "drive", "status": "failed"},
+        {"name": "docs", "status": "deployed"},
+    ])
+    monkeypatch.setattr(sync, "run", lambda *a, **k: SimpleNamespace(stdout=payload))
+    sync._warn_stuck_releases(["drive", "docs"])
+    out = capsys.readouterr().out
+    assert "drive" in out and "failed" in out
+    assert "NOTE docs" not in out                          # healthy -> not flagged
+
+
+# --- --diff mode -------------------------------------------------------------------
+
+def test_diff_mode_shows_diff_and_applies_nothing(monkeypatch):
+    calls = []
+    # backups disabled + no --no-snapshot: --diff must still skip the gate + snapshot.
+    cfg = {**BASE_CFG, "OWNSUITE_BACKUP_ENABLED": "false"}
+    monkeypatch.delenv("OWNSUITE_BACKUP_ENABLED", raising=False)
+    _patch_common(monkeypatch, calls=calls, cfg=cfg, health_failed=[])
+    sync.run_sync(_args(selector=["drive"], diff=True))
+    argvs = [c[0] for c in calls]
+    assert any(a[3] == "diff" for a in argvs)              # showed the diff
+    assert not any(a[3] == "sync" for a in argvs)          # applied nothing
+    assert ["make", "backup"] not in argvs                 # no snapshot
+
+
+def test_sync_diff_flag_parses():
+    from suite import cli
+    args = cli.build_parser().parse_args(["sync", "--app", "docs", "--diff"])
+    assert args.diff is True
 
 
 # --- happy path: snapshot -> diff -> sync (not apply), issuer injected -------------
@@ -121,6 +178,16 @@ def test_requires_seed(monkeypatch):
     monkeypatch.setattr(sync.config, "load_env", lambda p: dict(BASE_CFG))
     with pytest.raises(SuiteError, match="OWNSUITE_SECRET_SEED"):
         sync.run_sync(_args(selector=["drive"]))
+
+
+def test_seed_may_come_from_env_file(monkeypatch):
+    """The seed can be read from .env (cfg), not only an exported env var."""
+    calls = []
+    cfg = {**BASE_CFG, "OWNSUITE_SECRET_SEED": "from-dotenv"}
+    _patch_common(monkeypatch, calls=calls, cfg=cfg, health_failed=[])
+    monkeypatch.delenv("OWNSUITE_SECRET_SEED", raising=False)  # only .env has it
+    sync.run_sync(_args(selector=["drive"], no_snapshot=True))
+    assert any(c[0][3] == "sync" for c in calls)  # reached helmfile sync, no error
 
 
 # --- scoped rollback ---------------------------------------------------------------

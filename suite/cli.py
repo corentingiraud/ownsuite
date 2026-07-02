@@ -110,6 +110,8 @@ def build_parser():
     sy.add_argument("--no-tunnel", action="store_true", help="Use the ambient KUBECONFIG")
     sy.add_argument("--yes", action="store_true",
                     help="Skip the diff confirmation (non-interactive)")
+    sy.add_argument("--diff", action="store_true",
+                    help="Show the scoped diff and exit — apply nothing (no snapshot needed)")
     sy.add_argument("--no-snapshot", action="store_true",
                     help="Skip the pre-sync backup (config-only change, no data risk)")
     sy.add_argument("-l", "--selector", action="append", metavar="RELEASE",
