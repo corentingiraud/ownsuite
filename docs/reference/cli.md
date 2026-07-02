@@ -83,13 +83,17 @@ and flags, source the completion for your shell from your rc file (hand-maintain
 no extra dependency):
 
 ```bash
-# ~/.zshrc
+# ~/.zshrc — the source line MUST come after `compinit`, or `compdef` isn't defined yet
+# and completion silently does nothing:
+#   autoload -Uz compinit; compinit
 source /path/to/ownsuite/completions/suite.zsh
 # ~/.bashrc
 source /path/to/ownsuite/completions/suite.bash
 ```
 
-Then `suite <TAB>` lists the commands and `suite user <TAB>` lists `add passwd disable`.
+Open a new shell (or `exec zsh`), then `suite <TAB>` lists the commands and
+`suite user <TAB>` lists `add passwd disable`. To confirm it registered in zsh,
+`echo $_comps[suite]` should print `_suite`.
 
 ## `suite bootstrap`
 
