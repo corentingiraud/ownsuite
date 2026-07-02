@@ -23,7 +23,6 @@ app: drive
 enabled: {{ .Values.apps.drive.enabled }}
 image: nginx:{{ .Values.imageVersions.nginx }}
 authUpstream: {{ printf "drive-backend.%s.svc.cluster.local" $ns | quote }}
-authPath: /api/v1.0/items/media-auth/
 bucket: {{ .Values.objectStorage.driveBucket | quote }}
 s3Scheme: {{ $scheme | quote }}
 s3Host: {{ $s3Host | quote }}
@@ -31,5 +30,18 @@ s3Port: {{ $s3Port }}
 s3HostHeader: {{ $hostHeader | quote }}
 host: {{ printf "drive.%s" .Values.domain | quote }}
 tlsSecret: drive-tls
-# Drive is a file manager — deliver files as downloads.
-forceDownload: true
+# Two prefixes, both guarded by the same items/media-auth route, both resolving to the
+# SAME object key. The backend signs item/<uuid>/<file> — it never signs a preview/
+# prefix (MEDIA_STORAGE_URL_PATTERN captures preview/ separately from the key). nginx
+# strips the whole matched location prefix, so /media/preview/<key> and /media/<key>
+# both map to <bucket>/<key>, matching the signature. They differ only in delivery:
+# preview inline (thumbnails in the UI), the bare /media/ forced download (file manager).
+# The longer prefix wins nginx's match, so previews never fall through to the download
+# location. Mirrors the upstream nginx (src/nginx/servers.conf.erb) and meet-media-proxy.
+locations:
+  - path: /media/preview/
+    authPath: /api/v1.0/items/media-auth/
+    forceDownload: false
+  - path: /media/
+    authPath: /api/v1.0/items/media-auth/
+    forceDownload: true
