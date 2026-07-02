@@ -138,6 +138,11 @@ backend:
     LOGIN_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
     LOGIN_REDIRECT_URL_FAILURE: {{ printf "https://%s" $host | quote }}
     LOGOUT_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
+    # Hide the "gaufre" app-launcher grid. Drive's waffle fetches a hardcoded list
+    # of gouv.fr services (Tchap, Docs, Visio, ...) whose URLs point at the official
+    # State instances and cannot be reconfigured, so we hide it. Backend setting
+    # surfaced to the frontend via the config API (Gaufre.tsx reads it).
+    FRONTEND_HIDE_GAUFRE: "True"
 
 frontend:
   replicas: 1
