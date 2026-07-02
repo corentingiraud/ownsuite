@@ -26,8 +26,11 @@ chartVersions:
   # The chart has no appVersion, so the meet image tags below are pinned separately.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/meet depName=meet
   meet: "0.0.25"
-  # LiveKit media server (SFU) — official chart. Its image tag defaults to the
-  # chart appVersion (a concrete tag, never "latest").
+  # LiveKit media server (SFU) — official chart. The chart lags the server binary
+  # (chart frozen at 1.9.0 since 2025-06, while the server is already 1.13.x), so we
+  # keep the latest published chart here but override the image tag below to a recent
+  # server: v1.9.0 predates the /rtc/v1 signalling path (added in v1.9.10) that the
+  # meet-frontend client SDK requires, which breaks live sessions.
   # renovate: datasource=helm registryUrl=https://helm.livekit.io depName=livekit-server
   livekit: "1.9.0"
   # LiveKit Egress — official chart, records Meet rooms to S3. Image tag defaults to
@@ -74,6 +77,10 @@ imageVersions:
   meetBackend: "v1.21.0"
   # renovate: datasource=docker depName=lasuite/meet-frontend
   meetFrontend: "v1.21.0"
+  # LiveKit server image — overrides the lagging chart appVersion (see chartVersions.livekit).
+  # Must be >= v1.9.10 for the /rtc/v1 signalling path the meet-frontend client SDK uses.
+  # renovate: datasource=docker depName=livekit/livekit-server
+  livekitServer: "v1.13.2"
   # Garage object store (ADR-015), deployed from the local ./charts/garage chart.
   # renovate: datasource=docker depName=dxflrs/garage
   garage: "v2.3.0"

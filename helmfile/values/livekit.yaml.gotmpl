@@ -19,6 +19,11 @@
 {{- $lkSecret := printf "%s:%s" .Values.secretSeed "meet-livekit-secret" | sha256sum | trunc 40 }}
 
 replicaCount: 1
+# Override the chart's default image tag (its appVersion, v1.9.0) with a recent server
+# binary: v1.9.0 lacks the /rtc/v1 signalling path (added v1.9.10) that meet-frontend's
+# client SDK uses, so live sessions fail with 404/NS_ERROR_WEBSOCKET and loop.
+image:
+  tag: {{ .Values.imageVersions.livekitServer | quote }}
 # Stable in-cluster name so egress can address it predictably. Deliberately NOT
 # "livekit": a Service named exactly "livekit" makes the kubelet inject a service-link
 # env var LIVEKIT_PORT=tcp://<clusterIP>:80 into the pod, which collides with
