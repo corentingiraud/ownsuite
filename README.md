@@ -27,8 +27,8 @@ Runs on any single server — a cloud VM, a dedicated host, or a home server.
 
 ```bash
 git clone https://github.com/corentingiraud/ownsuite.git && cd ownsuite
-python3 -m suite deps       # one-time: tooling + Ansible collections
-python3 -m suite install    # guided: bare server + domain -> all-in-HTTPS
+python3 -m suite deps       # one-time: installs the CLI + tooling; puts `suite` on PATH
+suite install               # guided: bare server + domain -> all-in-HTTPS
 ```
 
 Then follow the screen. Prerequisites and the full step-by-step flow are in the
@@ -36,8 +36,9 @@ Then follow the screen. Prerequisites and the full step-by-step flow are in the
 
 ## The `suite` CLI
 
-`python3 -m suite <command>` is the single entry point for both installing and operating
-the stack (argparse, no extra tooling). The commands:
+`suite <command>` is the single entry point for both installing and operating the stack
+(argparse, no extra tooling). `suite deps` installs the CLI and puts `suite` on your `PATH`;
+before that first run, use `python3 -m suite <command>` from the checkout. The commands:
 
 | Command | What it does |
 |---|---|

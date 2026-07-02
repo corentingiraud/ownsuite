@@ -5,9 +5,12 @@ installs the stack, manages users, reports health, and applies upgrades. Every
 subcommand runs from **your workstation** and reaches the cluster over the SSH tunnel
 (the Kubernetes API is never exposed); it adds no Python dependencies of its own.
 
-Run it as `python -m suite <command>`. Every operator action is a `suite` verb (ADR-037);
-`make` is now only CI/dev shorthand (lint, the test harnesses, low-level helmfile/ssh helpers).
-`make install` is kept as a one-line alias for `suite install`.
+Once the workstation is set up (`python -m suite deps`, below), `suite` is a command on
+your `PATH` — run it directly as `suite <command>`. Before that first install, or from a
+bare checkout, `python -m suite <command>` runs the exact same CLI without any install
+(ADR-040). Every operator action is a `suite` verb (ADR-037); `make` is now only CI/dev
+shorthand (lint, the test harnesses, low-level helmfile/ssh helpers). `make install` is
+kept as a one-line alias for `suite install`.
 
 ```text
 suite deps                         Install Python tooling + Ansible collections
@@ -46,14 +49,31 @@ See the [configuration reference](configuration.md) for every `OWNSUITE_*` varia
 
 ## `suite deps`
 
-One-time workstation setup: installs the Python tooling and Ansible collections this CLI and
-the bootstrap need (`pip install -r requirements-dev.txt` + the pinned `ansible-galaxy`
-collections). Run it from a fresh checkout — `suite` itself is pure standard library, so no
-dependencies are needed to run `suite deps`. Takes no flags.
+One-time workstation setup: installs the CLI itself (`pip install -e .`, which also puts a
+`suite` command on your `PATH`) plus the Ansible collections the bootstrap needs
+(`pip install -r requirements-dev.txt` + the pinned `ansible-galaxy` collections). Run it
+from a fresh checkout with `python -m suite` — `suite` is pure standard library, so no
+dependencies are needed to run `suite deps`; every later verb can then use the shorter
+`suite <command>`. Takes no flags.
 
 ```bash
-python -m suite deps
+python -m suite deps    # bootstraps the toolchain; afterwards `suite <command>` works
 ```
+
+### Shell autocomplete
+
+`suite deps` does not touch your shell config. To get tab-completion for the subcommands
+and flags, source the completion for your shell from your rc file (hand-maintained scripts,
+no extra dependency):
+
+```bash
+# ~/.zshrc
+source /path/to/ownsuite/completions/suite.zsh
+# ~/.bashrc
+source /path/to/ownsuite/completions/suite.bash
+```
+
+Then `suite <TAB>` lists the commands and `suite user <TAB>` lists `add passwd disable`.
 
 ## `suite bootstrap`
 
@@ -63,7 +83,7 @@ is read from the Ansible inventory (`ansible/inventory/hosts.yml`); takes no fla
 walkthrough: [Server bootstrap](../get-started/bootstrap.md).
 
 ```bash
-python -m suite bootstrap
+suite bootstrap
 ```
 
 ## `suite check`
@@ -72,7 +92,7 @@ Dry-runs the bootstrap (`ansible-playbook --check --diff`): shows what would cha
 **applies nothing**. Use it before `suite bootstrap` to review the plan. Takes no flags.
 
 ```bash
-python -m suite check
+suite check
 ```
 
 ## `suite install`
@@ -81,8 +101,8 @@ Takes a bare server + a domain to all-in-HTTPS, end to end. Idempotent — re-ru
 resume after fixing anything. Full walkthrough: [Guided install](../get-started/install.md).
 
 ```bash
-make install                                   # = python -m suite install
-python -m suite install --tls-mode staging     # pass flags via python -m
+suite install                          # or `make install`, a one-line alias
+suite install --tls-mode staging       # with flags
 ```
 
 | Flag | Default | Meaning |
