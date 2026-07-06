@@ -44,10 +44,18 @@ data:
             proxy_set_header X-Amz-Date $authDate;
             proxy_set_header X-Amz-Content-SHA256 $authContentSha256;
 
-            # Rewrite <path><key> -> /<bucket>/<key> and send to the object store. The
-            # upstream Host MUST match what the backend signed against (its
-            # AWS_S3_ENDPOINT_URL), or the store rejects the SigV4 signature.
-            proxy_pass {{ $.Values.s3Scheme }}://{{ $.Values.s3Host }}:{{ $.Values.s3Port }}/{{ $.Values.bucket }}/;
+            # Map the request to the object key and send it to the store. nginx strips
+            # the whole matched location prefix, so proxy_pass re-adds any part of it
+            # that belongs to the S3 KEY via $loc.keyPrefix. It MUST equal the prefix the
+            # backend signed the key with, or SigV4 fails -> 403.
+            #   - meet: keys are recordings/<id>.mp4 and files/<id>.<ext>, so the
+            #     /media/recordings//media/files/ locations set keyPrefix accordingly
+            #     (issue #73 — without it the proxy requested <id>.mp4 and 403'd).
+            #   - drive/docs: keyPrefix empty — /media/preview/<key> and /media/<key>
+            #     both map to <bucket>/<key> (preview/ is a delivery marker, not a key).
+            # The upstream Host MUST also match what the backend signed against (its
+            # AWS_S3_ENDPOINT_URL), or the store rejects the signature.
+            proxy_pass {{ $.Values.s3Scheme }}://{{ $.Values.s3Host }}:{{ $.Values.s3Port }}/{{ $.Values.bucket }}/{{ $loc.keyPrefix | default "" }};
             proxy_set_header Host {{ $.Values.s3HostHeader }};
             {{- if eq $.Values.s3Scheme "https" }}
             # External S3 over TLS: send SNI matching the signed host.

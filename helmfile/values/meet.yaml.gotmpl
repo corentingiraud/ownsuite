@@ -143,7 +143,14 @@ backend:
     LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX: "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
     # --- Recording (LiveKit Egress -> S3) ---
     RECORDING_ENABLE: "True"
-    RECORDING_STORAGE_EVENT_ENABLE: "True"
+    # "False" enables meet >= v1.22.0's LiveKit egress_ended fallback: on
+    # EGRESS_COMPLETE the webhook handler calls notify_external_services() and
+    # sends the recording-ready email directly, with no MinIO/S3 bucket
+    # notification hitting the storage-hook endpoint. "True" would gate the
+    # email behind a storage-event POST we don't wire in external-S3 mode, so
+    # the email would never be sent (issue #73). The storage-hook endpoint
+    # 404s and RECORDING_STORAGE_EVENT_TOKEN goes unused in this mode.
+    RECORDING_STORAGE_EVENT_ENABLE: "False"
     RECORDING_STORAGE_EVENT_TOKEN:
       secretKeyRef:
         name: meet-secrets
@@ -159,24 +166,29 @@ backend:
     # --- Transactional email (external SMTP relay; Scaleway TEM recommended) ---
     # The recording-ready email (the only way a user reaches a finished recording)
     # is sent by the celery worker, which inherits this backend env block.
+    # NB: meet declares EMAIL_* as bare `values.Value(...)` (no environ_prefix), so
+    # django-configurations reads them under the default DJANGO_ prefix. The names
+    # below MUST keep that prefix — plain EMAIL_HOST is silently ignored, leaving the
+    # SMTP backend with host=None ("please run connect() first", no email). Contrast
+    # DB_*/AWS_*/RECORDING_* which meet declares with environ_prefix=None.
     {{- if .Values.email.configured }}
-    EMAIL_HOST: {{ first $emailParts | quote }}
-    EMAIL_PORT: {{ last $emailParts | quote }}
-    EMAIL_HOST_USER:
+    DJANGO_EMAIL_HOST: {{ first $emailParts | quote }}
+    DJANGO_EMAIL_PORT: {{ last $emailParts | quote }}
+    DJANGO_EMAIL_HOST_USER:
       secretKeyRef:
         name: email-relay
         key: EMAIL_HOST_USER
-    EMAIL_HOST_PASSWORD:
+    DJANGO_EMAIL_HOST_PASSWORD:
       secretKeyRef:
         name: email-relay
         key: EMAIL_HOST_PASSWORD
-    EMAIL_USE_TLS: "True"
-    EMAIL_FROM: {{ .Values.email.from | quote }}
+    DJANGO_EMAIL_USE_TLS: "True"
+    DJANGO_EMAIL_FROM: {{ .Values.email.from | quote }}
     {{- else }}
     # No SMTP relay set — skip sending so mail attempts don't raise (the default smtp
     # backend would try localhost:25). Set OWNSUITE_MTA_RELAY_USERNAME/PASSWORD to
     # enable (Scaleway TEM recommended); recordings stay reachable via a presigned URL.
-    EMAIL_BACKEND: django.core.mail.backends.dummy.EmailBackend
+    DJANGO_EMAIL_BACKEND: django.core.mail.backends.dummy.EmailBackend
     {{- end }}
 
 frontend:

@@ -33,11 +33,16 @@ s3HostHeader: {{ $hostHeader | quote }}
 host: {{ printf "meet.%s" .Values.domain | quote }}
 tlsSecret: meet-tls
 locations:
-  # Recordings (mp4) — served inline so the browser can play them back.
+  # Recordings (mp4) — served inline so the browser can play them back. The backend
+  # signs key recordings/<id>.mp4, so the recordings/ prefix is part of the S3 key
+  # (keyPrefix) and must survive the proxy_pass rewrite (issue #73).
   - path: /media/recordings/
+    keyPrefix: recordings/
     authPath: /api/v1.0/recordings/media-auth/
     forceDownload: false
-  # In-call shared files — forced download (matches upstream ingressMediaFiles).
+  # In-call shared files — forced download (matches upstream ingressMediaFiles). The
+  # backend signs key files/<id>.<ext> (FILE_UPLOAD_PATH=files), same keyPrefix logic.
   - path: /media/files/
+    keyPrefix: files/
     authPath: /api/v1.0/files/media-auth/
     forceDownload: true
