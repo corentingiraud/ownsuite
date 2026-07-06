@@ -19,6 +19,31 @@ output "env_object_storage" {
   EOT
 }
 
+# Convenience: the off-site backup lines to paste into .env (empty when no backup
+# bucket). Mirrors env_object_storage; `suite provision` parses it the same way.
+output "env_backup" {
+  description = ".env snippet for the off-site backup store (empty when backup_bucket_name unset)."
+  value       = var.backup_bucket_name == "" ? "" : <<-EOT
+    OWNSUITE_BACKUP_S3_ENDPOINT=https://s3.${var.backup_region}.scw.cloud
+    OWNSUITE_BACKUP_S3_REGION=${var.backup_region}
+    OWNSUITE_BACKUP_S3_BUCKET=${var.backup_bucket_name}
+  EOT
+}
+
+# Backup S3 creds reuse the workload key (see main.tf). null when no backup bucket,
+# so `suite provision` writes OWNSUITE_BACKUP_S3_* keys only when backups are set up.
+output "backup_s3_access_key" {
+  description = "Off-site backup S3 access key (reuses the workload key for the test suite)."
+  value       = var.backup_bucket_name == "" ? null : module.suite.s3_access_key
+  sensitive   = true
+}
+
+output "backup_s3_secret_key" {
+  description = "Off-site backup S3 secret key (reuses the workload key for the test suite)."
+  value       = var.backup_bucket_name == "" ? null : module.suite.s3_secret_key
+  sensitive   = true
+}
+
 output "s3_endpoint" {
   value = module.suite.s3_endpoint
 }

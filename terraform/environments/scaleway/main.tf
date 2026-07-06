@@ -20,19 +20,14 @@ module "suite" {
   cors_allowed_origins = var.domain != "" ? ["https://*.${var.domain}"] : []
 }
 
-# Off-site backup bucket (ADR-006): MUST be a different account/provider than the
-# primary above. Uncomment, add a second provider with aliased credentials (a
-# different Scaleway project or org, or another provider entirely), and point
-# OWNSUITE_BACKUP_S3_* at its outputs.
-#
-# provider "scaleway" {
-#   alias      = "backup"
-#   project_id = var.backup_project_id
-# }
-# module "backup_store" {
-#   source       = "../../modules/scaleway"
-#   providers    = { scaleway = scaleway.backup }
-#   name         = "${var.name}-backup"
-#   ...
-#   bucket_names = ["ownsuite-backups"]
-# }
+# Off-site backup bucket (ADR-006). For this test suite it lives in a DIFFERENT
+# region than the primary (backup_region, default nl-ams vs fr-par) and reuses the
+# workload IAM key (module.suite.s3_*) — the key is project-scoped, so it reaches
+# buckets in any region of the same project. That survives losing the server, which
+# is what `suite restore` exercises. TRUE prod DR wants a separate account/provider
+# (a second provider alias + its own key); see docs/operate/backups.md.
+resource "scaleway_object_bucket" "backup" {
+  count  = var.backup_bucket_name != "" ? 1 : 0
+  name   = var.backup_bucket_name
+  region = var.backup_region
+}

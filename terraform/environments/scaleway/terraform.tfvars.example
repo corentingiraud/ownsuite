@@ -21,6 +21,12 @@ ssh_public_key = "ssh-ed25519 AAAA... you@host"
 # Scaleway-native S3 primary: name the media bucket(s) (unique within the project/region).
 bucket_names = ["mon-assoc-media"]
 
+# Off-site backup bucket for rclone + CNPG Barman (blank = no backups). Created in
+# backup_region (default nl-ams, != the fr-par primary) and reuses the workload S3
+# key, so it survives losing the server. Prod DR wants a separate account (ADR-006).
+# backup_bucket_name = "mon-assoc-backups"
+# backup_region      = "nl-ams"
+
 # Confirm these against your account (defaults shown):
 # region           = "fr-par"
 # zone             = "fr-par-1"

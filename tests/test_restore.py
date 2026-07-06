@@ -28,6 +28,8 @@ def _patch_common(monkeypatch, *, calls, cfg, clean=True, verify_failed=()):
     monkeypatch.setattr(restore, "_preflight", lambda *a, **k: None)
     monkeypatch.setattr(restore, "_cluster_is_clean", lambda: clean)
     monkeypatch.setattr(restore, "_verify", lambda domain, enabled: list(verify_failed))
+    # resolve_issuer hits kubectl over the tunnel; stub it to the live issuer.
+    monkeypatch.setattr(restore, "resolve_issuer", lambda: "letsencrypt-http01")
     monkeypatch.setattr(restore, "run",
                         lambda argv, **kw: calls.append((list(argv), kw.get("env"))))
 
@@ -91,6 +93,8 @@ def test_passes_restore_mode_env_to_helmfile(monkeypatch):
     assert env["OWNSUITE_RESTORE"] == "true"
     assert env["OWNSUITE_BACKUP_ENABLED"] == "true"
     assert env["OWNSUITE_SECRET_SEED"] == "seed"
+    # The live issuer is pinned so restore never downgrades certs to selfsigned.
+    assert env["OWNSUITE_TLS_ISSUER"] == "letsencrypt-http01"
 
 
 def test_raises_when_verify_fails(monkeypatch):
