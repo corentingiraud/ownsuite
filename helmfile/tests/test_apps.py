@@ -13,9 +13,12 @@ Shells out to kubectl/curl with the ambient KUBECONFIG; reuses the token/HTTP
 helpers from test_platform (same directory, same conventions).
 """
 
+import html
 import json
 import os
+import re
 import subprocess
+import tempfile
 
 import pytest
 
@@ -422,6 +425,56 @@ def test_meet_livekit_signaling_reachable():
     retry(fetch, attempts=40, delay=3)
 
 
+def _meet_session_login(host, username, password, jar):
+    """Headless OIDC authorization-code login against meet — the browser flow in curl.
+
+    Meet >= v1.22.0 only accepts Django session auth on its core API (user access
+    tokens are rejected), so the DoD authenticates the way the SPA does:
+    /api/v1.0/authenticate/ -> Keycloak login form -> /api/v1.0/callback/. The state
+    and nonce live in the session cookie set by /authenticate/, so one cookie jar
+    must carry the whole dance. Returns the csrftoken the callback set (Django
+    rotates it on login); POSTs send it back as X-CSRFToken."""
+    resolve = ["--resolve", f"{host}:443:127.0.0.1", "--resolve", f"{AUTH_HOST}:443:127.0.0.1"]
+
+    def curl_jar(url, *args):
+        return subprocess.run(
+            ["curl", "-ksS", "-c", jar, "-b", jar, *resolve, *args, url],
+            capture_output=True, text=True, check=True,
+        ).stdout
+
+    # Login initiation: meet stores state+nonce in a fresh session and bounces to
+    # Keycloak's authorization endpoint (don't follow — cross-host cookie handling).
+    kc_auth_url = curl_jar(
+        f"https://{host}/api/v1.0/authenticate/", "-o", "/dev/null", "-w", "%{redirect_url}"
+    )
+    assert kc_auth_url, "meet /authenticate/ did not redirect to Keycloak"
+
+    # Keycloak login page (follow Keycloak-internal redirects); the credentials POST
+    # goes to the form's action URL, which carries the auth-session parameters.
+    page = curl_jar(kc_auth_url, "-L")
+    action = re.search(r'<form[^>]+action="([^"]+)"', page)
+    assert action, f"no login form on Keycloak page: {page[:500]}"
+
+    callback_url = curl_jar(
+        html.unescape(action.group(1)),
+        "--data-urlencode", f"username={username}",
+        "--data-urlencode", f"password={password}",
+        "-o", "/dev/null", "-w", "%{redirect_url}",
+    )
+    assert f"https://{host}/api/v1.0/callback/" in callback_url, (
+        f"Keycloak login did not redirect to the meet callback: {callback_url!r}"
+    )
+
+    # The callback logs the session in and sets the rotated sessionid + csrftoken.
+    curl_jar(callback_url, "-o", "/dev/null")
+    with open(jar) as cookies:
+        for line in cookies:
+            fields = line.strip().split("\t")
+            if len(fields) == 7 and fields[5] == "csrftoken":
+                return fields[6]
+    raise AssertionError("no csrftoken cookie after OIDC callback")
+
+
 @only("meet")
 @pytest.mark.skipif(
     not (SECRET_SEED and SEED_TEST_USER),
@@ -432,22 +485,27 @@ def test_meet_backend_mints_livekit_token():
     and the LiveKit server agree on the shared API credential (ADR-012) — the config
     alignment a k3d run *can* verify without real WebRTC media.
 
-    Headless equivalent of joining a call: obtain a bearer for the seeded realm user
-    from Keycloak (meet's OIDC client, direct-access grant), then create a room. Meet
-    just-in-time provisions the user and, for the room owner, its response embeds the
-    LiveKit config — a JWT the backend signs locally with LIVEKIT_API_KEY/SECRET."""
+    Headless equivalent of joining a call: log the seeded realm user in through the
+    full OIDC session flow (meet's API is session-only since v1.22.0), then create a
+    room. Meet just-in-time provisions the user and, for the room owner, its response
+    embeds the LiveKit config — a JWT the backend signs with LIVEKIT_API_KEY/SECRET."""
     host = app_host("meet")
     seed_pw = derive_secret("kc-test-user")
-    token = retry(lambda: password_token("meet", "docs-tester", seed_pw))
-    auth_header = f"Authorization: Bearer {token}"
 
     def create_room_and_get_token():
-        out = curl(
-            host, f"https://{host}/api/v1.0/rooms/",
-            "-X", "POST", "-H", auth_header,
-            "-H", "Content-Type: application/json",
-            "--data", json.dumps({"name": "ownsuite-e2e-meet"}),
-        )
+        with tempfile.NamedTemporaryFile(suffix=".cookiejar") as jar_file:
+            csrf = _meet_session_login(host, "docs-tester", seed_pw, jar_file.name)
+            out = subprocess.run(
+                ["curl", "-fksS", "--resolve", f"{host}:443:127.0.0.1",
+                 "-b", jar_file.name,
+                 "-X", "POST",
+                 "-H", f"X-CSRFToken: {csrf}",
+                 "-H", f"Origin: https://{host}",
+                 "-H", "Content-Type: application/json",
+                 "--data", json.dumps({"name": "ownsuite-e2e-meet"}),
+                 f"https://{host}/api/v1.0/rooms/"],
+                capture_output=True, text=True, check=True,
+            ).stdout
         room = json.loads(out)
         livekit = room.get("livekit") or {}
         assert livekit.get("token"), f"no LiveKit token in room response: {room}"
