@@ -100,7 +100,7 @@ imageVersions:
   # editor on the single team site so every SSO user shares it (Grist has no native SSO
   # auto-join — only SCIM in the enterprise build).
   # renovate: datasource=docker depName=postgres
-  postgresClient: "17-alpine"
+  postgresClient: "18-alpine"
 
 # Vendored manifests pinned by version (not Helm charts or plain images). The
 # referenced file is committed verbatim; a Renovate bump is a reminder to re-vendor.
