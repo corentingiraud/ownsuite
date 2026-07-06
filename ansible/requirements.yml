@@ -3,6 +3,6 @@
 # Pinned (ADR: never `latest` for anything shipped).
 collections:
   - name: ansible.posix
-    version: "2.2.0"
+    version: "2.2.1"
   - name: community.general
     version: "13.1.0"
