@@ -35,13 +35,10 @@ image:
 
 backend:
   replicas: 1
-  # Disable the chart's file-cleanup CronJobs (clean_pending_files /
-  # purge_deleted_files). Chart 0.0.25 schedules them, but those manage.py commands
-  # don't exist until AFTER the latest released backend image (v1.21.0) — the chart
-  # is ahead of any pinned release — so every run errors ("Unknown command") and
-  # piles up failed pods. [] replaces the default list (Helm lists don't merge).
-  # Re-enable (drop this) once a released meetBackend tag ships both commands.
-  cronjobs: []
+  # The chart's file-cleanup CronJobs (clean_pending_files / purge_deleted_files)
+  # run with the chart defaults: both manage.py commands ship in meet-backend
+  # >= v1.22.0 (they were missing in v1.21.0, which is why they used to be
+  # disabled here with `cronjobs: []`).
   # Probes tuned for a constrained single node: the backend runs DB migrations on
   # first boot, so liveness gets a long initialDelay + tolerant timeout (never restart
   # it mid-migration); readiness still gates Ready so the rollout isn't slowed.
