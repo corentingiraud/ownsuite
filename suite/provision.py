@@ -79,6 +79,8 @@ def _prompt_tfvars(provider, cfg):
         ("ssh_public_key", "SSH public key (OpenSSH)", "text", _default_ssh_key()),
         ("bucket_names", "Media bucket name(s), comma-separated (blank in garage mode)",
          "list", ""),
+        ("backup_bucket_name", "Off-site backup bucket name (blank = no backups)",
+         "text", ""),
         ("enable_mailbox", "Enable the mailbox (opens SMTP)?", "confirm", False),
     ]
     if provider == "scaleway":
@@ -134,13 +136,15 @@ def _env_from_outputs(outputs):
     ssh_target = _out(outputs, "ssh_target")
     if ssh_target:
         env["OWNSUITE_SERVER_SSH"] = ssh_target
-    snippet = _out(outputs, "env_object_storage")
-    if snippet and "<no bucket" not in snippet:
-        for line in snippet.splitlines():
-            line = line.strip()
-            if "=" in line and not line.startswith("#"):
-                k, v = line.split("=", 1)
-                env[k.strip()] = v.strip()
+    # Both snippets are `KEY=value` lines; env_backup is empty when no backup bucket.
+    for name in ("env_object_storage", "env_backup"):
+        snippet = _out(outputs, name)
+        if snippet and "<no bucket" not in snippet:
+            for line in snippet.splitlines():
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    env[k.strip()] = v.strip()
     return env
 
 
@@ -154,6 +158,12 @@ def _secrets_from_outputs(outputs):
     if ak and sk:
         env["OWNSUITE_S3_ACCESS_KEY"] = ak
         env["OWNSUITE_S3_SECRET_KEY"] = sk
+    # Off-site backup creds (null unless a backup bucket was provisioned). The rclone
+    # crypt passphrase stays seed-derived, so it is not among these.
+    bak, bsk = _out(outputs, "backup_s3_access_key"), _out(outputs, "backup_s3_secret_key")
+    if bak and bsk:
+        env["OWNSUITE_BACKUP_S3_ACCESS_KEY"] = bak
+        env["OWNSUITE_BACKUP_S3_SECRET_KEY"] = bsk
     ru, rp = _out(outputs, "mta_relay_username"), _out(outputs, "mta_relay_password")
     if ru and rp:
         env["OWNSUITE_MTA_RELAY_USERNAME"] = ru

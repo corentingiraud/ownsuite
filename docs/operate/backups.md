@@ -22,6 +22,14 @@ Set `OWNSUITE_BACKUP_S3_TARGET`:
 - **`in-cluster`** (CI / hermetic) — a **second in-cluster Garage** (`garage-backup`) with its
   own volume and bucket, deployed automatically. Used by the e2e; not for production DR.
 
+!!! note "Provisioned by `suite provision`"
+    On Scaleway, set `backup_bucket_name` in the tfvars: `suite provision` then creates the
+    bucket (in `backup_region`, default `nl-ams` — off the `fr-par` primary) and writes
+    `OWNSUITE_BACKUP_S3_*` into `.env` for you. A test suite **reuses the workload S3 key**
+    (same project → not account-isolated, but survives losing the server, which is what the
+    restore drill tests). **Prod DR** wants a separate account/provider: point it at that
+    account and override the keys (below).
+
 ### Credentials
 
 The off-site S3 credentials and the rclone encryption passphrase are **derived from
@@ -92,8 +100,15 @@ suite restore
 
 `suite restore` is the operator-facing path: it checks the seed and backup configuration are
 present, **refuses on a cluster that is not clean** (an existing database or bound PVCs would be
-clobbered — confirm explicitly, or pass `--yes`, to override), runs the restore, then verifies
-single sign-on and each enabled app answered. See the [CLI reference](../reference/cli.md#suite-restore).
+clobbered — confirm explicitly, or pass `--yes`, to override), pins the live TLS issuer so the
+restore never downgrades certs to `selfsigned`, runs the restore, then verifies single sign-on and
+each enabled app answered. See the [CLI reference](../reference/cli.md#suite-restore).
+
+!!! note "Seed + issuer must be reachable"
+    Restore reads `OWNSUITE_SECRET_SEED` from the **environment** (export it; unlike `sync`/`upgrade`
+    it does not fall back to `.env`). The TLS issuer is auto-detected from the running `keycloak-tls`
+    certificate; on a **bare** cluster (no cert-manager state yet) that detection can't work, so
+    `export OWNSUITE_TLS_ISSUER=letsencrypt-http01` (or your issuer) before restoring.
 
 Under the hood it runs the same Helmfile sync in restore mode that `make restore` runs directly —
 the low-level mechanism, if you need it without the guardrails:

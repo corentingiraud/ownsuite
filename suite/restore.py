@@ -11,9 +11,11 @@ the verb adds the operator-facing guardrails:
      bound app PVCs). Restore assumes a fresh cluster — CNPG recovery + the restore
      Jobs would clobber live data. Override with an explicit typed confirmation, or
      --yes for unattended runs;
-  4. open the SSH tunnel (ADR-014), run the restore-mode sync
-     (OWNSUITE_RESTORE=true OWNSUITE_BACKUP_ENABLED=true helmfile sync), then verify
-     that Keycloak and each enabled app answer over HTTPS, reusing suite.verify.
+  4. open the SSH tunnel (ADR-014), pin the live TLS issuer (like sync/upgrade, so a
+     restore never silently downgrades certs to `selfsigned` — the helmfile default),
+     run the restore-mode sync (OWNSUITE_RESTORE=true OWNSUITE_BACKUP_ENABLED=true
+     helmfile sync), then verify that Keycloak and each enabled app answer over HTTPS,
+     reusing suite.verify.
 
 The gates and the restore-mode env are unit-tested with mocked subprocess/HTTPS
 calls — no live cluster.
@@ -29,6 +31,7 @@ from . import config, tunnel, verify
 from .errors import SuiteError
 from .process import run
 from .status import enabled_apps
+from .upgrade import resolve_issuer
 
 HELMFILE = "helmfile/helmfile.yaml.gotmpl"
 NS = "ownsuite"
@@ -63,6 +66,11 @@ def run_restore(args):
         if not args.yes and not _cluster_is_clean() and not _confirm_not_clean():
             print("Aborted — cluster is not clean; nothing changed.")
             return
+        # Pin the issuer the same way sync/upgrade do: an explicit OWNSUITE_TLS_ISSUER
+        # wins, else detect the one in force from the keycloak-tls cert. Without this,
+        # restore-mode sync would default to `selfsigned` and downgrade live certs. On a
+        # truly bare cluster (no cert yet) resolve_issuer tells the operator to export it.
+        env["OWNSUITE_TLS_ISSUER"] = resolve_issuer()
         print("\nRestore expects a clean cluster (no prior PVCs) with backups configured.")
         print("\n==> Restoring (helmfile sync, restore mode)")
         run(["helmfile", "-f", HELMFILE, "sync"], env=env, step="helmfile sync")
