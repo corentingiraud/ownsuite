@@ -37,6 +37,18 @@ fullnameOverride: livekit-sfu
 # explicit because it is load-bearing for the single-node port model.
 podHostNetwork: true
 
+# Single-node + hostPort media ports (7881/7882): the default RollingUpdate maxSurge
+# starts the replacement pod before the old one frees the host ports, so it stays
+# Pending forever and the sync deadlocks (#77). maxSurge:0 forces the old pod down
+# first; brief media downtime during the roll is acceptable and unavoidable on one node.
+# (Kept as RollingUpdate rather than Recreate: switching type leaves a stale
+# rollingUpdate block on the live object that server-side apply refuses to prune.)
+deploymentStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 1
+
 loadBalancer:
   # "nginx" makes the chart render a plain Ingress (no cloud-LB Service). It carries
   # no nginx-specific fields, so Traefik — the default IngressClass on K3s — serves
