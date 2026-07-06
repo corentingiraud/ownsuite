@@ -45,6 +45,9 @@ APP_RELEASES = {
     "projects": ["projects"],
     "messages": ["messages"],
     "meet": ["meet", "meet-media-proxy", "livekit", "livekit-egress"],
+    # Tchap is a single helm release (the ess-helm matrix-stack chart bundles Synapse +
+    # MAS + Element Web). Health check hits https://tchap.{domain}/ (the Element Web client).
+    "tchap": ["tchap"],
 }
 # Which public host answers for a release, so a scoped sync health-checks (and rolls
 # back) only the affected app(s). Keycloak's host is `auth`. Releases absent here are

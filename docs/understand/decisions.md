@@ -1490,3 +1490,69 @@ closing ADR-037's trade-off. pipx is an extra prerequisite for the short form, b
 hand — accepted, guarded by the drift test, and cheaper than adding `argcomplete` as a runtime
 dependency, preserving the "pure standard library, no dependency to run" property that lets
 `python -m suite deps` work from a bare clone.
+
+---
+
+## ADR-041 — Tchap integration: ess-helm matrix-stack, MAS→Keycloak SSO, S3 media, text-only v1
+
+**Context.** OwnSuite had no chat pillar. [Tchap](../understand/tchap.md) — the French State's
+Matrix-based secure messenger (Element + government forks, on the Matrix protocol) — fills it. Tchap
+is not one container: it is a **Synapse** homeserver + **MAS** (matrix-authentication-service) +
+**Element Web**, with Matrix 2.0 native auth (Synapse delegates all auth to MAS, which federates
+upstream to an external OIDC IdP). The reference deployment
+([`tchapgouv/tchap-docker-integration`](https://github.com/tchapgouv/tchap-docker-integration)) is an
+explicitly non-production Compose demo, so it is our behaviour reference, not our deployment vehicle.
+The whole stack is **AGPL-3.0**.
+
+**Decision.** Deploy via Element's official **[`ess-helm` `matrix-stack`](https://github.com/element-hq/ess-helm)**
+chart (Element Server Suite, Community Edition) and layer Tchap specifics on top. v1 is a
+**text-only, closed, Tchap-flavoured Matrix chat with SSO through OwnSuite's Keycloak** — everything
+specific to the French-government deployment is deferred.
+
+- **Chart, not hand-assembly.** `matrix-stack` bundles exactly the primitives (Synapse + MAS +
+  Element Web + well-known delegation) and is MAS-native and maintained. It ships as an **OCI chart**
+  (`oci://ghcr.io/element-hq/ess-helm/matrix-stack`, `oci: true` in the helmfile repo list) — the
+  first OCI chart here. **Rejected: hand-assembled per-component charts** (unmaintained reinvention).
+- **Auth chain `tchap-web → MAS → Keycloak`.** MAS's `upstream_oauth2` points at the OwnSuite
+  Keycloak realm (client `tchap`, secret seed-derived from id `tchap-oidc`), JIT-provisioning the
+  Matrix user on first login (`claims_imports.localpart action: require`, from the email local part).
+  We do **not** plug Keycloak straight into Synapse — the demo's bundled Keycloak/ProConnect-mock is
+  the slot our Keycloak fills. MAS is served at `account.{domain}` (Synapse holds `matrix.{domain}`,
+  Keycloak holds `auth.{domain}`), so the Keycloak client template gained a `redirectHost` override.
+- **Upstream MAS, Tchap-fork web client.** We keep the **`tchapgouv/tchap-web-v4`** client (a cheap
+  image override on the chart's built-in Element Web — keeps it legitimately "Tchap") but use
+  **upstream** MAS (`element-hq`), not the Tchap fork: the fork's value is ProConnect + the
+  email-domain allowlist, neither of which v1 uses.
+- **`server_name` = base `{domain}`** (so Matrix IDs are `@user:{domain}`), with `.well-known` client
+  delegation. This is baked into every user/room ID — **irreversible** — hence fixed up front.
+- **Media on S3, not a PVC.** Per-app `tchap-media` bucket via `synapse-s3-storage-provider`, under
+  the existing `objectStorage` pattern → automatic off-site `object-backup` (unlike Meet's
+  regenerable recordings, chat media **is** copied off-site). The chart injects the provider *config*
+  but not the *module*, and the stock `element-hq/synapse` image lacks it, so we run the
+  **`dotwee/matrix-synapse-s3`** image (upstream Synapse + the module baked in), pinned in
+  versions.yaml. **Rejected: bundled PVC media store** (would reintroduce PVC-backup wiring and grow
+  unbounded on a single node).
+- **Monolithic Synapse, no Redis.** All workers stay disabled; the chart's Redis (which exists only
+  to fan out worker traffic) is scaled to `replicas: 0`. Two external CNPG databases (`synapse`,
+  `mas`); the chart's bundled Postgres is disabled. The chart's `initSecrets` still auto-generates
+  the signing/macaroon/encryption keys — we inject only the Postgres passwords and the S3 + upstream
+  OIDC config fragments (via `tchap-secrets`).
+- **Template = Meet, not Grist.** The issue proposed Grist as the copy-template; Meet is the better
+  fit — it already has the S3 `objectStorage` pattern, the upstream-chart release shape and the
+  multi-component topology Tchap needs, none of which Grist has. Grist's only unique asset
+  (PVC + PVC-backup) is exactly what Tchap does not use.
+
+**Consequences.** OwnSuite gains a maintained, SSO-integrated Matrix chat with one flag
+(`OWNSUITE_APP_TCHAP`). The honest trade-off: with the forks, allowlist, calls and federation
+deferred, v1 is closer to "an Element/Matrix chat in Tchap colours" than a full government Tchap.
+Deferred, each a roadmap item on top of this base:
+(a) **calls** — Element Call / LiveKit / TURN (Meet covers video; revisit with a *dedicated* SFU, not
+Meet's LiveKit); (b) **identity-server email-domain allowlist** — redundant while Keycloak already
+gates membership for one org; (c) **federation** — no `8448`, no server `.well-known`; a future
+opt-in `enable_tchap_federation` flag would follow the `enable_meet`
+([ADR-039](#adr-039-meet-media-ports-single-udp-mux-tcp-fallback)) firewall pattern; (d) **ProConnect**.
+One operational caveat: MAS has no config to skip TLS verification on upstream OIDC discovery, so in
+the self-signed CI e2e the full SSO *login* cannot complete (the stack, Synapse health and web client
+are still exercised); production with Let's Encrypt is unaffected. **AGPL-3.0** applies to the whole
+stack — offering it as a network service triggers the network-copyleft source-availability
+obligation, worth noting for anyone hosting OwnSuite as a service.

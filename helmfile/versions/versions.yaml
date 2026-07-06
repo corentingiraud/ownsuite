@@ -37,6 +37,14 @@ chartVersions:
   # the chart appVersion.
   # renovate: datasource=helm registryUrl=https://helm.livekit.io depName=egress
   livekitEgress: "1.8.4"
+  # Tchap (Matrix/Element) — Element's ess-helm `matrix-stack` chart bundles Synapse +
+  # MAS + Element Web + well-known delegation (ADR-041). Distributed as an OCI chart
+  # (oci://ghcr.io/element-hq/ess-helm/matrix-stack) — the only OCI chart here; the repo
+  # entry in helmfile.yaml.gotmpl sets `oci: true`. Version follows Element's CalVer
+  # release train. Every component image is pinned/overridden below; the chart's own
+  # image defaults are only used for components we don't override (MAS).
+  # renovate: datasource=docker depName=ghcr.io/element-hq/ess-helm/matrix-stack
+  tchap: "26.6.2"
 
 imageVersions:
   # renovate: datasource=docker depName=quay.io/keycloak/keycloak
@@ -81,6 +89,23 @@ imageVersions:
   # Must be >= v1.9.10 for the /rtc/v1 signalling path the meet-frontend client SDK uses.
   # renovate: datasource=docker depName=livekit/livekit-server
   livekitServer: "v1.13.3"
+  # Tchap — Synapse image (ess-helm chart, ADR-041). We override the chart's stock
+  # ghcr.io/element-hq/synapse with dotwee/matrix-synapse-s3, which is that same upstream
+  # Synapse plus the `synapse-s3-storage-provider` module baked in (the chart injects the
+  # media-store CONFIG but not the module). Tag tracks upstream Synapse releases.
+  # renovate: datasource=docker depName=ghcr.io/dotwee/matrix-synapse-s3
+  synapse: "v1.155.0"
+  # Tchap — Element Web client image: Tchap's fork (tchapgouv/tchap-web-v4). Upstream
+  # ships only the moving branch tag `develop_tchap` (no versioned releases), so Renovate
+  # pins it by DIGEST — the tag stays `develop_tchap` while the digest advances on review.
+  # renovate: datasource=docker depName=ghcr.io/tchapgouv/tchap-web-v4 versioning=docker
+  tchapWeb: "develop_tchap"
+  # ...and its digest — because `develop_tchap` is a MOVING tag (upstream ships no
+  # versioned releases), the digest is what actually pins the deployed image (no-latest
+  # rule, AGENTS.md). The values file sets image.digest from this; Renovate advances it
+  # on review. Bump `tchapWeb` (tag) and this together.
+  # renovate: datasource=docker depName=ghcr.io/tchapgouv/tchap-web-v4
+  tchapWebDigest: "sha256:5d1488092dc3e0921aea36f2444486792ccd5c1bc04efcb26bd122c710ddd292"
   # Garage object store (ADR-015), deployed from the local ./charts/garage chart.
   # renovate: datasource=docker depName=dxflrs/garage
   garage: "v2.3.0"

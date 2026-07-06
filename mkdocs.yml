@@ -105,6 +105,7 @@ plugins:
           - understand/projects.md: Projects — kanban boards and task management; optional, off by default.
           - understand/messages.md: Mailbox — a full mail provider with webmail; advanced, off by default.
           - understand/meet.md: Meet — video conferencing on LiveKit; advanced, off by default.
+          - understand/tchap.md: Tchap — Matrix/Element secure chat; advanced, off by default.
           - understand/decisions.md: Design decisions and their rationale.
         Reference:
           - reference/cli.md: The `suite` CLI — every command and flag (install, user, status, upgrade).
@@ -134,6 +135,7 @@ nav:
       - Projects: understand/projects.md
       - Mailbox: understand/messages.md
       - Meet: understand/meet.md
+      - Tchap: understand/tchap.md
       - Design decisions: understand/decisions.md
   - Reference:
       - suite CLI: reference/cli.md

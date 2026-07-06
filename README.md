@@ -70,6 +70,7 @@ is off by default** — opt each in via its flag or the guided installer's promp
 | **Projects** | Kanban boards / task management (suitenumerique/projects) | `OWNSUITE_APP_PROJECTS` |
 | **Mailbox** | Mail provider + webmail (suitenumerique/messages) | `OWNSUITE_APP_MESSAGES` |
 | **Meet** | Video conferencing on LiveKit (suitenumerique/meet) | `OWNSUITE_APP_MEET` |
+| **Tchap** | Matrix/Element secure chat, text-only (ess-helm + tchapgouv) | `OWNSUITE_APP_TCHAP` |
 
 Some upstream La Suite apps (People, Calendars…) are deliberately not packaged — see
 [Not supported](https://corentingiraud.github.io/ownsuite/project/roadmap/#not-supported-and-why).

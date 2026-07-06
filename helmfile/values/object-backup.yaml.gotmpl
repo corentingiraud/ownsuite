@@ -41,6 +41,11 @@ primary:
     {{- if .Values.apps.projects.enabled }}
     - {{ .Values.objectStorage.projectsBucket | quote }}
     {{- end }}
+    {{- if .Values.apps.tchap.enabled }}
+    # Synapse media — copied off-site (unlike Meet's regenerable recordings, which are
+    # deliberately absent from this list).
+    - {{ .Values.objectStorage.tchapBucket | quote }}
+    {{- end }}
   secret: s3-credentials
   accessKeyIdKey: AWS_S3_ACCESS_KEY_ID
   secretAccessKeyKey: AWS_S3_SECRET_ACCESS_KEY

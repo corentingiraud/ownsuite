@@ -100,6 +100,18 @@ keycloak:
       # profile+email scopes Meet maps to its user.
       directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
     {{- end }}
+    {{- if eq (env "OWNSUITE_APP_TCHAP" | default "false") "true" }}
+    - clientId: tchap
+      # Only present when Tchap is enabled (ADR-041, off by default). The OIDC client is
+      # MAS (matrix-authentication-service), which brokers SSO to Keycloak via its
+      # upstream_oauth2 provider. MAS is served at account.{domain}, NOT tchap.{domain}
+      # (Element Web's host), so `redirectHost` points the redirectUris/webOrigins at
+      # account.{domain}/* (covering MAS's /upstream/callback/<id>). The derived secret
+      # (id "tchap-oidc") must match the client_secret in MAS's upstream config
+      # (tchap-secrets / mas-upstream-oidc.yaml).
+      redirectHost: account
+      directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
+    {{- end }}
   # Optional realm user seeded for the e2e SSO check (CI only). Its password is
   # derived from the seed (id "kc-test-user") — never committed in plaintext.
   seedTestUser:
@@ -164,6 +176,11 @@ apps:
     # must ALSO open the port with the Terraform/Ansible `enable_meet_turn` flag.
     turn:
       enabled: {{ env "OWNSUITE_MEET_TURN" | default "false" }}
+  # Tchap (Matrix/Element messenger via the ess-helm matrix-stack chart) — text-only,
+  # closed, SSO through Keycloak (ADR-041). OFF by default. HTTPS-only (no federation
+  # ports in v1); media on S3. Enable with OWNSUITE_APP_TCHAP=true.
+  tchap:
+    enabled: {{ env "OWNSUITE_APP_TCHAP" | default "false" }}
 
 # Contact address used for app admin / superuser accounts.
 adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}
@@ -221,6 +238,15 @@ databases:
   - name: meet
     secretName: meet-db
   {{- end }}
+  {{- if eq (env "OWNSUITE_APP_TCHAP" | default "false") "true" }}
+  # Tchap needs TWO databases: Synapse (the homeserver — rooms/events/media metadata)
+  # and MAS (matrix-authentication-service — sessions/tokens/upstream OIDC links). The
+  # ess-helm chart's bundled Postgres is disabled; both point at these CNPG databases.
+  - name: synapse
+    secretName: synapse-db
+  - name: mas
+    secretName: mas-db
+  {{- end }}
 
 # TLS issuance (ADR-013, ADR-019). Accepted `OWNSUITE_TLS_ISSUER` values:
 #   selfsigned          works anywhere (CI/dev, no public DNS)
@@ -260,6 +286,11 @@ objectStorage:
   # Bucket holding Meet's room recordings (written by LiveKit Egress). Created by
   # Garage in `garage` mode when Meet is enabled; pre-create on external S3.
   meetBucket: {{ env "OWNSUITE_MEET_S3_BUCKET" | default "meet-recordings" | quote }}
+  # Bucket holding Synapse media (uploads/avatars/thumbnails), written via
+  # synapse-s3-storage-provider. Created by Garage in `garage` mode when Tchap is
+  # enabled; pre-create on external S3. Unlike Meet's recordings, this IS copied
+  # off-site (see object-backup) — chat media is not regenerable.
+  tchapBucket: {{ env "OWNSUITE_TCHAP_S3_BUCKET" | default "tchap-media" | quote }}
 
 # In-cluster Garage object store (ADR-015), deployed only in `garage` mode. Its
 # S3 access key/secret are the seed-derived s3-access/s3-secret credentials,
