@@ -34,12 +34,11 @@ postgres:
   enabled: false
 
 # --- Redis / workers ----------------------------------------------------------------
-# Monolithic single-process Synapse (decision #7): no worker split, so no Redis. The
-# chart deploys Redis by default (redis.replicas: 1) purely to fan out worker traffic;
-# with all synapse.workers.* left at their default (disabled) it is dead weight, so we
-# scale it to 0. Add workers + Redis only if a single association ever outgrows one node.
-redis:
-  replicas: 0
+# Monolithic single-process Synapse (decision #7): all synapse.workers.* stay at their
+# default (disabled), and the chart only deploys Redis to fan out worker traffic — so
+# with no workers there is no Redis pod and nothing to configure here (the chart's
+# `redis` schema has no enable/replicas knob). Add workers + Redis only if a single
+# association ever outgrows one node.
 
 # --- Out-of-scope components (all ON by default in the chart) ------------------------
 # Voice/video calls: OwnSuite already ships Meet/LiveKit, so disable Element Call.
@@ -133,10 +132,12 @@ elementWeb:
 # --- well-known delegation ----------------------------------------------------------
 # Serves /.well-known/matrix/{client,server} on the bare {domain} so clients discover
 # the matrix.{domain} homeserver and the account.{domain} auth issuer automatically.
+# The ingress host is the serverName (base {domain}) by construction — the chart's
+# wellKnownDelegation.ingress schema does NOT accept an explicit `host` (unlike the
+# per-component ingresses above), so we only override the TLS secret name here.
 wellKnownDelegation:
   enabled: true
   ingress:
-    host: {{ $domain | quote }}
     tlsSecret: well-known-tls
 
 # --- Chart-managed secrets ----------------------------------------------------------

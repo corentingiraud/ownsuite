@@ -1532,8 +1532,9 @@ specific to the French-government deployment is deferred.
   **`dotwee/matrix-synapse-s3`** image (upstream Synapse + the module baked in), pinned in
   versions.yaml. **Rejected: bundled PVC media store** (would reintroduce PVC-backup wiring and grow
   unbounded on a single node).
-- **Monolithic Synapse, no Redis.** All workers stay disabled; the chart's Redis (which exists only
-  to fan out worker traffic) is scaled to `replicas: 0`. Two external CNPG databases (`synapse`,
+- **Monolithic Synapse, no Redis.** All workers stay disabled; the chart only deploys Redis to fan
+  out worker traffic, so with no workers there is no Redis pod (and its values schema exposes no
+  enable/replicas knob to set). Two external CNPG databases (`synapse`,
   `mas`); the chart's bundled Postgres is disabled. The chart's `initSecrets` still auto-generates
   the signing/macaroon/encryption keys — we inject only the Postgres passwords and the S3 + upstream
   OIDC config fragments (via `tchap-secrets`).

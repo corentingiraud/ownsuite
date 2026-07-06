@@ -29,8 +29,9 @@ infrastructure:
 | `keycloak` | SSO — the `tchap` OIDC client, brokered through MAS |
 | `issuers` | The per-host TLS certificates (cert-manager) |
 
-It needs **no Valkey/Redis**: on a single node Synapse runs **monolithic** (all workers off), so the
-chart's Redis is scaled to zero. Media goes to **S3**, not a PVC.
+It needs **no Valkey/Redis**: on a single node Synapse runs **monolithic** (all workers off), and the
+chart only deploys Redis to fan out worker traffic — so with no workers, no Redis pod. Media goes to
+**S3**, not a PVC.
 
 ## Hosts
 
