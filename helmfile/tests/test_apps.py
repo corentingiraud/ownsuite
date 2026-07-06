@@ -511,3 +511,38 @@ def test_meet_backend_mints_livekit_token():
         assert livekit.get("token"), f"no LiveKit token in room response: {room}"
 
     retry(create_room_and_get_token)
+
+
+# --- Tchap (ess-helm matrix-stack: Synapse + MAS + Element Web, ADR-041) ------
+# These prove the stack boots and is reachable end to end. We do NOT assert the full
+# SSO *login* here: MAS has no option to skip TLS verification on upstream OIDC
+# discovery, so against the self-signed CI issuer the MAS->Keycloak leg can't complete
+# (it works in production with a real Let's Encrypt cert). The synapse/MAS pods still
+# come up (the provider is used lazily at login), so these checks pass regardless.
+
+
+@only("tchap")
+def test_tchap_databases_applied():
+    """Both CNPG databases are provisioned: Synapse (homeserver) and MAS (auth)."""
+    _db_applied("synapse")
+    _db_applied("mas")
+
+
+@only("tchap")
+def test_tchap_synapse_health():
+    """Synapse answers the Matrix client-versions endpoint over HTTPS at matrix.{domain}
+    — a direct boot proof of the homeserver, independent of the web client."""
+    host = f"matrix.{DOMAIN}"
+
+    def fetch():
+        out = curl(host, f"https://{host}/_matrix/client/versions")
+        assert "versions" in out.lower(), out[:200]
+
+    retry(fetch)
+
+
+@only("tchap")
+def test_tchap_ui_reachable():
+    """The Tchap web client (Element Web / tchap-web-v4) answers 200 over HTTPS through
+    Traefik+TLS at tchap.{domain}."""
+    _ui_reachable(app_host("tchap"))

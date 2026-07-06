@@ -1,0 +1,147 @@
+# Tchap (tchapgouv) — secure instant messaging on Matrix, deployed from Element's
+# ess-helm `matrix-stack` chart. A monolithic Synapse homeserver + MAS (Matrix
+# Authentication Service) + a Tchap-branded Element Web, wired to the Phase 1
+# foundation like the other apps: CNPG (`synapse` and `mas` DBs), S3 (Garage
+# in-cluster or external — the Tchap media bucket) and Keycloak SSO (realm
+# `ownsuite`, client `tchap` / secret id `tchap-oidc`, brokered through MAS's
+# upstream_oauth2).
+#
+# The chart auto-generates every homeserver signing/secret it can (see initSecrets
+# below); we only inject what it cannot derive: the external Postgres coordinates,
+# the S3 media provider, the upstream OIDC (Keycloak) client, and the image pins.
+# Secrets never render into a ConfigMap — the two config fragments that carry
+# credentials (S3 keys, OIDC client secret) are loaded from the `tchap-secrets`
+# Secret via the chart's configSecret/configSecretKey mechanism. Image tags are
+# pinned in versions.yaml (the chart's appVersion does not track our forks).
+#
+# Hosts: Element Web = tchap.{domain}, Synapse = matrix.{domain},
+# MAS = account.{domain} (see the mas ingress note), well-known = {domain}.
+
+{{- $domain := .Values.domain -}}
+{{- $ns := .Values.workloadsNamespace -}}
+{{- $pgHost := printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName $ns -}}
+
+# Base Matrix server name — user IDs are @user:{domain}, so this is the bare domain,
+# NOT the homeserver host (matrix.{domain}). well-known delegation (below) points
+# clients from {domain} to the real Synapse/MAS hosts.
+serverName: {{ $domain | quote }}
+
+# --- External Postgres (CNPG) -------------------------------------------------------
+# The chart can ship its own in-cluster Postgres; we disable it and point Synapse and
+# MAS at the shared CNPG cluster (one DB + one role each, provisioned by the postgres
+# chart). Passwords come from the per-app derived Secrets via .password.{secret,secretKey}.
+postgres:
+  enabled: false
+
+# --- Redis / workers ----------------------------------------------------------------
+# Monolithic single-process Synapse (decision #7): all synapse.workers.* stay at their
+# default (disabled), and the chart only deploys Redis to fan out worker traffic — so
+# with no workers there is no Redis pod and nothing to configure here (the chart's
+# `redis` schema has no enable/replicas knob). Add workers + Redis only if a single
+# association ever outgrows one node.
+
+# --- Out-of-scope components (all ON by default in the chart) ------------------------
+# Voice/video calls: OwnSuite already ships Meet/LiveKit, so disable Element Call.
+matrixRTC:
+  enabled: false
+# Element Admin console: not needed for v1 (admin via Synapse API / MAS).
+elementAdmin:
+  enabled: false
+
+# --- Shared ingress defaults (Traefik, K3s-bundled) ---------------------------------
+# className + annotations + tlsEnabled are inherited by every component's ingress;
+# each component below only overrides its own host and TLS secret. cert-manager issues
+# a per-host certificate via the configured cluster issuer.
+ingress:
+  className: traefik
+  tlsEnabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.tls.issuer | quote }}
+
+# --- Synapse (homeserver) -----------------------------------------------------------
+synapse:
+  ingress:
+    host: {{ printf "matrix.%s" $domain | quote }}
+    tlsSecret: synapse-tls
+  # S3-capable Synapse image: dotwee/matrix-synapse-s3 bundles synapse-s3-storage-provider
+  # so media can live on S3/Garage. Tag pinned in versions.yaml (actual: v1.155.0).
+  image:
+    registry: ghcr.io
+    repository: dotwee/matrix-synapse-s3
+    tag: {{ .Values.imageVersions.synapse | quote }}
+    # digest: ""  # pinning lives in versions.yaml; leave unset so the tag above applies.
+  postgres:
+    host: {{ $pgHost | quote }}
+    port: 5432
+    user: synapse
+    database: synapse
+    sslMode: prefer
+    password:
+      secret: synapse-db
+      secretKey: password
+  # Extra homeserver.yaml fragments (deep-merged). The S3 media provider carries the
+  # bucket keys, so it is loaded from the tchap-secrets Secret rather than rendered
+  # inline into the ConfigMap (see the contract note at the bottom of this file).
+  additional:
+    01-s3-media:
+      configSecret: tchap-secrets
+      configSecretKey: synapse-s3.yaml
+
+# --- Matrix Authentication Service (MAS) --------------------------------------------
+# MAS owns login/registration and brokers SSO to Keycloak. It needs its own host: it
+# serves /account, /authorize, /oauth2 at path "/", which would collide with Synapse's
+# "/" on matrix.{domain}. auth.{domain} is already Keycloak, so MAS gets account.{domain}
+# (ess-helm's idiomatic MAS subdomain). MAS's image is left at the chart default.
+matrixAuthenticationService:
+  ingress:
+    host: {{ printf "account.%s" $domain | quote }}
+    tlsSecret: mas-tls
+  postgres:
+    host: {{ $pgHost | quote }}
+    port: 5432
+    user: mas
+    database: mas
+    sslMode: prefer
+    password:
+      secret: mas-db
+      secretKey: password
+  # upstream_oauth2 -> Keycloak. Holds the client secret, so it is loaded from the
+  # tchap-secrets Secret (see the contract note at the bottom).
+  additional:
+    01-upstream-oidc:
+      configSecret: tchap-secrets
+      configSecretKey: mas-upstream-oidc.yaml
+
+# --- Element Web (Tchap fork) -------------------------------------------------------
+# tchapgouv/tchap-web-v4 tracks a moving branch tag (develop_tchap); the real build is
+# digest-pinned in versions.yaml. The chart derives config.json (default_server_config,
+# homeserver base_url) from serverName + the Synapse ingress, so no additional config is
+# needed to boot. Layer Tchap-specific branding/flags via elementWeb.additional later.
+elementWeb:
+  ingress:
+    host: {{ printf "tchap.%s" $domain | quote }}
+    tlsSecret: tchap-web-tls
+  image:
+    registry: ghcr.io
+    repository: tchapgouv/tchap-web-v4
+    # develop_tchap is a MOVING tag, so the digest is what actually pins the image
+    # (no-latest rule). Both come from versions.yaml; the chart resolves repo@digest.
+    tag: {{ .Values.imageVersions.tchapWeb | quote }}
+    digest: {{ .Values.imageVersions.tchapWebDigest | quote }}
+
+# --- well-known delegation ----------------------------------------------------------
+# Serves /.well-known/matrix/{client,server} on the bare {domain} so clients discover
+# the matrix.{domain} homeserver and the account.{domain} auth issuer automatically.
+# The ingress host is the serverName (base {domain}) by construction — the chart's
+# wellKnownDelegation.ingress schema does NOT accept an explicit `host` (unlike the
+# per-component ingresses above), so we only override the TLS secret name here.
+wellKnownDelegation:
+  enabled: true
+  ingress:
+    tlsSecret: well-known-tls
+
+# --- Chart-managed secrets ----------------------------------------------------------
+# initSecrets (on by default) auto-generates everything we do NOT inject: the Synapse
+# signing key, macaroon secret and registration shared secret, and MAS's encryption
+# secret + OAuth signing keys. We leave it on and only inject the Postgres passwords,
+# the S3 media keys and the Keycloak OIDC client secret (all via tchap-secrets).

@@ -13,7 +13,11 @@ Phase 2 by appending to keycloak.clients).
 {{- $clients := list -}}
 {{- range .Values.keycloak.clients }}
   {{- $secret := include "ownsuite.getSecret" (dict "root" $ "id" (printf "%s-oidc" .clientId)) -}}
-  {{- $host := printf "%s.%s" .clientId $.Values.domain -}}
+  {{- /* The OIDC callback host defaults to <clientId>.{domain} (the app is served there),
+         but some apps' OIDC client runs on a different host — Tchap's client is MAS at
+         account.{domain}, not tchap.{domain}. `redirectHost` overrides just the host used
+         for redirectUris/webOrigins/post-logout; the secret id stays <clientId>-oidc. */}}
+  {{- $host := printf "%s.%s" (.redirectHost | default .clientId) $.Values.domain -}}
   {{- $client := dict
       "clientId" .clientId
       "name" .clientId

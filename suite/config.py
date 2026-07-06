@@ -31,6 +31,7 @@ APPS = [
     ("OWNSUITE_APP_PROJECTS", "Projects (kanban)"),
     ("OWNSUITE_APP_MESSAGES", "Mailbox (email — needs extra DNS/relay setup)"),
     ("OWNSUITE_APP_MEET", "Meet (video — needs media ports via enable_meet)"),
+    ("OWNSUITE_APP_TCHAP", "Tchap (Matrix/Element chat — text-only, SSO via Keycloak)"),
 ]
 
 

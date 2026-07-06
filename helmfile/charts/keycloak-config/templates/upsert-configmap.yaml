@@ -79,7 +79,10 @@ data:
        is the OIDC default every app here expects. Empty (not omitted) so a re-upsert clears any
        previously-set RS256 on existing clients. */}}
 {{- range .Values.clients }}
-  {{- $host := printf "%s.%s" .clientId $root.Values.domain }}
+  {{- /* redirectHost overrides the callback host when the app's OIDC client is not on
+         <clientId>.{domain} (e.g. Tchap's client is MAS at account.{domain}). Mirrors
+         the realm-import ConfigMap so the upsert Job converges on the same client. */}}
+  {{- $host := printf "%s.%s" (.redirectHost | default .clientId) $root.Values.domain }}
   {{- $rep := dict
       "clientId" .clientId
       "name" .clientId

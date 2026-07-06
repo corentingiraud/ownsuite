@@ -15,6 +15,8 @@ apps:
     enabled: {{ .Values.apps.messages.enabled }}
   meet:
     enabled: {{ .Values.apps.meet.enabled }}
+  tchap:
+    enabled: {{ .Values.apps.tchap.enabled }}
 email:
   # Gates the shared email-relay Secret (transactional email for all apps).
   configured: {{ .Values.email.configured }}
@@ -33,6 +35,9 @@ objectStorage:
   secretName: s3-credentials
   endpoint: {{ .Values.objectStorage.endpoint | quote }}
   region: {{ .Values.objectStorage.region | quote }}
+  # Tchap's Synapse media bucket — needed here because tchap-secrets renders the
+  # synapse-s3-storage-provider fragment (bucket + endpoint + keys) into a Secret.
+  tchapBucket: {{ .Values.objectStorage.tchapBucket | quote }}
 garage:
   enabled: {{ .Values.garage.enabled }}
 backup:

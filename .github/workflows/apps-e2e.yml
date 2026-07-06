@@ -46,6 +46,9 @@ on:
       - "helmfile/values/livekit.yaml.gotmpl"
       - "helmfile/values/livekit-ci.yaml.gotmpl"
       - "helmfile/values/livekit-egress.yaml.gotmpl"
+      # Tchap has no chart dir either (upstream ess-helm OCI chart) — its local code is
+      # the single tchap values file.
+      - "helmfile/values/tchap.yaml.gotmpl"
       # media-proxy backs docs, drive AND meet — a change here fans out to all apps.
       - "helmfile/charts/media-proxy/**"
       - "helmfile/tests/run-app-e2e.sh"
@@ -86,7 +89,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          all='["grist","projects","messages","docs","drive","meet"]'
+          all='["grist","projects","messages","docs","drive","meet","tchap"]'
           if [ "$EVENT" != "pull_request" ]; then
             echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
           fi
@@ -98,11 +101,13 @@ jobs:
             echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
           fi
           picked=()
-          for app in grist projects messages docs drive meet; do
+          for app in grist projects messages docs drive meet tchap; do
             # Grist/Projects/messages own a charts/<app>/ dir; Docs/Drive have no such
             # dir — their only local chart is charts/<app>-ingress/ (upstream chart +
             # values file otherwise). Meet has no chart dir either — its local code is
-            # the meet + livekit values files. Match the right signal per app.
+            # the meet + livekit values files. Tchap (upstream OCI chart) has a single
+            # values file, so the default case matches it via values/tchap.yaml.gotmpl.
+            # Match the right signal per app.
             case "$app" in
               docs|drive) chart="charts/$app-ingress/" ;;
               meet)

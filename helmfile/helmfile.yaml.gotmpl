@@ -29,6 +29,12 @@ repositories:
     url: https://suitenumerique.github.io/meet
   - name: livekit
     url: https://helm.livekit.io
+  # Tchap = Element's ess-helm `matrix-stack`, shipped as an OCI chart (not a classic
+  # Helm-pages repo like the others above). `oci: true` tells helmfile to pull it from
+  # the ghcr.io registry path.
+  - name: ess-community
+    url: ghcr.io/element-hq/ess-helm
+    oci: true
 
 helmDefaults:
   wait: true
@@ -435,3 +441,23 @@ releases:
       {{- end }}
     values:
       - values/livekit-egress.yaml.gotmpl
+
+  # --- App: Tchap (Matrix/Element messenger) — ess-helm matrix-stack (ADR-041) --------
+  # OFF by default. One chart bundles Synapse (homeserver) + MAS (auth) + Element Web
+  # (the tchap-web-v4 client) + well-known delegation. v1 is text-only and closed: SSO
+  # flows tchap-web -> MAS -> Keycloak (MAS upstream_oauth2), the chart's bundled Postgres
+  # and Redis are disabled (Synapse runs monolithic on our two CNPG databases), and media
+  # lands in the tchap-media S3 bucket via synapse-s3-storage-provider. HTTPS-only — no
+  # federation ports, so no Terraform/Ansible firewall flag (unlike Meet).
+  - name: tchap
+    namespace: {{ $ns }}
+    chart: ess-community/matrix-stack
+    version: {{ .Values.chartVersions.tchap | quote }}
+    condition: apps.tchap.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/postgres
+      - {{ $ns }}/keycloak
+      - cert-manager/issuers
+    values:
+      - values/tchap.yaml.gotmpl

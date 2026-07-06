@@ -37,6 +37,9 @@ buckets:
   {{- if .Values.apps.meet.enabled }}
   - {{ .Values.objectStorage.meetBucket | quote }}
   {{- end }}
+  {{- if .Values.apps.tchap.enabled }}
+  - {{ .Values.objectStorage.tchapBucket | quote }}
+  {{- end }}
 keyName: docs
 
 credentialsSecret: garage-credentials
