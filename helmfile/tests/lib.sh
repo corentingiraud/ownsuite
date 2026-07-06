@@ -16,8 +16,12 @@ dump_failure_diagnostics() {
   echo "--- CNPG cluster + backups ---"
   kubectl -n "$NS" get cluster,backup,objectstore,scheduledbackup 2>/dev/null || true
   kubectl -n "$NS" get cluster ownsuite-pg -o jsonpath='{.status.phase}{"\n"}{.status.conditions}{"\n"}' 2>/dev/null || true
-  echo "--- barman-cloud plugin logs (cnpg-system) ---"
+  echo "--- barman-cloud plugin (cnpg-system) ---"
   kubectl -n cnpg-system logs -l app=barman-cloud --tail=60 2>&1 | tail -60 || true
+  # A pod stuck in ContainerCreating logs nothing; describe + events reveal the real
+  # cause (e.g. a cert-manager secret volume still being issued -> FailedMount).
+  kubectl -n cnpg-system describe pod -l app=barman-cloud 2>&1 | tail -40 || true
+  kubectl -n cnpg-system get events --sort-by=.lastTimestamp 2>/dev/null | tail -30 || true
   echo "--- CNPG recovery/job pod logs ($NS) ---"
   for p in $(kubectl -n "$NS" get pods --no-headers 2>/dev/null \
     | awk '$1 ~ /-recovery|-full-recovery|object-restore/ {print $1}'); do
@@ -37,7 +41,34 @@ dump_failure_diagnostics() {
 # IMMEDIATELY on an unrecoverable pod state (image pull errors, container start
 # errors, or a pod stuck in CrashLoopBackOff) — turning a 15-minute silent timeout
 # into a ~15-second, actionable failure. Reused for the initial sync and `restore`.
+#
+# A plain progress-deadline timeout (NOT one of the fail-fast states) is retried
+# once: on a cold, CPU-starved single-node runner a Deployment that mounts a
+# cert-manager-issued secret created in the same release (e.g. the barman-cloud
+# plugin's TLS) can sit in ContainerCreating past helm's deadline while the secret
+# is still being issued. `helmfile sync` is idempotent — the second pass finds the
+# secret present and the pod comes up at once. Unrecoverable states fail fast and
+# are never retried.
 provision_with_watchdog() {
+  local desc="$1"; shift
+  local attempt rc
+  for attempt in 1 2; do
+    [ "$attempt" -eq 1 ] || echo "==> retrying provisioning (attempt $attempt) — previous sync timed out"
+    rc=0
+    _provision_attempt "$desc" "$@" || rc=$?
+    case "$rc" in
+      0) return 0 ;;
+      2) exit 1 ;;   # unrecoverable, diagnosed above — do not retry
+    esac
+    # rc>=1: plain sync failure (e.g. progress deadline) — retry once, then give up.
+  done
+  echo "==> helmfile sync still failing after $attempt attempts (exit $rc)"
+  exit 1
+}
+
+# One provisioning attempt. Returns 0 on success, 2 on an unrecoverable state that
+# must NOT be retried, or the sync's own exit code (>=1) on a plain timeout/failure.
+_provision_attempt() {
   # Run an arbitrary provisioning command ("$@") in the background while monitoring
   # pods, so a wedged bring-up fails fast instead of waiting out the helm timeout.
   local desc="$1"; shift
@@ -65,7 +96,7 @@ provision_with_watchdog() {
       kubectl cluster-info 2>&1 | head -5 || true
       kill "$pid" 2>/dev/null || true
       cat "$log"
-      exit 1
+      return 2
     fi
     if kubectl get pods -A --no-headers --request-timeout=10s 2>/dev/null | awk '
         $4 ~ /ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerError|RunContainerError|CreateContainerConfigError/ {bad=1; print "  ! "$0}
@@ -76,13 +107,15 @@ provision_with_watchdog() {
       echo "==> FAIL-FAST: unrecoverable pod state during sync (see above)"
       kill "$pid" 2>/dev/null || true
       cat "$log"
-      exit 1
+      return 2
     fi
   done
   local sync_rc=0
   wait "$pid" || sync_rc=$?
   cat "$log"
-  [ "$sync_rc" -eq 0 ] || { echo "==> helmfile sync failed (exit $sync_rc)"; exit "$sync_rc"; }
+  [ "$sync_rc" -eq 0 ] && return 0
+  echo "==> helmfile sync failed (exit $sync_rc)"
+  return "$sync_rc"
 }
 
 wait_for_certs() {
