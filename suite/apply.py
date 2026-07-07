@@ -75,7 +75,10 @@ def _run(args, plan_only):
 
     # 1. infra (terraform) — only with a provider in suite.yaml; BYO servers skip it.
     if sp.provider:
-        provision.ensure_infra(sp, st, assume_yes=args.yes, plan_only=plan_only)
+        # `plan` has no --yes flag (getattr default); it never reaches the
+        # apply confirmation anyway (ensure_infra returns at the plan_only guard).
+        provision.ensure_infra(sp, st, assume_yes=getattr(args, "yes", False),
+                               plan_only=plan_only)
         ssh = sp.ssh or st.get("ssh", "")
 
     env = spec.assemble_env(sp, st)
