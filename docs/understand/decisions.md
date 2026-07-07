@@ -1557,3 +1557,56 @@ the self-signed CI e2e the full SSO *login* cannot complete (the stack, Synapse 
 are still exercised); production with Let's Encrypt is unaffected. **AGPL-3.0** applies to the whole
 stack — offering it as a network service triggers the network-copyleft source-availability
 obligation, worth noting for anyone hosting OwnSuite as a service.
+
+## ADR-042 — Declarative CLI: suite.yaml + suite apply replace the verb-per-tool surface
+
+**Context.** The CLI grew verb-by-verb around the tools underneath: terraform → `provision`,
+ansible → `bootstrap`/`check`, helmfile → `sync`/`upgrade`/`-l/--selector`. The result spoke
+implementation, not admin intent (issue #82). Enabling Tchap on a running suite took four manual
+steps — hand-edit `.env` (a machine-managed file the CLI rewrites, dropping comments), re-export the
+seed, open a tunnel, run a sync — and the documented path was the rail-less `make sync`, which
+silently defaults the TLS issuer to `selfsigned` (the exact failure `suite sync` was built to
+prevent). Removing an app never uninstalled its release. An app was also declared in ~7 parallel
+Python tables that drifted: `upgrade`'s rollback map was missing meet and tchap entirely, so a full
+upgrade that broke either was health-checked but never rolled back. Alpha status made a breaking
+redesign acceptable.
+
+**Decision.** One human-owned file describes the suite; one command reconciles reality to it.
+
+- **`suite.yaml` is the only file an admin edits** (git-ignored; `suite.yaml.example` committed;
+  `suite init` writes it interactively). Presence under `apps:` is the only enable switch; per-app
+  options are validated against the manifest. `.env` and `.env.example` are **gone**: machine state
+  (provisioned SSH target, provider-minted credentials, change-detection inputs) lives in
+  `.suite-state.json` (machine-written, 0600), and the deployment layer's `OWNSUITE_*` env is
+  assembled in-process with one precedence rule — ambient env > suite.yaml > state > helmfile
+  defaults — except the `OWNSUITE_APP_*` toggles, which always come from suite.yaml. CI keeps
+  injecting overrides by exporting variables.
+- **The verb set speaks admin intent**: `init`, `plan` (read-only preview), `apply` (reconcile:
+  terraform when the derived inputs changed — including the previously unreachable
+  `enable_meet`/`enable_mailbox` firewall flags, ansible when never bootstrapped or the flags
+  changed, DNS + propagation gate, one full-tree helmfile apply with the rails, prune of removed
+  apps, HTTPS health check with per-app rollback, URL report), `apps`, `info`, `logs`, `backup`
+  (promoted from make-only, polls to completion), `destroy` (typed confirmation), plus the kept
+  `status`/`upgrade`/`user`/`restore`/`deps`. **Removed**: `install`, `provision`, `bootstrap`,
+  `check`, `dns`, `sync` and `--app`/`-l` — subsumed by `plan`/`apply`/`info`. `upgrade` stays a
+  separate verb: version bumps are a different risk profile with a harder gate (ADR-007/034).
+- **One app manifest** (`suite/manifest.py`) drives everything app-shaped: the suite.yaml schema,
+  the init checkbox, the catalog, health hosts, rollback groups (fixing the meet/tchap gap by
+  construction — a failed app rolls back *all* its releases), prune sets, and the terraform/ansible
+  firewall flags. A drift test parses `helmfile.yaml.gotmpl` and fails on any two-way mismatch.
+- **Rails always on, plus new ones.** The issuer is pinned from suite.yaml with the staging→prod
+  ladder preserved on first issuance (ADR-019); a snapshot precedes any change to a live cluster
+  (backups off → explicit typed consent); prune uninstalls releases but **keeps data** — the grist
+  PVC carries `helm.sh/resource-policy: keep` and the per-app Database CRs pin
+  `databaseReclaimPolicy: retain`, so re-enabling an app finds its data. A seed fingerprint in the
+  state makes apply refuse a *wrong* seed instead of silently rotating every credential; a missing
+  seed is prompted for instead of failing mid-run.
+
+**Consequences.** Adding Tchap is now `$EDITOR suite.yaml` (one line) + `suite apply` → 
+"✓ https://tchap.example.org". Removing it prunes the release, keeping the data. The documented
+rail-less path is gone (`make sync` stays as CI/dev shorthand only, ADR-037 unchanged). The e2e
+provisions through `suite apply --yes` with a generated suite.yaml (`OWNSUITE_CONFIG` keeps
+developer files safe). Migration is wholesale (alpha): port `.env` values into suite.yaml; minted
+secrets re-land in the state on the next provision, or stay exported. Deferred, recorded here:
+OS-keyring seed storage, `suite app enable <name>` sugar (dilutes the single source of truth),
+Keycloak client deletion on prune, and `logs -f` following.
