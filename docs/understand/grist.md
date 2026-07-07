@@ -6,8 +6,9 @@ database) is wired to the same shared foundation, with Keycloak SSO so a user pr
 once reaches it on first login (JIT — no per-app step).
 
 !!! note "Off by default"
-    Grist ships **disabled** (`OWNSUITE_APP_GRIST`, default `false`). It's an optional extra,
-    not part of the tested core. It's fully wired and ready; turn it on with one flag (below).
+    Grist ships **disabled** (no `grist:` entry under `apps:` by default). It's an optional
+    extra, not part of the tested core. It's fully wired and ready; turn it on with one
+    line in `suite.yaml` (below).
 
 Unlike Docs/Drive, Grist is **not** a `suitenumerique`/impress app: it is a single-container
 Node app with **no official Helm chart**, so OwnSuite ships a thin local chart
@@ -26,8 +27,7 @@ on a local volume and its metadata in Postgres.
 
 ## How it is wired
 
-Three choices differ from the impress apps
-:
+Three choices differ from the impress apps:
 
 - **OIDC by single public issuer.** Grist discovers every endpoint from one
   `GRIST_OIDC_IDP_ISSUER` and has no per-endpoint override, so (unlike Docs/Drive) it points at
@@ -38,28 +38,26 @@ Three choices differ from the impress apps
   verbatim — its `redirectUris: https://grist.{domain}/*` already covers Grist's `/oauth2/callback`.
 - **Documents on a PVC, home DB on CNPG.** Grist's document SQLite files live on the
   `grist-persist` volume (mounted at `/persist`); orgs, users and ACLs live in a dedicated CNPG
-  `grist` database via `TYPEORM_*`. The session secret and OIDC client secret are seed-derived
-
-  in `grist-secrets`; the home-DB password is the per-app `grist-db` Secret.
+  `grist` database via `TYPEORM_*`. The session secret and OIDC client secret are
+  seed-derived in `grist-secrets`; the home-DB password is the per-app `grist-db` Secret.
 - **Formula sandbox `unsandboxed` by default.** `gvisor` (the image default) needs node
   capabilities stock K3s does not reliably grant; OwnSuite is a single trusted organisation, so
-  `GRIST_SANDBOX_FLAVOR=unsandboxed` boots reliably. Set `OWNSUITE_GRIST_SANDBOX=gvisor` on a node
-  configured for it.
+  `GRIST_SANDBOX_FLAVOR=unsandboxed` boots reliably. Set `sandbox: gvisor` under `apps.grist`
+  on a node configured for it.
 
 All of it is in `helmfile/values/grist.yaml.gotmpl`; nothing secret is committed.
 
 ## Run it
 
 ```bash
-set -a && source .env && set +a          # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
-export OWNSUITE_APP_GRIST=true           # opt in (off by default)
-make tunnel                              # in another terminal
-make sync                                # brings up the infra + enabled apps + Grist
+$EDITOR suite.yaml     # add `grist: {}` under apps:
+suite apply            # -> https://grist.<domain>/
 ```
 
 When it finishes, Grist answers at `https://grist.{domain}`; log in with a Keycloak user (e.g.
-one created by `suite user add`). Tune the document volume with `OWNSUITE_GRIST_STORAGE` and the
-team-site name with `OWNSUITE_GRIST_ORG`.
+one created by `suite user add`). Options go under the app's key — `storage` (the document
+volume), `org` (the team-site name), `sandbox` — e.g. `grist: {storage: 10Gi}`; see the
+[configuration reference](../reference/configuration.md#per-app-options).
 
 ## Tests
 

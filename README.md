@@ -9,9 +9,10 @@
 
 OwnSuite turns **one Linux server + a domain** into a full collaborative suite served over
 **HTTPS**, with **single sign-on** and **off-site backups you can actually restore** — the
-production essentials the upstream apps' *"dev only"* `compose.yml` files leave out. A single
-guided installer does the work: it generates your DNS records, waits for propagation, issues
-real Let's Encrypt certificates, and brings the whole stack up.
+production essentials the upstream apps' *"dev only"* `compose.yml` files leave out. One file
+(`suite.yaml`) describes your suite; **one command (`suite apply`) makes it real**: it
+provisions the server if asked, generates your DNS records, waits for propagation, issues real
+Let's Encrypt certificates, brings the stack up, and prints your URLs.
 
 Runs on any single server — a cloud VM, a dedicated host, or a home server.
 
@@ -30,10 +31,18 @@ git clone https://github.com/corentingiraud/ownsuite.git && cd ownsuite
 python3 -m suite deps       # one-time: install the tooling + Ansible collections
 pipx install --editable .   # optional: the short `suite` command, on PATH in any shell
                             # (run `pipx ensurepath` once if it isn't picked up yet)
-suite install               # guided: bare server + domain -> all-in-HTTPS
+suite init                  # questionnaire -> writes suite.yaml
+suite apply                 # provision -> bootstrap -> DNS -> HTTPS -> your URLs
 ```
 
-Then follow the screen. Prerequisites and the full step-by-step flow are in the
+Adding an app later is the whole point:
+
+```bash
+$EDITOR suite.yaml          # add `tchap: {}` under apps:
+suite apply                 # done -> https://tchap.your-domain.org
+```
+
+Prerequisites and the full step-by-step flow are in the
 **[install guide](https://corentingiraud.github.io/ownsuite/get-started/install/)**.
 
 ## The `suite` CLI
@@ -44,33 +53,37 @@ stack (argparse, no extra tooling), and always works from the checkout. For the 
 
 | Command | What it does |
 |---|---|
-| `deps` | One-time: install Python tooling + Ansible collections. |
-| `provision` | Terraform-provision the server + S3 on Scaleway/Infomaniak (optional). |
-| `bootstrap` / `check` | Turn a bare Debian box into a hardened single-node K3s (`check` = dry-run). |
-| `dns` | Print the DNS records to set and write the BIND zone file. |
-| `install` | Guided install: bare server + domain → the whole stack on HTTPS. |
+| `init` | Questionnaire → writes `suite.yaml`, the one file that describes your suite. |
+| `plan` | Preview what `apply` would change (infra, apps, DNS) — read-only. |
+| `apply` | Reconcile everything to `suite.yaml`: provision, bootstrap, DNS, deploy/prune apps, verify, print URLs. |
+| `apps` | App catalog: available / enabled / installed / healthy / URL. |
+| `info` | URLs, admin credentials, DNS records. |
+| `logs <app>` | Tail an app's pods over the managed tunnel. |
 | `user add\|passwd\|disable` | Manage Keycloak users — one identity reaches every enabled app (JIT). |
 | `status` | Health summary — node, database, certs, backup, apps. |
 | `upgrade` | Backup-gated upgrade: snapshot → diff → apply → health-check → rollback on failure. |
-| `sync` | Apply one release (`-l`) or one app (`--app`) with the same rails, scoped. |
+| `backup` | Take a backup now and wait for it to complete. |
 | `restore` | Restore a clean cluster from the off-site backups. |
+| `destroy` | Uninstall the whole suite from the cluster (data kept). |
+| `deps` | One-time: install Python tooling + Ansible collections. |
 
 Full reference: **[`suite` CLI](https://corentingiraud.github.io/ownsuite/reference/cli/)**.
 
 ## Apps
 
 One identity in Keycloak reaches every enabled app (single sign-on, just-in-time). **Every app
-is off by default** — opt each in via its flag or the guided installer's prompts.
+is off by default** — enabling one is a line in `suite.yaml` under `apps:` followed by
+`suite apply`; removing the line (+ apply) uninstalls it, keeping its data.
 
-| App | What it is | Flag |
+| App | What it is | suite.yaml entry |
 |---|---|---|
-| **Docs** | Collaborative documents (suitenumerique/impress) | `OWNSUITE_APP_DOCS` |
-| **Drive** | File manager (suitenumerique/drive) | `OWNSUITE_APP_DRIVE` |
-| **Grist** | Spreadsheets that behave like a database (getgrist) | `OWNSUITE_APP_GRIST` |
-| **Projects** | Kanban boards / task management (suitenumerique/projects) | `OWNSUITE_APP_PROJECTS` |
-| **Mailbox** | Mail provider + webmail (suitenumerique/messages) | `OWNSUITE_APP_MESSAGES` |
-| **Meet** | Video conferencing on LiveKit (suitenumerique/meet) | `OWNSUITE_APP_MEET` |
-| **Tchap** | Matrix/Element secure chat, text-only (ess-helm + tchapgouv) | `OWNSUITE_APP_TCHAP` |
+| **Docs** | Collaborative documents (suitenumerique/impress) | `docs: {}` |
+| **Drive** | File manager (suitenumerique/drive) | `drive: {}` |
+| **Grist** | Spreadsheets that behave like a database (getgrist) | `grist: {}` |
+| **Projects** | Kanban boards / task management (suitenumerique/projects) | `projects: {}` |
+| **Mailbox** | Mail provider + webmail (suitenumerique/messages) | `messages: {}` |
+| **Meet** | Video conferencing on LiveKit (suitenumerique/meet) | `meet: {}` |
+| **Tchap** | Matrix/Element secure chat, text-only (ess-helm + tchapgouv) | `tchap: {}` |
 
 Some upstream La Suite apps (People, Calendars…) are deliberately not packaged — see
 [Not supported](https://corentingiraud.github.io/ownsuite/project/roadmap/#not-supported-and-why).
@@ -81,11 +94,11 @@ full feature list and what's planned.
 
 Production essentials, implemented and **proven in CI**:
 
-- ✅ **One-command bootstrap** — Ansible turns a bare Debian box into a hardened single-node K3s.
+- ✅ **Declarative suite** — `suite.yaml` describes it, `suite apply` reconciles everything to it.
 - ✅ **Shared foundation** — Traefik + cert-manager (HTTPS), CloudNativePG, Valkey, Keycloak SSO.
-- ✅ **Opt-in apps** — each app you enable is wired to SSO, Postgres, and S3 storage.
+- ✅ **Opt-in apps** — each app you enable is wired to SSO, Postgres, and S3 storage; removing it uninstalls but keeps the data.
 - ✅ **One-command user provisioning** — `suite user add` grants every enabled app at once (JIT).
-- ✅ **Guided installer** — DNS records, propagation gate, Let's Encrypt staging → production.
+- ✅ **Guardrails always on** — DNS propagation gate, Let's Encrypt staging → production ladder, pre-change snapshot, health check + rollback.
 - ✅ **Backups + tested restore** — off-site, encrypted; CI replays *backup → destroy → restore* nightly.
 
 ## Stack

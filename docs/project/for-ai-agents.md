@@ -8,6 +8,28 @@ file at the repository root) orient AI assistants contributing to the project.
 The documentation **is** the specification. Before writing code, an agent reads the
 docs; after a structural decision, it updates the docs in the same change.
 
+## The model, in five facts
+
+Facts an agent must not get wrong (details: [CLI reference](../reference/cli.md),
+[configuration reference](../reference/configuration.md),
+[under the hood](../understand/platform.md)):
+
+1. **One human-owned file: `suite.yaml`** (written by `suite init`, then edited directly).
+   Machine state lives in `.suite-state.json` (git-ignored, never hand-edited). There is
+   **no `.env`** — the only environment input is `OWNSUITE_SECRET_SEED` (plus CI overrides).
+2. **`suite apply` reconciles everything** — Terraform, Ansible bootstrap, DNS, apps —
+   touching only what changed. Every operator action is a `suite` verb: `init`, `plan`,
+   `apply`, `status`, `apps`, `logs`, `info`, `upgrade`, `backup`, `restore`, `destroy`,
+   `user add|passwd|disable`, `deps`. `make` is CI/dev shorthand only.
+3. **Apps are enabled by presence** under `apps:` in `suite.yaml`; removing a line
+   uninstalls the app but keeps its data. Firewall ports follow the app set.
+4. **The CLI lives in `suite/`**: `spec.py` (suite.yaml load/validate), `state.py`
+   (machine state), `manifest.py` (the single app manifest), `apply.py` (the reconcile
+   pipeline), plus one module per verb.
+5. **The e2e drives the real flow**: it writes a throwaway `suite.yaml` to a temp path via
+   `OWNSUITE_CONFIG` and runs `suite apply --yes --no-tunnel` — a developer's own files are
+   never touched.
+
 ## Endpoints for AI
 
 The site automatically publishes, at the root:

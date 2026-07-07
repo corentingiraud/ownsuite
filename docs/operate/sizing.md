@@ -3,9 +3,10 @@
 How big a server to rent. OwnSuite runs on **one** machine, so the answer is a single VPS
 spec you can buy against. Pick a profile by which apps you enable, then read RAM / CPU / disk.
 
-> **Short answer:** every app is opt-in (enable it in the installer or with `OWNSUITE_APP_*`).
-> A common starting set of Docs + Drive runs on **4 GB minimum, 8 GB
-> recommended, 2 vCPU**. Add more apps or the mailbox and step up as the tables below show.
+> **Short answer:** every app is opt-in (enabled by its entry under `apps:` in
+> [`suite.yaml`](../reference/configuration.md)). A common starting set of Docs + Drive runs
+> on **4 GB minimum, 8 GB recommended, 2 vCPU**. Add more apps or the mailbox and step up
+> as the tables below show.
 
 ## What to buy
 
@@ -16,8 +17,9 @@ spec you can buy against. Pick a profile by which apps you enable, then read RAM
 | **+ Mailbox** — messages | 8 GB | 12 GB | 4 | +10 GB |
 | **+ Meet** — video (LiveKit) | 8 GB | 12 GB | 4 | +5 GB |
 
-- **Minimum** is the tight floor: it runs, but with little burst headroom — keep the swap the
-  bootstrap configures. **Recommended** leaves room for first-boot migrations, upgrades (old +
+- **Minimum** is the tight floor: it runs, but with little burst headroom — keep the swap
+  that `suite apply`'s bootstrap phase configures. **Recommended** leaves room for
+  first-boot migrations, upgrades (old +
   new pod briefly overlap), and traffic spikes.
 - **Disk** assumes external EU S3 for object storage (the production default — files live off
   the box). **Add ~20 GB** if you run the in-cluster **Garage** store instead, plus the same
@@ -59,8 +61,8 @@ add capacity (and bandwidth) before hosting large meetings.
 | What | Size |
 |---|---|
 | OS + K3s + container images | ~20 GB |
-| PostgreSQL volume (`OWNSUITE_PG_STORAGE`, default 10 Gi) | 10 GB |
-| Grist documents PVC (`OWNSUITE_GRIST_STORAGE`, default 5 Gi) | 5 GB (if enabled) |
+| PostgreSQL volume (`postgres.storage`, default 10 Gi) | 10 GB |
+| Grist documents PVC (`apps.grist.storage`, default 5 Gi) | 5 GB (if enabled) |
 | In-cluster Garage data (+ off-site copy if in-cluster) | +10 GB each (if used) |
 
 User files and mail blobs live in **object storage**, not on the disk, when you use external

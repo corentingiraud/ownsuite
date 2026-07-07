@@ -6,8 +6,9 @@ management, a Sails.js fork of Planka) is wired to the same shared foundation, w
 so a user provisioned once reaches it on first login.
 
 !!! note "Off by default"
-    Projects ships **disabled** (`OWNSUITE_APP_PROJECTS`, default `false`). It's an optional extra,
-    not part of the tested core. It's fully wired and ready; turn it on with one flag (below).
+    Projects ships **disabled** (no `projects:` entry under `apps:` by default). It's an
+    optional extra, not part of the tested core. It's fully wired and ready; turn it on
+    with one line in `suite.yaml` (below).
 
 Like Grist, Projects is **not** a `suitenumerique`/impress app: a single-container Node (Sails.js)
 app with **no official Helm chart**, so OwnSuite ships a thin local chart
@@ -27,9 +28,7 @@ them, no separate PVC).
 
 ## How it is wired
 
-It mirrors the Grist choices
-,
-with two Projects-specific details:
+It mirrors the Grist choices, with two Projects-specific details:
 
 - **OIDC by single public issuer.** `OIDC_ISSUER` is the **public** realm URL
   `https://auth.{domain}/realms/{realm}`; openid-client discovers every endpoint from it, and the
@@ -52,15 +51,14 @@ All of it is in `helmfile/values/projects.yaml.gotmpl`; nothing secret is commit
 ## Run it
 
 ```bash
-set -a && source .env && set +a          # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
-export OWNSUITE_APP_PROJECTS=true        # opt in (off by default)
-make tunnel                              # in another terminal
-make sync                                # brings up the infra + enabled apps + Projects
+$EDITOR suite.yaml     # add `projects: {}` under apps:
+suite apply            # -> https://projects.<domain>/
 ```
 
 When it finishes, Projects answers at `https://projects.{domain}`; log in with a Keycloak user
 (e.g. one created by `suite user add`). Uploads land in the `projects-media-storage` bucket
-(`OWNSUITE_PROJECTS_S3_BUCKET`), created automatically in Garage mode and pre-created on external S3.
+(tunable with `apps.projects.s3_bucket`), created for you by apply — in-cluster in Garage
+mode, on your S3 with a provider.
 
 ## Tests
 

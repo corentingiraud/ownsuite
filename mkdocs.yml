@@ -87,9 +87,9 @@ plugins:
         Overview:
           - index.md: Project overview and product vision.
         Get started:
-          - get-started/provision.md: Step 0 — provision the server + object storage with Terraform on Scaleway (recommended) or Infomaniak (optional).
-          - get-started/bootstrap.md: Step 1 — one-command server bootstrap into a single-node K3s cluster.
-          - get-started/install.md: Step 2 — guided installer (suite install), bare server + domain to all-in-HTTPS.
+          - get-started/provision.md: The Terraform layer `suite apply` runs when a provider is set — server, buckets and firewall on Scaleway (recommended) or Infomaniak — and how to bring your own server.
+          - get-started/bootstrap.md: The Ansible bootstrap phase of `suite apply` — bare Debian server into a single-node K3s cluster.
+          - get-started/install.md: The install guide — suite init writes suite.yaml, suite plan previews, suite apply takes a bare server + domain to all-in-HTTPS.
         Operate:
           - operate/users.md: User provisioning with the `suite user` CLI (one Keycloak identity, JIT to all apps).
           - operate/sizing.md: Server sizing — minimum and recommended VPS specs (RAM/CPU/disk) per enabled app.
@@ -108,8 +108,8 @@ plugins:
           - understand/tchap.md: Tchap — Matrix/Element secure chat; advanced, off by default.
           - understand/decisions.md: Design decisions and their rationale.
         Reference:
-          - reference/cli.md: The `suite` CLI — every command and flag (install, user, status, upgrade).
-          - reference/configuration.md: Every `OWNSUITE_*` variable, with defaults, and how to choose which apps to deploy.
+          - reference/cli.md: The `suite` CLI — every command and flag (init, plan, apply, user, status, upgrade, backup, restore).
+          - reference/configuration.md: The suite.yaml schema — every key, with defaults, and how to choose which apps to deploy.
         Project:
           - project/roadmap.md: Status board (Shipped / Optional / Planned) and the product vision.
           - project/for-ai-agents.md: Conventions for AI agents and the documentation.
@@ -117,9 +117,9 @@ plugins:
 nav:
   - Home: index.md
   - Get started:
-      - 0. Provision (Terraform): get-started/provision.md
-      - 1. Prepare the server: get-started/bootstrap.md
-      - 2. Install: get-started/install.md
+      - Provisioning (Terraform): get-started/provision.md
+      - Bootstrap (Ansible): get-started/bootstrap.md
+      - Install: get-started/install.md
   - Operate:
       - Users: operate/users.md
       - Server sizing: operate/sizing.md

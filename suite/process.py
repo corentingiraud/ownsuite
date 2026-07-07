@@ -4,10 +4,22 @@ raises SuiteError with the tail on failure."""
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from collections.abc import Mapping, Sequence
 
 from .errors import SuiteError
+
+
+def preflight(tools, *, ssh="", no_tunnel=False):
+    """Fail fast when a required CLI tool is missing. `ssh` is only needed when a
+    tunnel will actually be opened (an SSH target and no --no-tunnel)."""
+    tools = list(tools)
+    if ssh and not no_tunnel:
+        tools.append("ssh")
+    missing = [t for t in tools if not shutil.which(t)]
+    if missing:
+        raise SuiteError(f"missing required tools on PATH: {', '.join(missing)}")
 
 
 def run(

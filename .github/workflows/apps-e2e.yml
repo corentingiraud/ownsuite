@@ -148,7 +148,9 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
-      - run: pip install pytest==9.1.1
+      # pytest drives the DoD asserts; requirements.txt is the suite CLI's runtime
+      # deps (PyYAML), needed by the `suite user add` step for drive/messages.
+      - run: pip install pytest==9.1.1 -r requirements.txt
       - uses: ./.github/actions/setup-cluster-tools
         with:
           cluster: "true"

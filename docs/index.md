@@ -10,9 +10,9 @@ walks away with a full collaborative suite (documents, files, directory…) serv
 ## The promise, in 6 steps
 
 1. Get a server — a cloud VM, a dedicated host, or a home server — and a domain name.
-2. Run the **[guided installer](get-started/install.md)**, answer ~5 questions (domain, admin email, **which apps to enable**).
-3. The installer prints **the exact list of DNS records** to add at the registrar.
-4. DNS propagates → every app you enabled responds over HTTPS, with **shared SSO**.
+2. Run **`suite init`**, answer ~5 questions (domain, admin email, **which apps to enable**) — it writes **`suite.yaml`**, the one file that describes your suite.
+3. Run **`suite apply`** — it prints **the exact list of DNS records** to add at the registrar, waits for them, and brings everything up over HTTPS with **shared SSO**.
+4. Want another app later? Add one line under `apps:` in `suite.yaml`, `suite apply` again.
 5. The admin creates `firstname@assoc.org` **once** → instant access to every enabled app.
 6. **Backups** are encrypted, off-site, and **restore is tested**.
 
@@ -28,38 +28,39 @@ production needs: **backups, tested restore, controlled upgrades**.
 
 !!! info "What's ready today"
     The platform is built and tested in CI: server setup, shared single sign-on, off-site
-    backups with a restore that's actually tested, and the guided installer. **Every app is
-    off by default — you choose which to deploy.** Docs, Drive, Grist, Projects, a Mailbox
-    and Meet are all available. See
+    backups with a restore that's actually tested, and the declarative `suite apply` flow.
+    **Every app is off by default — you choose which to deploy.** Docs, Drive, Grist,
+    Projects, a Mailbox, Meet and Tchap are all available. See
     [Choosing which apps to deploy](reference/configuration.md#choosing-which-apps-to-deploy)
     and the [feature list](project/roadmap.md).
 
 ## The apps
 
 One Keycloak identity reaches every enabled app (single sign-on, just-in-time). **Every app is
-off by default** — you pick which to deploy.
+off by default** — an app is enabled by its line under `apps:` in `suite.yaml`.
 
-| App | What it is | Flag |
+| App | What it is | suite.yaml entry |
 |---|---|---|
-| **[Docs](understand/docs.md)** | Collaborative documents | `OWNSUITE_APP_DOCS` |
-| **[Drive](understand/drive.md)** | File manager | `OWNSUITE_APP_DRIVE` |
-| **[Grist](understand/grist.md)** | Spreadsheets that behave like a database | `OWNSUITE_APP_GRIST` |
-| **[Projects](understand/projects.md)** | Kanban boards / task management | `OWNSUITE_APP_PROJECTS` |
-| **[Mailbox](understand/messages.md)** | Mail provider + webmail | `OWNSUITE_APP_MESSAGES` |
-| **[Meet](understand/meet.md)** | Video conferencing (LiveKit) | `OWNSUITE_APP_MEET` |
+| **[Docs](understand/docs.md)** | Collaborative documents | `docs: {}` |
+| **[Drive](understand/drive.md)** | File manager | `drive: {}` |
+| **[Grist](understand/grist.md)** | Spreadsheets that behave like a database | `grist: {}` |
+| **[Projects](understand/projects.md)** | Kanban boards / task management | `projects: {}` |
+| **[Mailbox](understand/messages.md)** | Mail provider + webmail | `messages: {}` |
+| **[Meet](understand/meet.md)** | Video conferencing (LiveKit) | `meet: {}` |
+| **[Tchap](understand/tchap.md)** | Matrix/Element secure chat, text-only | `tchap: {}` |
 
 Some upstream La Suite apps (People, Calendars…) are deliberately not packaged — see
 [Not supported](project/roadmap.md#not-supported-and-why).
 
 ## Where to start
 
-**Installing it?** Follow the steps in order:
+**Installing it?**
 
 <div class="grid cards" markdown>
 
-- :material-cloud-outline: **[0. Provision](get-started/provision.md)** *(optional)* — Terraform spins up the server and storage on Scaleway (or Infomaniak). Already have a Debian server and an S3 bucket? Skip to step 1.
-- :material-server: **[1. Prepare the server](get-started/bootstrap.md)** — one command turns a bare Debian server into a ready K3s cluster.
-- :material-rocket-launch: **[2. Install](get-started/install.md)** — the guided installer takes you from there to the apps you choose, on HTTPS, by following the screen.
+- :material-rocket-launch: **[Install](get-started/install.md)** — `suite init` writes `suite.yaml`, `suite apply` takes you to the apps you chose, on HTTPS. Start here.
+- :material-cloud-outline: **[Under the hood: the server](get-started/provision.md)** — what apply provisions with Terraform on Scaleway (or Infomaniak), and how to bring your own server instead.
+- :material-server: **[Under the hood: the bootstrap](get-started/bootstrap.md)** — how apply turns a bare Debian server into a ready K3s cluster.
 
 </div>
 

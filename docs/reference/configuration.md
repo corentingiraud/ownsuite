@@ -1,216 +1,194 @@
 # Configuration reference
 
-OwnSuite is configured entirely through `OWNSUITE_*` environment variables. The
-[guided installer](../get-started/install.md) prompts for the common ones and writes them
-to a git-ignored `.env`; everything else has a sensible default you can override by adding
-it to `.env` (or exporting it) before `make sync` / `suite upgrade`. The **only** secret
-that is never written to `.env` is the seed — see [Secrets](#secrets).
+OwnSuite is configured through **one human-owned file: `suite.yaml`** (ADR-042). It
+describes the suite you want — provider, domain, TLS, backups, and which apps to run —
+and `suite apply` reconciles reality to it. `suite init` writes it for you; a commented
+template ships as
+[`suite.yaml.example`](https://github.com/corentingiraud/ownsuite/blob/main/suite.yaml.example).
 
-```bash
-cp .env.example .env
-$EDITOR .env
-set -a && source .env && set +a
+```yaml
+provider: scaleway            # scaleway | infomaniak | omit = bring-your-own server
+domain: assoc.example.org
+admin_email: admin@assoc.example.org
+tls: prod                     # selfsigned | staging | prod
+
+object_storage: {mode: external}
+
+backup:
+  enabled: true
+  target: external            # external (prod) | in-cluster (CI)
+
+apps:                         # presence = enabled (ADR-035: everything off by default)
+  docs: {}
+  drive: {}
+  tchap: {s3_bucket: tchap-media}
 ```
 
-## Choosing which apps to deploy
+Two other places hold state — neither is ever edited by hand:
 
-**No app is deployed by default.** A fresh install brings up only single sign-on
-(Keycloak) and the shared platform; you opt each app in explicitly. There are two ways:
+- **`.suite-state.json`** (git-ignored, `0600`) — the machine state `suite apply`
+  maintains: the provisioned SSH target, provider-minted credentials (S3 keys, relay
+  account, DKIM key), and change-detection inputs.
+- **The environment** — the secret seed (see [Secrets](#secrets)), plus optional
+  `OWNSUITE_*` overrides for CI and advanced knobs (see
+  [Advanced: environment overrides](#advanced-environment-overrides)).
 
-- **In the installer** — `suite install` prompts for each app, all defaulting off.
-- **By variable** — set the app's flag to `true` in `.env` (or export it) and `make sync`.
+Anything `suite.yaml` omits keeps its documented default below.
 
-```bash
-OWNSUITE_APP_DOCS=true        # then: make sync   (or: suite upgrade)
-```
+## Top-level keys
 
-| App | Variable | Default | What it is |
-|---|---|---|---|
-| Docs | `OWNSUITE_APP_DOCS` | `false` | Collaborative documents. |
-| Drive | `OWNSUITE_APP_DRIVE` | `false` | File manager. |
-| Grist | `OWNSUITE_APP_GRIST` | `false` | Spreadsheets that behave like a database. |
-| Projects | `OWNSUITE_APP_PROJECTS` | `false` | Kanban boards / task management. |
-| Mailbox | `OWNSUITE_APP_MESSAGES` | `false` | Mail provider + webmail. |
-| Meet | `OWNSUITE_APP_MEET` | `false` | Video conferencing on LiveKit (also needs `enable_meet`, see below). |
-
-Turning an app off again (`=false`) and re-syncing removes its workloads. Each app reaches
-every user you've added through the same single sign-on — see [Users](../operate/users.md).
-Per-app detail: [Docs](../understand/docs.md), [Drive](../understand/drive.md),
-[Grist](../understand/grist.md), [Projects](../understand/projects.md),
-[Mailbox](../understand/messages.md), [Meet](../understand/meet.md). For how much server each app needs, see
-[Sizing](../operate/sizing.md).
-
-## Core
-
-| Variable | Default | Purpose |
+| Key | Default | Purpose |
 |---|---|---|
-| `OWNSUITE_SECRET_SEED` | _(required)_ | Single seed every credential is derived from. Generate with `openssl rand -hex 24`; keep it in a password manager. Never written to `.env`. See [Secrets](#secrets). |
-| `OWNSUITE_DOMAIN` | `ownsuite.localhost` | Base domain. Each component is exposed at `<name>.{domain}` (e.g. `auth.{domain}`, `docs.{domain}`). |
-| `OWNSUITE_ADMIN_EMAIL` | `admin@example.org` | Contact address for app admin / superuser accounts. |
-| `OWNSUITE_SERVER_SSH` | _(empty)_ | Server SSH target (`user@host`) used by `make tunnel` and the `suite` CLI to reach the K8s API. |
-
-## TLS / certificates
-
-`make install` drives staging → production automatically; set the issuer by hand only for
-the manual flow. See [TLS issuance (ADR-013/019)](../understand/decisions.md#adr-019-tls-staging-first-issuance-dns-01-deferred).
-
-!!! warning "Export the issuer before any manual `make sync`"
-    `OWNSUITE_TLS_ISSUER` defaults to `selfsigned`. `suite install` sets it for you, but a
-    hand-run `make sync` / `helmfile sync` without it re-issues **every** certificate as
-    self-signed (and flips the ingress annotations). Before any manual sync on a live
-    deployment, `export OWNSUITE_TLS_ISSUER=letsencrypt-http01` (or `letsencrypt-staging`).
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `OWNSUITE_TLS_ISSUER` | `selfsigned` | `selfsigned` (CI/dev, no public DNS), `letsencrypt-staging` (untrusted leaf, high rate limits), or `letsencrypt-http01` (production — needs public DNS + port 80). |
-| `OWNSUITE_ACME_EMAIL` | `admin@example.org` | ACME registration email (defaults to `OWNSUITE_ADMIN_EMAIL`). |
-| `OWNSUITE_ACME_SERVER` | Let's Encrypt production directory | Override the production ACME directory URL. |
-| `OWNSUITE_ACME_STAGING_SERVER` | Let's Encrypt staging directory | Override the staging ACME directory URL. |
+| `provider` | _(unset = bring-your-own)_ | `scaleway` (recommended, ADR-038) or `infomaniak`. When set, `suite apply` provisions the server, buckets and firewall with Terraform. |
+| `domain` | _(required)_ | Base domain. Each component is exposed at `<name>.<domain>` (e.g. `auth.<domain>`, `docs.<domain>`). |
+| `admin_email` | `admin@<domain>` | Contact address for app admin accounts and ACME registration. |
+| `tls` | _(required)_ | `prod` (Let's Encrypt, staging→production ladder on first issuance — ADR-019), `staging` (untrusted leaf, high rate limits), or `selfsigned` (CI/local; skips the DNS step). |
+| `server.ssh` | _(from provisioning)_ | `user@host` of a bring-your-own Debian server. With a `provider`, provisioning stores the target in the machine state instead. |
 
 ## Object storage
 
-Pluggable: `external` (a managed EU S3 — files live off the box) or `garage` (an
-in-cluster single-node store, deployed and bootstrapped for you). Buckets are created by
-Garage in `garage` mode; in `external` mode pre-create the ones for your enabled apps. See
-[Object storage (ADR-003)](../understand/decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3).
+Pluggable (ADR-003): `external` (a managed EU S3 — files live off the box) or `garage`
+(an in-cluster single-node store, deployed and bootstrapped for you). With a `provider`
+in external mode, `suite apply` creates the buckets for your enabled apps; in `garage`
+mode Garage creates them in-cluster.
 
 !!! tip "`external` on Scaleway, `garage` on Infomaniak"
     `external` mode needs an S3 endpoint that can serve **CORS** for Drive's browser
     uploads. **Scaleway** (recommended) and other CORS-capable RGW providers (AWS, OVH)
     support it. **Infomaniak's** Swift+s3api endpoint cannot, so use `garage` there (it
-    proxies media same-origin). Details:
-    [Provision → Object storage](../get-started/provision.md#object-storage).
+    proxies media same-origin).
 
-The S3 access/secret keys are **external secrets** (not seed-derived). In `external` mode,
-export them before sync — see [Secrets](#secrets).
-
-| Variable | Default | Purpose |
+| Key | Default | Purpose |
 |---|---|---|
-| `OWNSUITE_OBJECT_STORAGE_MODE` | `external` | `external` (config-only managed S3) or `garage` (in-cluster). Use `garage` on Infomaniak. |
-| `OWNSUITE_S3_ENDPOINT` | _(empty)_ | External S3 endpoint URL (`external` mode). |
-| `OWNSUITE_S3_ACCESS_KEY` | _(empty)_ | External S3 access key — **secret**, export before sync (`external` mode). |
-| `OWNSUITE_S3_SECRET_KEY` | _(empty)_ | External S3 secret key — **secret** (`external` mode). |
-| `OWNSUITE_S3_REGION` | `eu-west` | S3 region. Scaleway uses `fr-par` (also `nl-ams`, `pl-waw`, `it-mil`); Infomaniak reports `us-east-1` (compatibility value; data is in CH). |
-| `OWNSUITE_S3_BUCKET` | `docs-media-storage` | Docs media/attachments bucket. |
-| `OWNSUITE_DRIVE_S3_BUCKET` | `drive-media-storage` | Drive files bucket. |
-| `OWNSUITE_PROJECTS_S3_BUCKET` | `projects-media-storage` | Projects uploads bucket. |
-| `OWNSUITE_MESSAGES_S3_BUCKET` | `messages-media-storage` | Mailbox message blobs/attachments bucket. |
-| `OWNSUITE_MEET_S3_BUCKET` | `meet-recordings` | Meet room-recordings bucket (`OWNSUITE_APP_MEET=true`). |
-| `OWNSUITE_GARAGE_META_STORAGE` | `1Gi` | Garage metadata volume size (`garage` mode). |
-| `OWNSUITE_GARAGE_DATA_STORAGE` | `10Gi` | Garage data volume size (`garage` mode). |
-
-## Database
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `OWNSUITE_PG_STORAGE` | `10Gi` | PostgreSQL volume size. |
-
-## App-specific
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `OWNSUITE_GRIST_STORAGE` | `5Gi` | Size of Grist's `/persist` document volume (Grist only). |
-| `OWNSUITE_GRIST_ORG` | `ownsuite` | Grist single-tenant team-site name (`GRIST_SINGLE_ORG`). |
-| `OWNSUITE_GRIST_SANDBOX` | `unsandboxed` | Grist formula sandbox flavor; set `gvisor` on a node configured for it. |
-
-The mailbox has its own mail-flow variables — see [Mailbox](#mailbox-messages) below.
+| `object_storage.mode` | `external` | `external` (managed S3) or `garage` (in-cluster). |
+| `object_storage.endpoint` | _(from provisioning)_ | External S3 endpoint URL. |
+| `object_storage.region` | `eu-west` | S3 region (Scaleway: `fr-par`; Infomaniak reports `us-east-1`). |
 
 ## Backups & restore
 
-Off-site by construction (the destination must survive losing the server). Full guide,
-including the encryption passphrase and credential overrides:
-[Backups & restore](../operate/backups.md).
+Off-site by construction (the destination must survive losing the server). `suite apply`
+and `suite upgrade` snapshot before every change; `suite backup` takes one on demand.
+Full guide: [Backups & restore](../operate/backups.md).
 
-| Variable | Default | Purpose |
+| Key | Default | Purpose |
 |---|---|---|
-| `OWNSUITE_BACKUP_ENABLED` | `false` | Enable off-site backups (PostgreSQL PITR + object/volume copies). |
-| `OWNSUITE_BACKUP_SCHEDULE` | `0 2 * * *` | CNPG base-backup cron (5-field). WAL archiving is continuous; empty = on-demand only. |
-| `OWNSUITE_BACKUP_RETENTION` | `30d` | Barman recovery-window retention (PITR window). |
-| `OWNSUITE_BACKUP_S3_TARGET` | `in-cluster` | `external` (production — a **different** account/provider than the primary) or `in-cluster` (CI/hermetic — a second in-cluster Garage). |
-| `OWNSUITE_BACKUP_S3_ENDPOINT` | _(empty)_ | Off-site S3 endpoint (`external` target). |
-| `OWNSUITE_BACKUP_S3_REGION` | `eu-west` | Off-site S3 region. |
-| `OWNSUITE_BACKUP_S3_BUCKET` | `ownsuite-backups` | Off-site backups bucket. |
-| `OWNSUITE_BACKUP_PG_ENCRYPTION` | _(empty)_ | Optional S3 server-side encryption for PG backups (e.g. `AES256`). Leave empty for stores without SSE. |
-| `OWNSUITE_BACKUP_GARAGE_META_STORAGE` | `1Gi` | Off-site Garage metadata volume size (`in-cluster` target). |
-| `OWNSUITE_BACKUP_GARAGE_DATA_STORAGE` | `10Gi` | Off-site Garage data volume size (`in-cluster` target). |
-| `OWNSUITE_RESTORE` | `false` | Restore mode — set by `make restore` on a **clean** cluster; leave `false` otherwise. |
-| `OWNSUITE_RESTORE_SERVER_NAME` | `<cluster>-restored` | Advanced: the Barman `serverName` the restored cluster archives under (must differ from the source). |
+| `backup.enabled` | `false` | Off-site backups (PostgreSQL PITR + object/volume copies). |
+| `backup.schedule` | `0 2 * * *` | CNPG base-backup cron (5-field). WAL archiving is continuous. |
+| `backup.retention` | `30d` | Barman recovery-window retention (PITR window). |
+| `backup.target` | `in-cluster` | `external` (production — a **different** account/provider than the primary) or `in-cluster` (CI/hermetic). |
+| `backup.endpoint` | _(empty)_ | Off-site S3 endpoint. **Set it to bring your own off-site store** (real DR, ADR-006). Left empty on Scaleway, apply provisions a bucket in another region (`nl-ams`) under the *same* account — fine for the restore drill, not a substitute for a separate account. |
+| `backup.region` | `eu-west` | Off-site S3 region. |
+| `backup.bucket` | `ownsuite-backups` | Off-site backups bucket. |
 
-## Outbound email (SMTP relay)
+## Database
 
-One relay account for the whole platform. It powers **both** the mailbox
-(`OWNSUITE_APP_MESSAGES`, outbound via `mta-out`) **and** the transactional email the
-other apps send: Meet recording-ready links, Docs/Drive share invitations, Projects
-notifications, and Keycloak account emails (verification / password reset). **Scaleway
-TEM is the recommended relay** (`smtp.tem.scaleway.com:2587`) but any authenticated SMTP
-relay works. It is **optional**: until you set the relay account, transactional email is
-simply skipped (the Django apps fall back to a dummy backend, so a Meet recording stays
-reachable via a presigned S3 URL) and `mta-out` runs local-delivery only.
-
-The relay account and DKIM key are **external secrets** — held in the environment, never
-written to `.env` (the installer generates the DKIM key on first run and prints it to
-re-export). The DKIM/SPF/DMARC knobs apply only to the mailbox. See
-[Mailbox](../understand/messages.md).
-
-| Variable | Default | Purpose |
+| Key | Default | Purpose |
 |---|---|---|
-| `OWNSUITE_MTA_RELAY_HOST` | `mail.infomaniak.com:587` | The SMTP relay all outbound mail is sent through (`host:port`, STARTTLS). On Scaleway use TEM: `smtp.tem.scaleway.com:2587` (Instances block 25/465/587). See [Mailbox → Outbound](../understand/messages.md#outbound-scaleway-tem-or-an-external-relay). |
-| `OWNSUITE_MTA_RELAY_USERNAME` | _(empty)_ | Relay account username — **secret**, export before sync. Until set, no transactional email is sent and `mta-out` runs without an external relay (local delivery only). |
-| `OWNSUITE_MTA_RELAY_PASSWORD` | _(empty)_ | Relay account password — **secret**. |
-| `OWNSUITE_EMAIL_FROM` | `no-reply@{domain}` | From/envelope address on transactional email. Must be an allowed sender on the relay (on TEM, a verified sender of the domain). |
-| `OWNSUITE_MTA_SPF_INCLUDE` | `spf.infomaniak.ch` | Mailbox only: the relay's SPF include, published in the SPF TXT record (Scaleway TEM: `_spf.tem.scaleway.com`). |
-| `OWNSUITE_MTA_DKIM_SELECTOR` | `ownsuite` | Mailbox only: DKIM selector — must match the published `_domainkey` TXT record. |
-| `OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64` | generated by installer | Mailbox only: Base64 DKIM private key — **secret**, export on every run (like the seed). |
-| `OWNSUITE_MTA_DMARC_RUA` | _(empty)_ | Mailbox only: optional DMARC aggregate-report mailbox. |
+| `postgres.storage` | `10Gi` | PostgreSQL volume size. |
 
-## Meet (video conferencing)
+## Choosing which apps to deploy
 
-Only relevant when `OWNSUITE_APP_MEET=true`. Meet needs LiveKit media ports open on the
-server — the **only** non-HTTP ports besides the mailbox's port 25. These are opened by a
-separate firewall flag (not an `OWNSUITE_*` env var), so enabling Meet is two switches:
-turn the app on **and** open the ports. See [Meet](../understand/meet.md) and
-[ADR-039](../understand/decisions.md#adr-039-meet-media-ports-single-udp-mux-tcp-fallback).
+**No app is deployed by default** (ADR-035). An app is enabled by its **presence** under
+`apps:` — `docs: {}` is a complete entry. Removing the line and running `suite apply`
+uninstalls the app; **its database, volumes and buckets are kept**, so re-adding the
+line brings it back with its data.
 
-| Setting | Where | Purpose |
-|---|---|---|
-| `OWNSUITE_APP_MEET` | `.env` / environment | Deploy Meet + LiveKit + Egress. |
-| `OWNSUITE_MEET_S3_BUCKET` | `.env` / environment | Room-recordings bucket (default `meet-recordings`). |
-| `enable_meet` | Terraform `terraform.tfvars` | Open `7881/tcp` + `7882/udp` in the cloud security group. |
-| `enable_meet` | Ansible `group_vars/all.yml` | Open `7881/tcp` + `7882/udp` in the host UFW. |
+```yaml
+apps:
+  docs: {}
+  tchap: {}       # add a line, `suite apply`, done -> https://tchap.<domain>/
+```
+
+Each app reaches every user you've added through the same single sign-on — see
+[Users](../operate/users.md). For how much server each app needs, see
+[Sizing](../operate/sizing.md).
+
+### Per-app options
+
+Options go under the app's key; every one is optional.
+
+| App | Option | Default | Purpose |
+|---|---|---|---|
+| [Docs](../understand/docs.md) | `s3_bucket` | `docs-media-storage` | Media/attachments bucket. |
+| [Drive](../understand/drive.md) | `s3_bucket` | `drive-media-storage` | Files bucket. |
+| [Grist](../understand/grist.md) | `storage` | `5Gi` | Size of the `/persist` document volume. |
+| | `org` | `ownsuite` | Single-tenant team-site name (`GRIST_SINGLE_ORG`). |
+| | `sandbox` | `unsandboxed` | Formula sandbox flavor; `gvisor` on a node configured for it. |
+| [Projects](../understand/projects.md) | `s3_bucket` | `projects-media-storage` | Uploads bucket. |
+| [Mailbox](../understand/messages.md) | `s3_bucket` | `messages-media-storage` | Message blobs/attachments bucket. |
+| | `relay_host` | `mail.infomaniak.com:587` | SMTP relay (`host:port`, STARTTLS). On Scaleway use TEM: `smtp.tem.scaleway.com:2587`. |
+| | `spf_include` | `spf.infomaniak.ch` | The relay's SPF include for the SPF TXT record (TEM: `_spf.tem.scaleway.com`). |
+| | `dkim_selector` | `ownsuite` | DKIM selector — must match the published `_domainkey` TXT record. |
+| | `dmarc_rua` | _(empty)_ | Optional DMARC aggregate-report mailbox. |
+| [Meet](../understand/meet.md) | `s3_bucket` | `meet-recordings` | Room-recordings bucket. |
+| | `turn` | `false` | TURN on `5349/tcp` for clients behind strict firewalls. |
+| [Tchap](../understand/tchap.md) | `s3_bucket` | `tchap-media` | Synapse media bucket (copied off-site, unlike Meet recordings). |
+
+**Firewall ports follow the app set automatically.** Enabling Meet opens its LiveKit
+media ports (`7881/tcp` + `7882/udp`, plus `5349/tcp` with `turn: true` — ADR-039);
+enabling the Mailbox opens inbound SMTP (`25/tcp`, ADR-027). `suite apply` sets both the
+cloud security group (Terraform) and the host firewall (Ansible) — there is nothing to
+edit by hand.
 
 ## Secrets
 
 Every credential is **derived** from `OWNSUITE_SECRET_SEED`
-(`sha256("<seed>:<id>")` truncated), so nothing secret is committed and a restore needs
-only the seed. The seed is read from the environment at sync time and **never** written to
-`.env` or the cluster.
+(`sha256("<seed>:<id>")` truncated, ADR-012), so nothing secret is committed and a
+restore needs only the seed. The seed lives **only in your environment and your password
+manager** — never in `suite.yaml`, the machine state, or the cluster. A first
+`suite apply` offers to generate it (shown once); later runs use the exported value or
+prompt for it, and refuse a *wrong* seed instead of silently rotating every credential.
 
 ```bash
-export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required
+export OWNSUITE_SECRET_SEED=...        # generate once: openssl rand -hex 24
 ```
 
 !!! danger "Protect the seed"
     Losing it means rotating every credential; leaking it leaks them all. Store it in a
     password manager.
 
-A few credentials are **external input** that cannot be derived — the external S3 keys,
-a real off-site backup account, and the mailbox relay account + DKIM key. Supply them by
-exporting the matching variables before sync (read the same way as the seed, never written
-to `.env`):
+A few credentials are **external input** that cannot be derived. When `suite apply`
+provisions them (Scaleway S3 keys, the TEM relay account), they land in the machine
+state automatically — also stash them in your password manager, the state file is
+disposable. Bringing your own, export them:
 
 ```bash
-export OWNSUITE_S3_ACCESS_KEY=... OWNSUITE_S3_SECRET_KEY=...           # external S3 mode
-export OWNSUITE_BACKUP_S3_ACCESS_KEY=... OWNSUITE_BACKUP_S3_SECRET_KEY=...   # off-site backup
-export OWNSUITE_RCLONE_CRYPT_PASSWORD=...                             # backup encryption passphrase
+export OWNSUITE_S3_ACCESS_KEY=... OWNSUITE_S3_SECRET_KEY=...                  # external S3 mode
+export OWNSUITE_BACKUP_S3_ACCESS_KEY=... OWNSUITE_BACKUP_S3_SECRET_KEY=...    # own off-site account
+export OWNSUITE_RCLONE_CRYPT_PASSWORD=...                                     # backup encryption passphrase
+export OWNSUITE_MTA_RELAY_USERNAME=... OWNSUITE_MTA_RELAY_PASSWORD=...        # own SMTP relay account
 ```
 
-(`garage` mode needs none of the primary `OWNSUITE_S3_*` keys — they are seed-derived
-in-cluster.) These map to the `s3-access`/`s3-secret`, `backup-s3-access`/`backup-s3-secret`
-and `rclone-crypt` secret ids; the `OWNSUITE_MTA_*` secret variables above work the same way. See
-[Backups & restore → Credentials](../operate/backups.md#credentials) and
-[Secrets (ADR-012)](../understand/decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating).
+(`garage` mode needs none of the primary S3 keys — they are seed-derived in-cluster.)
+
+## Advanced: environment overrides
+
+Underneath, the deployment layer still reads `OWNSUITE_*` environment variables;
+`suite apply` derives them from `suite.yaml` + the machine state. **An exported variable
+wins over the derived value** — that is how CI injects test knobs — with one deliberate
+exception: the `OWNSUITE_APP_*` toggles always come from `suite.yaml` (the app set has
+exactly one source).
+
+A few advanced knobs have no `suite.yaml` key and are set by export only:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `OWNSUITE_ACME_SERVER` / `OWNSUITE_ACME_STAGING_SERVER` | Let's Encrypt directories | Override the ACME directory URLs. |
+| `OWNSUITE_EMAIL_FROM` | `no-reply@<domain>` | From/envelope address on transactional email (Meet links, share invitations, Keycloak emails). Must be an allowed sender on the relay. |
+| `OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64` | generated by apply, stored in the machine state | Base64 DKIM private key (mailbox). |
+| `OWNSUITE_GARAGE_META_STORAGE` / `OWNSUITE_GARAGE_DATA_STORAGE` | `1Gi` / `10Gi` | Garage volume sizes (`garage` mode). |
+| `OWNSUITE_BACKUP_GARAGE_META_STORAGE` / `OWNSUITE_BACKUP_GARAGE_DATA_STORAGE` | `1Gi` / `10Gi` | Off-site Garage volume sizes (`in-cluster` target). |
+| `OWNSUITE_BACKUP_PG_ENCRYPTION` | _(empty)_ | Optional S3 server-side encryption for PG backups (e.g. `AES256`). |
+| `OWNSUITE_RESTORE` | `false` | Restore mode — `suite restore` sets it; leave it alone. |
+| `OWNSUITE_RESTORE_SERVER_NAME` | `<cluster>-restored` | Advanced: the Barman `serverName` the restored cluster archives under (must differ from the source). |
+
+!!! note "Transactional email is optional"
+    One relay account powers both the mailbox and the transactional email other apps
+    send (Meet recording links, Docs/Drive invitations, Keycloak account emails). Until
+    a relay account exists (provisioned into the state, or exported), transactional
+    email is simply skipped and `mta-out` runs local-delivery only.
 
 !!! note "CI / test-only variables"
-    `OWNSUITE_KC_*`, `OWNSUITE_E2E_*` and `OWNSUITE_K3S_IMAGE` exist only for the automated
-    test harness (direct-access grants, a seeded test user, the k3d image). Operators never
+    `OWNSUITE_KC_*`, `OWNSUITE_E2E_*`, `OWNSUITE_K3S_IMAGE` and `OWNSUITE_CONFIG` (an
+    alternate `suite.yaml` path) exist for the automated test harness. Operators never
     set them.

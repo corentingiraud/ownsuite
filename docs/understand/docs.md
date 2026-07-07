@@ -3,7 +3,7 @@
 **Docs** (the [suitenumerique](https://github.com/suitenumerique/docs) app, upstream name
 *impress*) is collaborative documents wired to the
 whole shared foundation, machine-verified end to end in CI. Like every app it is **opt-in / off by default**;
-enable it with `OWNSUITE_APP_DOCS=true` (or via the installer prompt).
+enable it by adding `docs: {}` under `apps:` in `suite.yaml`.
 
 > **What it proves:** a user logs into `https://docs.{domain}` with single sign-on and
 > creates a document that's still there afterwards — checked automatically in CI.
@@ -37,13 +37,12 @@ All of it is configured in `helmfile/values/docs.yaml.gotmpl`; nothing secret is
 
 ## Object storage modes
 
-```bash
-# Self-hosted, in-cluster (default for CI / sovereignty): deploys Garage + bucket.
-OWNSUITE_OBJECT_STORAGE_MODE=garage
+```yaml
+# suite.yaml — self-hosted, in-cluster (CI / sovereignty): deploys Garage + bucket.
+object_storage: {mode: garage}
 
 # External managed EU S3 (recommended production default): nothing deployed in-cluster.
-OWNSUITE_OBJECT_STORAGE_MODE=external
-OWNSUITE_S3_ENDPOINT=https://s3.example-eu.com
+object_storage: {mode: external, endpoint: https://s3.example-eu.com}
 ```
 
 In `garage` mode a single-node Garage `StatefulSet` is deployed and a post-install Job
@@ -53,19 +52,20 @@ bootstraps the cluster layout, **imports the seed-derived S3 key**, and creates 
 ## Run it
 
 ```bash
-set -a && source .env && set +a          # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
-make tunnel                              # in another terminal
-make sync                                # brings up the infra + Docs
+$EDITOR suite.yaml     # add `docs: {}` under apps:
+suite apply            # -> https://docs.<domain>/
 ```
 
 When it finishes, Docs answers at `https://docs.{domain}`; log in with a Keycloak user.
+The media bucket is tunable with `apps.docs.s3_bucket` (see the
+[configuration reference](../reference/configuration.md#per-app-options)).
 
 ## Adding or changing an OIDC client (existing realm)
 
 Keycloak imports a realm only on its **first** boot (`--import-realm`), so on a fresh
 install (and in CI) the `docs` client is created by the import. On an **already-running**
 install the `keycloak-config` release keeps clients in sync: an idempotent `kcadm` **upsert
-Job** runs on every `sync` and creates-or-updates each `keycloak.clients` entry (redirect
+Job** runs on every apply and creates-or-updates each `keycloak.clients` entry (redirect
 URIs, web origins, secret) against the live realm — so adding or changing a client just
 works, with no manual admin-console step.
 

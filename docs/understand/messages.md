@@ -8,10 +8,10 @@ on first login (JIT — no per-app step). **There is no IMAP/POP3 by design**: u
 messages web UI, not Thunderbird/Apple Mail.
 
 !!! warning "Off by default — the hardest part to run"
-    The mailbox ships **disabled** (`OWNSUITE_APP_MESSAGES`, default `false`). Mail is the hardest
-    thing to run reliably on a server, so it is kept isolated and affects nothing else when off.
-    It also needs an **external SMTP relay account** and **DNS + rDNS** you control — don't enable
-    it unless you're ready for that.
+    The mailbox ships **disabled** (no `messages:` entry under `apps:` by default). Mail is the
+    hardest thing to run reliably on a server, so it is kept isolated and affects nothing else
+    when off. It also needs an **external SMTP relay account** and **DNS + rDNS** you control —
+    don't enable it unless you're ready for that.
 
 Unlike Grist/Projects, messages **is** a `suitenumerique` Django sibling of Docs, so it reuses the
 existing seam rather than a foreign one. Upstream ships container images
@@ -37,45 +37,45 @@ existing seam rather than a foreign one. Upstream ships container images
   The `messages` OIDC client is one more `keycloak.clients` entry; the realm-import + upsert Job need
   no template change.
 - **Inbound on port 25, outbound relayed.** The Postfix **MTA-in** receives mail from the internet on
-  **port 25**, exposed by a `LoadBalancer` Service that K3s' ServiceLB binds to the host port
-. The
+  **port 25**, exposed by a `LoadBalancer` Service that K3s' ServiceLB binds to the host port. The
   **MTA-out** **never** sends directly from the VPS IP: `MTA_OUT_MODE=relay`,
   `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure` to a reputable relay — Scaleway TEM by default (see
   [Outbound](#outbound-scaleway-tem-or-an-external-relay)). `THROTTLE_*_OUTBOUND_EXTERNAL_RECIPIENTS`
   are set below the relay's cap so it fails gracefully in-app.
+- **Reuse, per-app instances.** A dedicated CNPG `messages` database; the shared Valkey on DBs 4/5;
+  a per-app S3 bucket for mail blobs. The Django `SECRET_KEY`, OIDC client secret and the internal
+  `MDA_API_SECRET` (MTA↔MDA) are seed-derived; the
+  **relay credentials and the DKIM private key are external input** — provisioned by apply into
+  the machine state (Scaleway TEM, and the DKIM key it generates) or exported — and never committed.
+- **OpenSearch deferred.** Full-text mail search (its heaviest dependency, ~1–2 GB RAM) is optional
+  upstream and omitted in v1 to protect the single-VPS budget; mail still delivers and reads. It
+  returns behind its own flag later.
 
 ## Outbound: Scaleway TEM or an external relay { #outbound-scaleway-tem-or-an-external-relay }
 
 The MTA-out relays through an authenticated SMTP relay; you own the easy half (receiving) and rent
-the hard half (deliverability). On the recommended Scaleway host, that relay is **Transactional
-Email (TEM)**, provisioned by Terraform (`enable_mailbox = true`):
+the hard half (deliverability). The relay options live under `apps.messages` in `suite.yaml`. On
+the recommended Scaleway host, that relay is **Transactional Email (TEM)**, provisioned by
+`suite apply` when the mailbox is enabled — the relay account lands in the machine state:
 
-| `OWNSUITE_MTA_*` | Value |
+| Setting | Value |
 |---|---|
-| `RELAY_HOST` | `smtp.tem.scaleway.com:2587` |
-| `RELAY_USERNAME` | your Scaleway **Project ID** (`terraform output mta_relay_username`) |
-| `RELAY_PASSWORD` | the workload IAM key secret, carrying `TransactionalEmailFullAccess` (`= s3_secret_key`) |
-| `SPF_INCLUDE` | `_spf.tem.scaleway.com` |
+| `apps.messages.relay_host` | `smtp.tem.scaleway.com:2587` |
+| relay username | your Scaleway **Project ID** — provisioned into `.suite-state.json` |
+| relay password | the workload IAM key secret, carrying `TransactionalEmailFullAccess` — provisioned into `.suite-state.json` |
+| `apps.messages.spf_include` | `_spf.tem.scaleway.com` |
 
 !!! warning "Use port 2587, not 587"
     **Scaleway Instances block outbound SMTP (25/465/587) by default** as an anti-spam measure. TEM
     exposes alternate ports **2587 (STARTTLS)** and **2465 (TLS)** for exactly this — the standard
     ports will time out from the server. TEM also needs **its own DNS records published** (SPF, DKIM,
-    DMARC from `terraform output tem_dns`) before Scaleway validates the domain and outbound works,
-    on top of OwnSuite's own DKIM below.
+    DMARC — printed by apply after provisioning) before Scaleway validates the domain and outbound
+    works, on top of OwnSuite's own DKIM below.
 
-Any reputable EU SMTP relay works as an alternative (e.g. Infomaniak `mail.infomaniak.com:587`,
-`SPF_INCLUDE=spf.infomaniak.ch`, cap 1440 msg/24h) — set the same three `RELAY_*` variables. See
-[Configuration → Mailbox](../reference/configuration.md#mailbox-messages).
-- **Reuse, per-app instances.** A dedicated CNPG `messages` database; the shared Valkey on DBs 4/5;
-  a per-app S3 bucket for mail blobs. The Django `SECRET_KEY`, OIDC client secret and the internal
-  `MDA_API_SECRET` (MTA↔MDA) are seed-derived
-; the
-  **relay credentials and the DKIM private key are external overrides**, captured by the installer
-  and never committed.
-- **OpenSearch deferred.** Full-text mail search (its heaviest dependency, ~1–2 GB RAM) is optional
-  upstream and omitted in v1 to protect the single-VPS budget; mail still delivers and reads. It
-  returns behind its own flag later.
+Any reputable EU SMTP relay works as an alternative (e.g. `relay_host: mail.infomaniak.com:587`,
+`spf_include: spf.infomaniak.ch`, cap 1440 msg/24h) — set the account with
+`export OWNSUITE_MTA_RELAY_USERNAME=... OWNSUITE_MTA_RELAY_PASSWORD=...`. See
+[Configuration → Mailbox](../reference/configuration.md#per-app-options).
 
 ## Provisioning
 
@@ -86,43 +86,45 @@ creates the domain, enables autojoin, and registers the supplied DKIM key.
 
 ## DNS (a manual step, like the rest of the DNS flow)
 
-With the mailbox enabled, `suite install` prints the mail records to add at your registrar, on top
+With the mailbox enabled, `suite apply` prints the mail records to add at your registrar, on top
 of the existing A/AAAA/CNAME/CAA:
 
 - **`mail.{domain}` A/AAAA** → the server. The MX target needs its own address record because an
   MX must not point at a CNAME (RFC 2181), so it can't ride the wildcard CNAME.
 - **MX** → `mail.{domain}`, so mail for `@{domain}` is delivered to your MTA-in.
-- **SPF** (TXT) — must `include:` the relay so relayed mail is authorized.
-- **DKIM** (TXT) — the public half of the installer-generated signing key.
-- **DMARC** (TXT) — alignment policy.
+- **SPF** (TXT) — must `include:` the relay (`apps.messages.spf_include`) so relayed mail is
+  authorized.
+- **DKIM** (TXT) — the public half of the signing key `suite apply` generates and keeps in the
+  machine state (selector: `apps.messages.dkim_selector`).
+- **DMARC** (TXT) — alignment policy (report mailbox: `apps.messages.dmarc_rua`).
 - **rDNS / PTR** — set at the **provider/host** level (it cannot be set in-cluster); documented as a
   manual step. Confirm your provider also permits **inbound** port 25.
 
 ## Run it
 
 ```bash
-set -a && source .env && set +a            # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
-export OWNSUITE_APP_MESSAGES=true           # opt in (off by default)
-# External relay account + DKIM key — held in the env, never written to .env (like the
-# seed). The installer generates the DKIM key the first time and prints it to re-export.
-export OWNSUITE_MTA_RELAY_USERNAME=...      # Scaleway TEM (Project ID) or an EU relay account
-export OWNSUITE_MTA_RELAY_PASSWORD=...      # TEM: the IAM key secret (= s3_secret_key)
-export OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64=... # printed by `suite install` on first run
-make tunnel                                 # in another terminal
-make sync                                   # brings up the infra + enabled apps + messages
+$EDITOR suite.yaml     # under apps:, add:
+                       #   messages:
+                       #     relay_host: smtp.tem.scaleway.com:2587
+                       #     spf_include: _spf.tem.scaleway.com
+suite apply            # -> https://messages.<domain>/
 ```
 
-`suite install` does this for you: with the mailbox enabled it generates the DKIM key, prints
-the MX/SPF/DKIM/DMARC records plus the rDNS/port-25 manual steps, then waits for propagation
-before issuing certificates. Without the relay account exported, mta-out comes up **without** an
-external relay (the hermetic path — local delivery only); set it to send to the internet. When it
-finishes, the webmail answers at `https://messages.{domain}`; log in with a Keycloak user (e.g.
-one created by `suite user add`), then send a test message to an external inbox.
+`suite apply` does the rest: it opens inbound port 25 (firewall from the app set), generates
+the **DKIM key** and keeps it in the machine state, provisions the **TEM relay account** into
+the state on Scaleway (bringing another relay, export
+`OWNSUITE_MTA_RELAY_USERNAME`/`OWNSUITE_MTA_RELAY_PASSWORD` instead), prints the
+MX/SPF/DKIM/DMARC records plus the rDNS/port-25 manual steps, then waits for propagation
+before issuing certificates. Without a relay account (state or environment), mta-out comes up
+**without** an external relay (the hermetic path — local delivery only); set one to send to
+the internet. When it finishes, the webmail answers at `https://messages.{domain}`; log in
+with a Keycloak user (e.g. one created by `suite user add`), then send a test message to an
+external inbox.
 
 ## Tests
 
 messages is **template/lint-validated** (`make lint-helm`: `helm lint` the chart standalone +
-kubeconform the rendered manifests, in both relay states), and the installer's DNS/DKIM logic is
+kubeconform the rendered manifests, in both relay states), and the CLI's DNS/DKIM logic is
 unit-tested (`tests/test_dns.py`, `tests/test_mail.py`). On top of that, the **hermetic mail
 loopback runs nightly** on its own throwaway cluster — kept separate from Docs and Drive because
 five pods would push the shared runner over its memory ceiling. Run it yourself with

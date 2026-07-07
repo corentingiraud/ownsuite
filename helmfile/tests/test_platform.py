@@ -1,6 +1,6 @@
 """Platform + installer + backup/restore definition-of-done for OwnSuite.
 
-Run against a live cluster after `suite install` / restore (see run-e2e.sh). Asserts
+Run against a live cluster after `suite apply` / restore (see run-e2e.sh). Asserts
 the shared infrastructure (Phase 1), the object store, and that the backup -> destroy
 -> restore cycle preserves all three storage classes (ADR-006). The per-app boot DoD
 lives in test_apps.py — this module no longer asserts any application; it keeps a few

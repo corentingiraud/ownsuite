@@ -28,19 +28,20 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `docs/` | MkDocs (Material) documentation — the spec. Pure Markdown. |
 | `mkdocs.yml` | Docs site config (theme, nav, llms.txt plugin). |
 | `requirements-docs.txt` | Docs toolchain (MkDocs Material + plugins). |
-| `Makefile` | Operator/dev entrypoints: `bootstrap`, `install`, `check`, `lint`, `test`, `test-full`, `test-platform` (installer-provisioned full DoD), `test-pvc-backup` (isolated ADR-032 PVC backup/restore, ~3 min), `test-app` (one optional app per cluster). |
+| `suite.yaml.example` | Commented template for `suite.yaml` — the one human-owned config file (git-ignored, ADR-042). |
+| `Makefile` | CI/dev shorthand only (ADR-037): `install` (alias for `suite apply`), `tunnel`/`sync`/`diff`/`destroy`, `backup`/`restore`, `lint*`, `test`, `test-full`, `test-platform` (full DoD via `suite apply`), `test-pvc-backup` (isolated ADR-032 PVC backup/restore, ~3 min), `test-app` (one optional app per cluster). |
 | `ansible/` | Server bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles. |
-| `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, Garage, the Docs, Drive, Grist and Projects apps (local charts, all off by default), and the off-site backups (rclone object copy, `garage-backup`); local charts, values, versions, k3d e2e. |
-| `suite/` | Guided installer + CLI (`suite deps`/`bootstrap`/`check`/`install`/`user`/`status`/`upgrade`/`restore`, ADR-018/023/033/034/036/037): workstation deps + Ansible bootstrap (and its dry-run), config + seed, DNS records, propagation gate, SSH tunnel, ACME (staging→prod), HTTPS verify, user provisioning, health summary, backup-gated upgrade + clean-cluster restore. Every operator action is a CLI verb; `make` is CI/dev only. Pure standard library; lint with `ruff` (`ruff.toml`). |
-| `tests/` | Unit tests for the `suite` installer (pytest; mocked resolvers, no cluster). |
+| `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, Garage, the apps — Docs, Drive, Grist, Projects, the Mailbox (messages), Meet and Tchap, **all off by default** (local charts; Meet and Tchap consume upstream charts) — and the off-site backups (rclone object copy, `garage-backup`); local charts, values, versions, k3d e2e. |
+| `suite/` | The declarative CLI (ADR-042, plus 018/023/033/034/036/037): `spec.py` (`suite.yaml` load/validate + env assembly), `state.py` (`.suite-state.json` machine state), `manifest.py` (the single app manifest), `apply.py` (the reconcile pipeline), `backup.py`, `info.py`, and the other verb modules — `init`/`plan`/`apply`/`apps`/`info`/`logs`/`user`/`status`/`upgrade`/`backup`/`restore`/`destroy`/`deps` (no `sync.py`, no `.env`: human input is `suite.yaml`, machine state is `.suite-state.json`). Every operator action is a CLI verb; `make` is CI/dev only. Minimal deps (`questionary`, `PyYAML` — requirements.txt); lint with `ruff` (`ruff.toml`). |
+| `tests/` | Unit tests for the `suite` CLI (pytest; mocked resolvers, no cluster). |
 | `molecule/` | `default` (fast, host-prep roles) and `full` (real K3s) test scenarios + Testinfra. |
 | `requirements-dev.txt` | Dev/CI toolchain (Ansible, ansible-lint, yamllint, Molecule, Testinfra). |
 | `.github/workflows/docs.yml` | Builds & deploys the docs to GitHub Pages. |
 | `.github/workflows/ci.yml` | Ansible lint + Molecule (Debian 12/13) on every PR. |
 | `.github/workflows/bootstrap-e2e.yml` | Full real-K3s bootstrap, nightly + on K3s changes. |
 | `.github/workflows/helmfile-ci.yml` | Helm/Helmfile lint + kubeconform on every `helmfile/` change. |
-| `.github/workflows/helmfile-e2e.yml` | Two jobs: `pvc-backup` (isolated ADR-032 backup/restore) gates every PR in ~3 min; `full` (`make test-platform`, the heavy suite — platform + installer + backup/restore, **no app DoD**) runs nightly / on `main` / on demand only — not on PRs. |
-| `.github/workflows/apps-e2e.yml` | Per-app boot e2e for ALL five apps (Grist/Projects/messages/Docs/Drive), one app per fresh k3d cluster (ADR-029) — the single source of each app's boot DoD. A PR touching one app's chart/values boots only that app (fast `detect`-driven matrix); the full five-app sweep runs nightly / on demand. |
+| `.github/workflows/helmfile-e2e.yml` | Two jobs: `pvc-backup` (isolated ADR-032 backup/restore) gates every PR in ~3 min; `full` (`make test-platform`, the heavy suite — platform + `suite apply` + backup/restore, **no app DoD**) runs nightly / on `main` / on demand only — not on PRs. |
+| `.github/workflows/apps-e2e.yml` | Per-app boot e2e for ALL seven apps (Docs/Drive/Grist/Projects/messages/Meet/Tchap), one app per fresh k3d cluster (ADR-029) — the single source of each app's boot DoD. A PR touching one app's chart/values boots only that app (fast `detect`-driven matrix); the full seven-app sweep runs nightly / on demand. |
 
 ## Hard rules
 
@@ -70,10 +71,12 @@ mkdocs serve   # http://127.0.0.1:8000
 
 ## Bootstrap & test the server layer
 
+The bootstrap is a phase of `suite apply` (run when the server was never bootstrapped or
+the firewall flags changed); the playbook is still directly testable:
+
 ```bash
 python3 -m suite deps        # Ansible + collections + test tooling (requirements-dev.txt)
-python3 -m suite check       # dry-run the bootstrap against your inventory
-python3 -m suite bootstrap   # provision a Debian server into a ready single-node K3s cluster
+cd ansible && ansible-playbook bootstrap.yml --check --diff   # dev dry-run, applies nothing
 make lint test               # static checks + Molecule container tests (CI/dev; Docker required)
 ```
 
@@ -83,18 +86,22 @@ the operator guide is [docs/get-started/bootstrap.md](docs/get-started/bootstrap
 ## Deploy & test the shared infrastructure
 
 ```bash
-make install         # guided bare server + domain -> HTTPS (wraps the steps below)
+suite apply          # reconcile everything to suite.yaml (make install is its alias)
 
 export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required; never committed
-make sync            # helmfile sync — cert-manager, CNPG, Valkey, Keycloak (HTTPS)
-make diff            # preview pending changes
+make diff            # preview pending helmfile changes (dev)
 make lint-helm       # helm lint + helmfile template + kubeconform
 make test-pvc-backup # isolated ADR-032 PVC backup→wipe→restore on k3d (~3 min) — the PR gate
-make test-platform   # platform + installer + backup→restore DoD on a throwaway k3d cluster (heavy, nightly/main) — no app DoD
-make test-app APP=docs   # boot ONE app on its own k3d cluster + assert its boot DoD (grist|projects|messages|docs|drive)
-make backup          # on-demand backup (CNPG base backup + off-site object copy)
-make restore         # rebuild a CLEAN cluster from off-site backups (ADR-006, ADR-017)
+make test-platform   # platform + `suite apply` + backup→restore DoD on a throwaway k3d cluster (heavy, nightly/main) — no app DoD
+make test-app APP=docs   # boot ONE app on its own k3d cluster + assert its boot DoD (grist|projects|messages|docs|drive|meet|tchap)
+make backup          # dev shorthand for `suite backup` (CNPG base backup + off-site copy)
+make restore         # low-level restore `suite restore` wraps (ADR-006, ADR-017)
 ```
+
+A raw helmfile sync (the Makefile's `sync` target) is a **dev/debug escape hatch only**:
+it bypasses `suite apply`'s rails (issuer pinning, pre-change snapshot, health checks).
+The e2e never touches a developer's real config: it writes a throwaway `suite.yaml` to a
+temp path via `OWNSUITE_CONFIG` and drives `suite apply --yes --no-tunnel`.
 
 All credentials derive from `$OWNSUITE_SECRET_SEED` (ADR-012); versions are pinned in
 `helmfile/versions/versions.yaml` (Renovate-tracked). See

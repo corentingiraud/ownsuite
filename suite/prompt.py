@@ -43,6 +43,11 @@ def confirm(msg, default=True):
     return _ask(_q().confirm(msg, default=default))
 
 
+def password(msg):
+    """Hidden input (no echo) — for pasting the secret seed, never stored."""
+    return _ask(_q().password(msg)).strip()
+
+
 def checkbox(msg, choices, checked=()):
     """Multi-select. `choices` are labels; `checked` pre-ticks a subset."""
     q = _q()

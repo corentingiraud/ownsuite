@@ -7,26 +7,35 @@ provisions the **infrastructure half** of an OwnSuite deployment:
 - a Debian server with a public IP and a firewall,
 - the object-storage buckets and S3 keys the apps and backups use.
 
-It stops there. [Prepare the server](bootstrap.md) (Ansible) then turns the
-server into a single-node K3s cluster, and the [installer](install.md) deploys
-the apps. Terraform is optional — if you already have a Debian server and an S3
-bucket, skip straight to [Prepare the server](bootstrap.md).
+It stops there. `suite apply`'s [bootstrap phase](bootstrap.md) (Ansible) then
+turns the server into a single-node K3s cluster and deploys the apps. Terraform
+is optional — bring your own Debian server by setting `server: {ssh: user@host}`
+in `suite.yaml` and **omitting `provider`**: apply then skips this layer entirely
+(it still bootstraps and deploys).
 
-## Guided (`suite provision`)
+## How `suite apply` drives it
 
-The quickest path is the CLI, which wraps everything below — it prompts for the
-provider and the required `terraform.tfvars` values, runs `init` / `plan` /
-`apply`, then wires the outputs into `.env` and the Ansible inventory
-(`ansible/inventory/hosts.yml`), and prints the external secrets (S3 keys, TEM
-relay) to export:
+With `provider: scaleway` (or `infomaniak`) in `suite.yaml`, this layer is the
+first phase of every `suite apply` — nothing to run separately. Export the
+provider credentials, then apply:
 
 ```bash
 export SCW_ACCESS_KEY="SCWXXXXXXXXXXXXXXXXX"   # Scaleway; Infomaniak uses clouds.yaml
 export SCW_SECRET_KEY="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-suite provision                # or: suite provision --provider scaleway --yes
+suite apply
 ```
 
-`suite install` also offers to run this for you when no server is configured yet.
+- The **first run prompts once** for the account-specific values (project ids, SSH
+  key, server type) and writes them to `terraform.tfvars`.
+- On **every run**, the values derived from `suite.yaml` are regenerated into
+  `suite.auto.tfvars`: the bucket list and the firewall flags follow the enabled
+  app set (add Meet or the Mailbox under `apps:` and the next apply opens their
+  ports — no tfvars to edit).
+- The outputs (SSH target, minted S3 keys, TEM relay account) land in the machine
+  state file **`.suite-state.json`** and the Ansible inventory — nothing to copy
+  by hand. Stash the printed secrets in your password manager; the state file is
+  disposable.
+
 It needs `terraform` **or** `tofu` on PATH. The rest of this page is the manual
 equivalent (and the reference for every tfvars value).
 
@@ -73,7 +82,9 @@ See [ADR-038](../understand/decisions.md#adr-038-hosting-provider-scaleway-recom
     export SCW_SECRET_KEY="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
     ```
 
-### Use
+### Use (manual equivalent)
+
+`suite apply` runs the same thing from `terraform/environments/scaleway`; by hand:
 
 ```bash
 cd terraform/environments/scaleway
@@ -99,8 +110,9 @@ Confirm these account-specific values before you apply:
   lapses**, then re-sync the in-cluster secret, or media/backups break.
 - **Scaleway Debian logs in as `root`** (not `debian`). The `ssh_target` output is
   `root@<ip>`; the bootstrap hardens root afterwards.
-- **Mailbox → open SMTP.** Set `enable_mailbox = true` to open inbound port 25 and
-  register the [TEM sending domain](#mailbox-scaleway-tem).
+- **Mailbox → open SMTP.** Enabling `messages:` in `suite.yaml` sets
+  `enable_mailbox = true` on the next apply, opening inbound port 25 and registering
+  the [TEM sending domain](#mailbox-scaleway-tem).
 
 ## Infomaniak (alternative)
 
@@ -135,7 +147,7 @@ relay](../understand/messages.md#outbound-scaleway-tem-or-an-external-relay).
         identity_api_version: 3
     ```
 
-### Use
+### Use (manual equivalent)
 
 ```bash
 cd terraform/environments/infomaniak
@@ -180,47 +192,64 @@ The off-site **backup** store is unaffected either way: backups are written
 server-side (CNPG / rclone), never from the browser, so they have no CORS
 requirement.
 
-## Wire the outputs into your config
+## Where the outputs go
+
+`suite apply` reads the outputs itself and stores them in the machine state
+(`.suite-state.json`): the SSH target, the S3 endpoint/region, and the minted
+keys — the next phases (bootstrap, DNS, deploy) pick them up from there, and the
+DNS step points your records at the server IP. Nothing lands in a dotfile you
+have to source.
+
+Running Terraform by hand (the dev path), wire them yourself:
 
 ```bash
-terraform output ssh_target            # -> OWNSUITE_SERVER_SSH + ansible_host
+terraform output ssh_target            # -> server.ssh / the Ansible inventory
 terraform output public_ip             # point your DNS records here
-terraform output -raw s3_access_key    # secret (the minted S3 access key)
-terraform output -raw s3_secret_key    # secret (the minted S3 secret key)
-```
-
-The S3 **access/secret keys are external secrets** — they cannot be derived from
-the seed, so they are not written to `.env`. In `external` mode, export them (like
-the seed) before `make sync` / `suite install`, and set the endpoint/region/bucket
-from `terraform output` (Scaleway endpoint is `https://s3.<region>.scw.cloud`,
-region `fr-par`):
-
-```bash
 export OWNSUITE_S3_ACCESS_KEY="$(terraform output -raw s3_access_key)"
 export OWNSUITE_S3_SECRET_KEY="$(terraform output -raw s3_secret_key)"
 ```
 
-In `garage` mode the apps use in-cluster Garage with seed-derived keys, so you do
-**not** need those lines or any `OWNSUITE_S3_*` endpoint/bucket — the keys are only
-useful for the off-site backup store. Either way, pre-create one bucket per enabled
-app in `external` mode (`docs-media-storage`, `drive-media-storage`,
-`projects-media-storage`, `messages-media-storage`; Grist uses a PVC, no bucket) —
-see [Configuration → Object storage](../reference/configuration.md#object-storage).
+The S3 **access/secret keys are external secrets** — they cannot be derived from
+the seed, so they live in the machine state (or your environment; an exported
+value always wins), never in `suite.yaml`.
 
-Point your DNS records (`OWNSUITE_DOMAIN`) at the `public_ip` output, then continue
-with [Prepare the server](bootstrap.md).
+## Tearing the server down
+
+Deleting the server is **not** a `suite` verb — [`suite destroy`](../reference/cli.md#suite-destroy)
+uninstalls the suite from the cluster but keeps the machine. To tear the
+infrastructure itself down, run OpenTofu/Terraform directly:
+
+```bash
+cd terraform/environments/scaleway     # or infomaniak
+tofu destroy                           # removes the server, firewall and buckets
+```
+
+!!! danger "This deletes data"
+    Destroying the infrastructure deletes the server's volumes and — depending on
+    the provider — the buckets and their contents. Take a [`suite backup`](../operate/backups.md)
+    first; the off-site copy (a different account) is what survives this.
+
+In `garage` mode the apps use in-cluster Garage with seed-derived keys, so you do
+**not** need the S3 keys or endpoint — they are only useful for the off-site
+backup store. In `external` mode with a `provider`, apply creates one bucket per
+enabled app (`docs-media-storage`, `drive-media-storage`, …; Grist uses a PVC, no
+bucket); bringing your own S3, pre-create them — see
+[Configuration → Object storage](../reference/configuration.md#object-storage).
 
 ### Mailbox: Scaleway TEM { #mailbox-scaleway-tem }
 
-With `enable_mailbox = true` on Scaleway, the module also registers the sending
+With the Mailbox enabled on Scaleway, the module also registers the sending
 domain in **Transactional Email (TEM)** and grants the workload key TEM send
-rights. Publish the SPF/DKIM/DMARC records from `terraform output tem_dns` so
-Scaleway validates the domain, then wire the relay from the outputs:
+rights. `suite apply` stores the relay account (username = your Project ID,
+password = the workload key secret) in the machine state and prints the TEM
+SPF/DKIM/DMARC records to publish so Scaleway validates the domain. Set the relay
+host under the app in `suite.yaml`:
 
-```bash
-export OWNSUITE_MTA_RELAY_USERNAME="$(terraform output -raw mta_relay_username)"  # your Project ID
-export OWNSUITE_MTA_RELAY_PASSWORD="$(terraform output -raw mta_relay_password)"  # = the S3 secret key
-export OWNSUITE_MTA_RELAY_HOST="smtp.tem.scaleway.com:2587"
+```yaml
+apps:
+  messages:
+    relay_host: smtp.tem.scaleway.com:2587
+    spf_include: _spf.tem.scaleway.com
 ```
 
 Port **2587** (STARTTLS) — not 587: Scaleway Instances **block outbound 25/465/587
@@ -228,10 +257,11 @@ by default**, and TEM exposes `2587`/`2465` for exactly this. See
 [Mailbox → Outbound](../understand/messages.md#outbound-scaleway-tem-or-an-external-relay).
 
 !!! warning "Off-site backup must be a second account"
-    The backup bucket (`OWNSUITE_BACKUP_S3_*`) must live in a **different** account
-    or provider than the primary (see
-    [Backups & restore](../operate/backups.md)). Use the commented second-module
-    example in `environments/<provider>/main.tf` — do not reuse the primary bucket.
+    The backup bucket (`backup.endpoint` / `backup.bucket` in `suite.yaml`) should
+    live in a **different** account or provider than the primary (see
+    [Backups & restore](../operate/backups.md)) — with `backup.endpoint` left
+    empty on Scaleway, apply provisions an `nl-ams` bucket under the **same**
+    account: fine for the restore drill, not real DR.
 
 ## Adding another cloud provider
 

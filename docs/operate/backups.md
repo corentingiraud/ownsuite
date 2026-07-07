@@ -14,40 +14,33 @@ destination has to survive losing the whole server, so it's never stored on the 
 
 ## The off-site destination
 
-Set `OWNSUITE_BACKUP_S3_TARGET`:
+Set `backup.target` in `suite.yaml`:
 
 - **`external`** (production) — a managed S3 in a **different account/provider** than your
-  primary storage. Set `OWNSUITE_BACKUP_S3_ENDPOINT` / `_REGION` / `_BUCKET`. If it is not a
-  different account, it is not off-site.
+  primary storage. Set `backup.endpoint` / `backup.region` / `backup.bucket`. If it is not
+  a different account, it is not off-site.
 - **`in-cluster`** (CI / hermetic) — a **second in-cluster Garage** (`garage-backup`) with its
   own volume and bucket, deployed automatically. Used by the e2e; not for production DR.
 
-!!! note "Provisioned by `suite provision`"
-    On Scaleway, set `backup_bucket_name` in the tfvars: `suite provision` then creates the
-    bucket (in `backup_region`, default `nl-ams` — off the `fr-par` primary) and writes
-    `OWNSUITE_BACKUP_S3_*` into `.env` for you. A test suite **reuses the workload S3 key**
-    (same project → not account-isolated, but survives losing the server, which is what the
-    restore drill tests). **Prod DR** wants a separate account/provider: point it at that
-    account and override the keys (below).
+!!! note "Provisioned by `suite apply`"
+    On Scaleway with `backup.endpoint` left empty, `suite apply` provisions the backup
+    bucket for you (in `nl-ams` — off the `fr-par` primary) and **reuses the workload S3
+    key** (same project → not account-isolated, but it survives losing the server, which
+    is what the restore drill tests). **Prod DR** wants a separate account/provider: set
+    `backup.endpoint` to that account's S3 and override the keys (below).
 
 ### Credentials
 
 The off-site S3 credentials and the rclone encryption passphrase are **derived from
 `OWNSUITE_SECRET_SEED`** by default (so CI and self-controlled targets need no manual sync).
-For a real **external** off-site account, override them with that account's keys. Put them in
-an **untracked** state-values file and pass it to Helmfile, which overrides the derived
-defaults for those ids:
-
-```yaml
-# backup-overrides.yaml  (git-ignored — never commit real keys)
-secretOverrides:
-  backup-s3-access: "AKIA...your-offsite-key-id"
-  backup-s3-secret: "...your-offsite-secret..."
-  rclone-crypt:     "...a-long-random-passphrase..."   # optional; keep it safe
-```
+For a real **external** off-site account, override them with that account's keys — secrets
+never go in `suite.yaml`, so export them (an exported value always wins over the derived
+one):
 
 ```bash
-helmfile -f helmfile/helmfile.yaml.gotmpl --state-values-file backup-overrides.yaml sync
+export OWNSUITE_BACKUP_S3_ACCESS_KEY=...       # the off-site account's key id
+export OWNSUITE_BACKUP_S3_SECRET_KEY=...       # its secret
+export OWNSUITE_RCLONE_CRYPT_PASSWORD=...      # optional passphrase override; keep it safe
 ```
 
 The encryption passphrase and the seed are the only secrets you must keep: **losing them loses
@@ -55,18 +48,23 @@ the ability to restore.** Store them in a password manager.
 
 ## Configuration
 
-All knobs live in `.env` (see `.env.example`):
+All knobs live under `backup:` in `suite.yaml` (defaults and details in the
+[configuration reference](../reference/configuration.md#backups-restore)); run
+`suite apply` after changing them:
 
-```bash
-OWNSUITE_BACKUP_ENABLED=true
-OWNSUITE_BACKUP_SCHEDULE="0 2 * * *"   # CNPG base-backup cron; WAL archiving is continuous
-OWNSUITE_BACKUP_RETENTION=30d          # Barman recovery window (PITR)
-OWNSUITE_BACKUP_S3_TARGET=external
-OWNSUITE_BACKUP_S3_ENDPOINT=https://s3.example-eu.com
-OWNSUITE_BACKUP_S3_REGION=eu-west
-OWNSUITE_BACKUP_S3_BUCKET=ownsuite-backups
-OWNSUITE_BACKUP_PG_ENCRYPTION=         # e.g. AES256 on AWS; empty for Garage/S3-compatible
+```yaml
+backup:
+  enabled: true
+  schedule: "0 2 * * *"        # CNPG base-backup cron; WAL archiving is continuous
+  retention: 30d               # Barman recovery window (PITR)
+  target: external
+  endpoint: https://s3.example-eu.com
+  region: eu-west
+  bucket: ownsuite-backups
 ```
+
+(One advanced knob stays an export: `OWNSUITE_BACKUP_PG_ENCRYPTION` — optional S3
+server-side encryption for the PostgreSQL backups, e.g. `AES256` on AWS.)
 
 Enabling backups installs the [Barman Cloud Plugin](https://cloudnative-pg.io/plugin-barman-cloud/)
 into `cnpg-system` (pinned, vendored manifest) and attaches a WAL archiver + `ScheduledBackup`
@@ -83,11 +81,13 @@ per backed-up volume.
 ## Take a backup on demand
 
 ```bash
-make backup   # an on-demand CNPG base backup + an immediate off-site object copy
+suite backup   # an on-demand CNPG base backup + an immediate off-site object copy
 ```
 
-Scheduled backups run automatically from `OWNSUITE_BACKUP_SCHEDULE` (PostgreSQL) and the rclone
-CronJob (objects). WAL archiving is continuous, so PITR is available between base backups.
+It waits for both to complete — the "before I try something" verb. It is also the
+snapshot `suite apply` and `suite upgrade` take before any change. Scheduled backups run
+automatically from `backup.schedule` (PostgreSQL) and the rclone CronJob (objects). WAL
+archiving is continuous, so PITR is available between base backups.
 
 ## Restore (tested)
 
@@ -100,24 +100,24 @@ suite restore
 
 `suite restore` is the operator-facing path: it checks the seed and backup configuration are
 present, **refuses on a cluster that is not clean** (an existing database or bound PVCs would be
-clobbered — confirm explicitly, or pass `--yes`, to override), pins the live TLS issuer so the
-restore never downgrades certs to `selfsigned`, runs the restore, then verifies single sign-on and
+clobbered — confirm explicitly, or pass `--yes`, to override), pins the TLS issuer from
+`suite.yaml` so the restore never downgrades certs to `selfsigned`, runs the restore, then
+verifies single sign-on and
 each enabled app answered. See the [CLI reference](../reference/cli.md#suite-restore).
 
-!!! note "Seed + issuer must be reachable"
-    Restore reads `OWNSUITE_SECRET_SEED` from the **environment** (export it; unlike `sync`/`upgrade`
-    it does not fall back to `.env`). The TLS issuer is auto-detected from the running `keycloak-tls`
-    certificate; on a **bare** cluster (no cert-manager state yet) that detection can't work, so
-    `export OWNSUITE_TLS_ISSUER=letsencrypt-http01` (or your issuer) before restoring.
+!!! note "Everything comes from `suite.yaml` + the seed"
+    Restore needs `OWNSUITE_SECRET_SEED` (use the exported value, or let it prompt you) and
+    the backup configuration from `suite.yaml`. The TLS issuer is **pinned from
+    `suite.yaml`** (`tls:`), so even a bare cluster restores straight to your real issuer —
+    nothing to export.
 
-Under the hood it runs the same Helmfile sync in restore mode that `make restore` runs directly —
-the low-level mechanism, if you need it without the guardrails:
+!!! note "`make restore` is the dev escape hatch"
+    Under the hood, `suite restore` runs a Helmfile sync in restore mode; `make restore`
+    runs that sync directly, **without the rails** — no clean-cluster check, no issuer
+    pinning, no post-restore verification. Reach for it only when debugging the restore
+    mechanism itself.
 
-```bash
-make restore
-```
-
-Either way the restore-mode sync:
+The restore-mode sync:
 
 1. **PostgreSQL** bootstraps via CNPG **recovery** from the off-site `ObjectStore` (every backed-up
    database comes back, to the latest backup / PITR).

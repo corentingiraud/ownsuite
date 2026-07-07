@@ -1,7 +1,7 @@
 # How it works
 
 Everything runs on **one server**. You don't need to be a Kubernetes expert to run it —
-the installer and the `suite` commands do the heavy lifting — but here's the picture of
+`suite.yaml` and the `suite` commands do the heavy lifting — but here's the picture of
 what's inside, so nothing feels like a black box.
 
 At the centre is **single sign-on**: every app trusts the same login, so a person you add

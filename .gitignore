@@ -11,14 +11,21 @@ __pycache__/
 *.egg-info/
 /build/
 
-# Secrets and local env files (never commit). The Helmfile stack derives every
-# credential from $OWNSUITE_SECRET_SEED at sync time; nothing secret is stored
-# in the repo. Committed Helmfile env/values are *.gotmpl (no secrets in them).
+# Secrets and per-deployment files (never commit). The Helmfile stack derives
+# every credential from $OWNSUITE_SECRET_SEED at render time; nothing secret is
+# stored in the repo. Committed Helmfile env/values are *.gotmpl (no secrets).
 *.secret-overrides.yaml
 /helmfile/environments/secrets.yaml
 .env
+# The operator's suite description + the machine state `suite apply` maintains
+# (ADR-042; the state holds provider-minted secrets). suite.yaml.example is the
+# committed template.
+/suite.yaml
+.suite-state.json
+# Terraform inputs derived from suite.yaml on every apply.
+*.auto.tfvars
 
-# BIND zone file `suite install` writes for the operator's domain (real domain/IP).
+# BIND zone file `suite apply` writes for the operator's domain (real domain/IP).
 *.zone
 
 # Ansible — real inventory (keep only the example), retries, fetched kubeconfig

@@ -134,8 +134,12 @@ wait_for_certs "${CERTS[@]}"
 
 # Apps whose DoD authenticates as a CLI-created user (drive: JIT /users/me; messages:
 # the mailbox autojoins on first login) get that user provisioned through the real CLI.
+# The CLI reads suite.yaml (ADR-042) — hand it a minimal one in a temp dir.
 if [ -n "${OWNSUITE_E2E_USER:-}" ]; then
   echo "==> Creating the test user via the suite CLI (JIT provisioning on first login)"
+  export OWNSUITE_CONFIG="$(mktemp -d)/suite.yaml"
+  printf 'domain: %s\ntls: selfsigned\napps:\n  %s: {}\n' \
+    "$OWNSUITE_DOMAIN" "$APP" > "$OWNSUITE_CONFIG"
   python3 -m suite user add "$OWNSUITE_E2E_USER" \
     --password "$OWNSUITE_E2E_USER_PW" --permanent --no-tunnel
 fi

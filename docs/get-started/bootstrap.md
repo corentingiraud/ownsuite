@@ -1,12 +1,14 @@
 # Server bootstrap
 
-Turn a **bare Debian server** into a ready **single-node K3s** cluster with one
-command — the first step before installing OwnSuite.
+Turn a **bare Debian server** into a ready **single-node K3s** cluster — the
+bootstrap phase of [`suite apply`](install.md).
 
-> **What you get:** `suite bootstrap` turns a bare Debian server into a ready
-> single-node K3s cluster.
+> **What you get:** `suite apply` turns a bare Debian server into a ready
+> single-node K3s cluster, then deploys onto it. It re-runs this phase only when
+> needed — the server was never bootstrapped, or the firewall flags changed
+> (enabling Meet or the Mailbox).
 
-This step is handled by **Ansible**, which applies three sets of changes in order:
+This phase is handled by **Ansible**, which applies three sets of changes in order:
 `common` → `security` → `k3s`.
 
 ## What it does
@@ -24,30 +26,40 @@ This step is handled by **Ansible**, which applies three sets of changes in orde
 
 ## Run it
 
+You don't run this phase yourself: `suite apply` writes the Ansible inventory (from
+`server.ssh` in `suite.yaml`, or from the provisioned machine state) and runs the
+playbook when the server needs it.
+
 ```bash
 git clone https://github.com/corentingiraud/ownsuite.git && cd ownsuite
 python3 -m suite deps                       # one-time: tooling + collections
-cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml
-$EDITOR ansible/inventory/hosts.yml         # set ansible_host / ansible_user
-python3 -m suite check                      # dry-run (--check --diff), applies nothing
-python3 -m suite bootstrap                  # provision the host
+suite apply                                 # bootstraps (then deploys) when needed
 ```
 
-When it finishes, the cluster `kubeconfig` is fetched to **`ansible/kubeconfig`** (the
-bootstrap runs from the `ansible/` directory). Use an **absolute** path — helmfile changes
-directory to resolve charts, so a relative `KUBECONFIG` resolves wrong and tools fall back
-to `localhost:8080` ("cluster unreachable"):
+For a dev-level **dry-run** of just this layer — preview every change without
+applying anything — run the playbook by hand from `ansible/`:
+
+```bash
+cd ansible
+ansible-playbook bootstrap.yml --check --diff
+```
+
+When the bootstrap finishes, the cluster `kubeconfig` is fetched to
+**`ansible/kubeconfig`** (the playbook runs from the `ansible/` directory). Use an
+**absolute** path — helmfile changes directory to resolve charts, so a relative
+`KUBECONFIG` resolves wrong and tools fall back to `localhost:8080` ("cluster
+unreachable"):
 
 ```bash
 export KUBECONFIG="$PWD/ansible/kubeconfig"
 kubectl get nodes   # the node should be Ready
 ```
 
-`suite install` / `make` set this for you (pointing at `ansible/kubeconfig`); only export
-it by hand for ad-hoc `kubectl`.
+`suite` commands and `make` set this for you (pointing at `ansible/kubeconfig`); only
+export it by hand for ad-hoc `kubectl`.
 
-**Next:** the [guided installer](install.md) (`suite install`) wraps bootstrap and
-everything after it — config, DNS records, the SSH tunnel, `helmfile sync`, and
+**Next:** the [install guide](install.md) (`suite apply`) wraps bootstrap and
+everything after it — DNS records, the SSH tunnel, the deploy, and
 staging→production certificates — so a bare server + a domain reaches HTTPS in one flow.
 
 !!! note "Pinned versions"
@@ -70,8 +82,9 @@ staging→production certificates — so a bare server + a domain reaches HTTPS 
   `firewall_allowed_tcp_ports`/CIDR vars to match.
 - **Fetched kubeconfig** lands at `ansible/kubeconfig` and points at
   `https://127.0.0.1:6443`. You reach the cluster from your workstation through an SSH
-  tunnel (`make tunnel`), so this address is used as-is and the Kubernetes API is never
-  exposed to the internet — see [how it works](../understand/platform.md).
+  tunnel (`suite` commands open their own; `make tunnel` is the dev shorthand), so this
+  address is used as-is and the Kubernetes API is never exposed to the internet — see
+  [how it works](../understand/platform.md).
 
 !!! warning "Multi-key SSH agents (1Password, gpg-agent) — `Too many authentication failures`"
     If your SSH agent holds several keys (e.g. the 1Password SSH agent), it offers them

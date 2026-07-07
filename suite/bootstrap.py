@@ -1,22 +1,15 @@
-"""`suite deps` / `suite bootstrap` / `suite check` — workstation tooling and
-server provisioning (ADR-037).
+"""`suite deps` + the Ansible server bootstrap `suite apply` runs (ADR-002/037).
 
-These were `make deps` / `make bootstrap` / `make check`; they are user-facing
-operations, so they belong on the `suite` CLI (the `make` surface is now CI/dev
-shorthand only). Each is a thin wrapper around the tools the operator already has:
-
-  - deps      install the Python tooling + Ansible collections this CLI and the
-              bootstrap need (pip + ansible-galaxy);
-  - bootstrap provision a bare server into a ready single-node K3s cluster, via the
-              Ansible playbook (ADR-002);
-  - check     dry-run that bootstrap (--check --diff) — applies nothing.
-
-`suite install` reuses ``provision()`` for its server-provisioning step instead of
-shelling out to `make`.
+  - deps         install the Python tooling + Ansible collections this CLI and
+                 the bootstrap need (pip + ansible-galaxy);
+  - provision()  turn a bare Debian server into a ready single-node K3s cluster
+                 via the Ansible playbook — called by `suite apply` when the
+                 server was never bootstrapped or the firewall flags changed.
 """
 
 from __future__ import annotations
 
+import json
 import shutil
 
 from .errors import SuiteError
@@ -45,19 +38,14 @@ def run_deps(args):
     print("\n==> Dependencies installed.")
 
 
-def run_bootstrap(args):
-    provision()
-
-
-def run_check(args):
-    provision(check=True)
-
-
-def provision(*, check=False):
+def provision(*, check=False, extra_vars=None):
     """Provision the server via Ansible. ``check=True`` is a no-op dry-run
-    (--check --diff). Reused by `suite install` for its bootstrap step."""
+    (--check --diff). ``extra_vars`` (e.g. the enable_meet/enable_mailbox
+    firewall flags) are passed as JSON so booleans stay typed."""
     _require(["ansible-playbook"])
     extra = ["--check", "--diff"] if check else []
+    if extra_vars:
+        extra += ["-e", json.dumps(extra_vars)]
     verb = "Dry-running" if check else "Running"
     print(f"\n==> {verb} the server bootstrap (ansible)")
     run(["ansible-playbook", PLAYBOOK, *extra], cwd=ANSIBLE_DIR,

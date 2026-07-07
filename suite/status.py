@@ -1,47 +1,32 @@
-"""`suite status` — a readable health summary of a running OwnSuite (ADR-033).
+"""`suite status` / `suite apps` / `suite logs` — read-only views of a running
+OwnSuite (ADR-033, issue #82).
 
-Reads live state over the existing SSH tunnel (ADR-014) with `kubectl get -o json`
-and parses it — no extra in-cluster workload, no monitoring stack. The pure
-summarising functions (``summarise_*``) take already-parsed kubectl JSON so they
-are unit-tested with fixtures, never a live cluster.
+Everything reads live state over the self-managed SSH tunnel (ADR-014) with
+`kubectl get -o json` and parses it — no extra in-cluster workload, no
+monitoring stack. The pure summarising functions (``summarise_*``) take
+already-parsed kubectl JSON so they are unit-tested with fixtures, never a
+live cluster.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import shutil
 
-from . import config, tunnel
+from . import manifest, process, spec, tunnel
 from .errors import SuiteError
 from .process import run
 
 NS = "ownsuite"
-# App -> subdomain label, mirrored from the Helmfile release conditions. Only the
-# enabled ones are reported (read from .env / env via OWNSUITE_APP_*).
-APPS = {
-    "docs": "docs",
-    "drive": "drive",
-    "grist": "grist",
-    "projects": "projects",
-    "messages": "messages",
-    "meet": "meet",
-    "tchap": "tchap",
-}
-# Defaults match helmfile/environments/default.yaml.gotmpl: every app is off by
-# default (ADR-035); only the operator's OWNSUITE_APP_* / .env turns one on.
-APP_DEFAULTS = {"docs": "false", "drive": "false", "grist": "false",
-                "projects": "false", "messages": "false", "meet": "false",
-                "tchap": "false"}
+# App names from the single manifest; every app is off by default (ADR-035).
+APPS = list(manifest.APPS)
 
 
 def run_status(args):
-    cfg = config.load_env(args.env_file)
-    ssh = getattr(args, "ssh", None) or cfg.get("OWNSUITE_SERVER_SSH", "")
-    _preflight(args, ssh)
-    enabled = enabled_apps(cfg)
+    ctx = spec.load_context()
+    process.preflight(["kubectl"], ssh=ctx.ssh, no_tunnel=args.no_tunnel)
+    enabled = ctx.spec.enabled_apps()
 
-    with tunnel.maybe(ssh, no_tunnel=args.no_tunnel):
+    with tunnel.maybe(ctx.ssh, no_tunnel=args.no_tunnel):
         nodes = _kubectl_json(["get", "nodes"])
         clusters = _kubectl_json(["-n", NS, "get", "clusters.postgresql.cnpg.io"])
         certs = _kubectl_json(["-n", NS, "get", "certificates.cert-manager.io"])
@@ -52,16 +37,63 @@ def run_status(args):
     print(render(nodes, clusters, certs, cronjobs, jobs, pods, enabled))
 
 
-def enabled_apps(cfg):
-    """Apps that are switched on, honouring env first then .env then the defaults
-    (same precedence the Helmfile uses)."""
-    on = []
-    for app in APPS:
-        key = f"OWNSUITE_APP_{app.upper()}"
-        val = os.environ.get(key, cfg.get(key, APP_DEFAULTS[app]))
-        if str(val).lower() == "true":
-            on.append(app)
-    return on
+def run_apps(args):
+    """`suite apps` — the catalog: every available app, whether suite.yaml enables
+    it, whether it is actually installed, its pod health, and its URL."""
+    ctx = spec.load_context()
+    process.preflight(["kubectl", "helm"], ssh=ctx.ssh, no_tunnel=args.no_tunnel)
+    enabled = set(ctx.spec.enabled_apps())
+    with tunnel.maybe(ctx.ssh, no_tunnel=args.no_tunnel):
+        proc = run(["helm", "-n", NS, "list", "-a", "-o", "json"],
+                   capture=True, check=False, step="helm list")
+        installed = set()
+        if proc.returncode == 0:
+            installed = {r["name"] for r in json.loads(proc.stdout or "[]")}
+        pods = (_kubectl_json(["-n", NS, "get", "pods"])
+                if installed else {"items": []})
+
+    rows = [("APP", "ENABLED", "INSTALLED", "HEALTH", "URL")]
+    for name, app in manifest.APPS.items():
+        deployed = any(r in installed for r in app.releases)
+        if deployed:
+            running, total, ready = summarise_app_pods(pods, name)
+            health = "OK" if ready else f"{running}/{total} pods"
+        else:
+            health = "-"
+        rows.append((
+            name,
+            "yes" if name in enabled else "no",
+            "yes" if deployed else "no",
+            health,
+            f"https://{name}.{ctx.spec.domain}/" if deployed else "-",
+        ))
+    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
+    for row in rows:
+        print("  ".join(f"{cell:<{w}}" for cell, w in zip(row, widths, strict=True)).rstrip())
+    print("\nEnable an app: add it under `apps:` in suite.yaml, then `suite apply`.")
+
+
+def run_logs(args):
+    """`suite logs <app>` — tail the app's pods over the managed tunnel."""
+    if args.app not in manifest.APPS:
+        raise SuiteError(
+            f"unknown app '{args.app}' (choose from: {', '.join(manifest.APPS)})"
+        )
+    ctx = spec.load_context()
+    process.preflight(["kubectl"], ssh=ctx.ssh, no_tunnel=args.no_tunnel)
+    with tunnel.maybe(ctx.ssh, no_tunnel=args.no_tunnel):
+        pods = _kubectl_json(["-n", NS, "get", "pods"])
+        names = [p["metadata"]["name"] for p in pods.get("items", [])
+                 if _pod_app(p) == args.app]
+        if not names:
+            raise SuiteError(
+                f"no pods found for {args.app} — is it deployed? (`suite apps`)"
+            )
+        for name in names:
+            print(f"\n==> {name}")
+            run(["kubectl", "-n", NS, "logs", name, "--all-containers",
+                 f"--tail={args.tail}", "--prefix"], check=False,
+                step=f"logs {name}")
 
 
 # --- pure summarisers (unit-tested against fixtures) --------------------------
@@ -217,12 +249,3 @@ def render(nodes, clusters, certs, cronjobs, jobs, pods, enabled):
 def _kubectl_json(argv):
     proc = run(["kubectl", *argv, "-o", "json"], capture=True, step="kubectl get")
     return json.loads(proc.stdout or "{}")
-
-
-def _preflight(args, ssh):
-    tools = ["kubectl"]
-    if not args.no_tunnel and ssh:
-        tools.append("ssh")
-    missing = [t for t in tools if not shutil.which(t)]
-    if missing:
-        raise SuiteError(f"missing required tools on PATH: {', '.join(missing)}")
