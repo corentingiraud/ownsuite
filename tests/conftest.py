@@ -1,8 +1,24 @@
 """Shared test helpers: build a real Spec/Context without touching disk."""
 
+import os
 from pathlib import Path
 
+import pytest
+
 from suite import spec
+
+
+@pytest.fixture(autouse=True)
+def _isolate_environ():
+    """Snapshot/restore os.environ around every test: code under test (e.g.
+    config.load_env_file) writes the global environ, and monkeypatch.delenv of an
+    absent key records nothing to restore — so those writes would leak between
+    tests and flip ambient-wins branches (assemble_env drops keys already in
+    os.environ)."""
+    saved = dict(os.environ)
+    yield
+    os.environ.clear()
+    os.environ.update(saved)
 
 
 def make_spec(apps=("docs",), tls="prod", provider=None, ssh="", **extra):
