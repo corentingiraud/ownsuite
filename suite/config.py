@@ -13,8 +13,32 @@ import hashlib
 import os
 import secrets
 import sys
+from pathlib import Path
 
 from .errors import SuiteError
+
+
+def load_env_file(path=".env"):
+    """Auto-load KEY=VALUE lines from .env into the environment (called once at CLI
+    startup) so the operator never has to `source .env` first. That manual step is
+    error-prone: a forgotten source leaves the external creds (S3/backup/relay keys)
+    unset, and the helmfile then silently falls back to seed-derived values —
+    OVERWRITING the real deployed keys on apply. Already-exported vars win (the
+    documented precedence puts ambient env first), so CI/manual overrides still take
+    precedence. No-op if .env is absent."""
+    p = Path(path)
+    if not p.exists():
+        return
+    for raw in p.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key, val = key.strip(), val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
+            val = val[1:-1]  # strip matching surrounding quotes
+        if key:
+            os.environ.setdefault(key, val)  # ambient export wins over the file
 
 
 def generate_seed():

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import argparse
 
-from . import apply, backup, bootstrap, info, restore, spec, status, upgrade, users
+from . import apply, backup, bootstrap, config, info, restore, spec, status, upgrade, users
 from .errors import SuiteError
 
 
@@ -87,6 +87,7 @@ def build_parser():
 
 
 def main(argv=None):
+    config.load_env_file()  # so the operator never has to `source .env` first
     args = build_parser().parse_args(argv)
     handlers = {
         "init": spec.run_init,
