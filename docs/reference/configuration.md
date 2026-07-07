@@ -76,7 +76,8 @@ Full guide: [Backups & restore](../operate/backups.md).
 | `backup.schedule` | `0 2 * * *` | CNPG base-backup cron (5-field). WAL archiving is continuous. |
 | `backup.retention` | `30d` | Barman recovery-window retention (PITR window). |
 | `backup.target` | `in-cluster` | `external` (production — a **different** account/provider than the primary) or `in-cluster` (CI/hermetic). |
-| `backup.endpoint` | _(empty)_ | Off-site S3 endpoint. **Set it to bring your own off-site store** (real DR, ADR-006). Left empty on Scaleway, apply provisions a bucket in another region (`nl-ams`) under the *same* account — fine for the restore drill, not a substitute for a separate account. |
+| `backup.provision` | _(true if `provider` set)_ | Whether the CLI/Terraform **provisions** the off-site bucket. `true` (Scaleway default) mints a bucket in `nl-ams` under the *same* account — fine for the restore drill, not a substitute for a separate account. `false` = **bring your own** store, already existing elsewhere (real DR, ADR-006); the CLI never touches it. Decoupled from `endpoint` (issue #86), so you can set the endpoint either way. |
+| `backup.endpoint` | _(empty)_ | Off-site S3 endpoint. Valid with any `provision` value — describes *where* the store lives, not who owns it. When provisioned on Scaleway and left empty, apply derives it from `region`. |
 | `backup.region` | `eu-west` | Off-site S3 region. |
 | `backup.bucket` | `ownsuite-backups` | Off-site backups bucket. |
 

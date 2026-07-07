@@ -49,6 +49,9 @@ SECTION_VARS = {
     ("backup", "bucket"): "OWNSUITE_BACKUP_S3_BUCKET",
     ("postgres", "storage"): "OWNSUITE_PG_STORAGE",
 }
+# Section keys that are valid in suite.yaml but not helmfile env vars (so absent
+# from SECTION_VARS). `backup.provision` is a Terraform-only toggle (see tfvars_for).
+NON_ENV_KEYS = {"backup": {"provision"}}
 CHOICES = {
     ("tls",): TLS_MODES,
     ("provider",): PROVIDERS,
@@ -170,6 +173,7 @@ def _validate(data, p):
         if not isinstance(sec, dict):
             bad(f"`{section}` must be a mapping")
         valid = {key for (s, key) in SECTION_VARS if s == section}
+        valid |= NON_ENV_KEYS.get(section, set())
         unknown = set(sec) - valid
         if unknown:
             bad(f"{section}: unknown key(s) {', '.join(sorted(unknown))} "
@@ -246,11 +250,15 @@ def tfvars_for(spec: Spec) -> dict:
                 buckets.append(_env_str(spec.app_options(name).get("s3_bucket", opt[1])))
     backup = spec.section("backup")
     # A backup bucket is provisioned only when off-site backups are on, external,
-    # and no endpoint is given (an endpoint set = bring-your-own store, ADR-006).
+    # and `backup.provision` is true. Provisioning is decoupled from endpoint
+    # presence (issue #86): endpoint/region say *where* the store lives regardless
+    # of who owns it. `provision` defaults to whether a provider is set (a provider
+    # can mint the bucket); `provision: false` is the BYO/real-DR path (ADR-006).
+    provision = _env_str(backup.get("provision", spec.provider is not None)) == "true"
     provision_backup = (
         _env_str(backup.get("enabled", False)) == "true"
         and backup.get("target") == "external"
-        and not backup.get("endpoint")
+        and provision
     )
     turn = _env_str(spec.app_options("meet").get("turn", False)) == "true"
     return {
