@@ -1,0 +1,79 @@
+# suite.yaml — the single human-owned description of your OwnSuite (ADR-042).
+#
+# Copy to `suite.yaml` (git-ignored), edit, then:
+#
+#   suite plan     # preview what would change (infra, apps, DNS)
+#   suite apply    # make it real: provision -> bootstrap -> DNS -> deploy -> URLs
+#
+# Or let `suite init` write this file for you interactively. Everything the file
+# omits keeps its documented default (docs/reference/configuration.md).
+#
+# SECRETS NEVER GO HERE. The seed stays exported (generate: openssl rand -hex 24;
+# `suite apply` offers to generate one on first run and shows it once):
+#
+#   export OWNSUITE_SECRET_SEED=...
+#
+# Provider-minted credentials (S3 keys, relay account) are written by apply to the
+# machine state file `.suite-state.json` (git-ignored) — never edit either by hand.
+
+# Cloud provider for `suite apply` to provision the server + buckets with
+# Terraform: scaleway (recommended, ADR-038) or infomaniak. OMIT the key entirely
+# to bring your own Debian server (then set server.ssh below).
+provider: scaleway
+
+# Base domain. Each component is exposed at <name>.<domain> (e.g. auth.<domain>).
+domain: assoc.example.org
+
+# Contact address for app admin accounts and ACME registration.
+admin_email: admin@assoc.example.org
+
+# TLS certificates (ADR-013/019): prod (Let's Encrypt, staging-then-prod ladder on
+# first issuance), staging (LE staging only — untrusted leaf, high rate limits),
+# selfsigned (local/dev/CI — also skips the DNS step).
+tls: prod
+
+# Bring-your-own server only: the SSH target apply bootstraps and tunnels through.
+# When `provider` is set, provisioning stores the target in the machine state.
+# server: {ssh: root@203.0.113.10}
+
+# Object storage for app media (ADR-003): external (managed EU S3, config-only)
+# or garage (in-cluster single-node Garage — ADR-015).
+object_storage:
+  mode: external
+  # endpoint: https://s3.fr-par.scw.cloud   # external mode; filled by provisioning
+  # region: fr-par
+
+# Backups & tested restore (ADR-006/017) — off-site by construction: the target
+# must survive losing the server. `suite apply` snapshots before every change and
+# `suite backup` takes one on demand.
+backup:
+  enabled: true
+  target: external          # external (prod) | in-cluster (CI/hermetic)
+  # schedule: "0 2 * * *"   # CNPG base-backup cron; WAL archiving is continuous
+  # retention: 30d          # PITR window
+  # bucket: ownsuite-backups
+  # endpoint:               # SET THIS to bring your own off-site store (different
+  #                         # provider/account — real DR, ADR-006). Left empty on
+  #                         # Scaleway, apply provisions a bucket in another region
+  #                         # (nl-ams) under the SAME account: fine for the restore
+  #                         # drill, not a substitute for a separate account.
+  # region: eu-west
+
+# PostgreSQL volume size.
+# postgres: {storage: 10Gi}
+
+# Apps — presence enables, absence disables (ADR-035: everything off by default).
+# Remove a line and `suite apply` uninstalls the app; its data (database, files,
+# buckets) is KEPT. Options are optional — `docs: {}` is a complete entry.
+apps:
+  docs: {}                  # collaborative documents
+  drive: {}                 # file storage
+  # grist: {}               # spreadsheets  (options: storage, org, sandbox)
+  # projects: {}            # kanban
+  # tchap: {}               # Matrix/Element chat  (options: s3_bucket)
+  # meet:                   # video conferencing — apply opens its media ports
+  #   turn: false           # TURN on 5349/tcp for clients behind strict firewalls
+  # messages:               # mailbox — needs relay + extra DNS (ADR-026); export
+  #   relay_host: mail.infomaniak.com:587   # OWNSUITE_MTA_RELAY_USERNAME/PASSWORD
+  #   spf_include: spf.infomaniak.ch
+  #   dkim_selector: ownsuite

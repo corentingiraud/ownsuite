@@ -8,10 +8,13 @@ the process env for the run; on re-run the operator re-exports it). Non-secret
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
+import sys
 from pathlib import Path
 
 from . import manifest
+from .errors import SuiteError
 
 # Free-text fields (env key, prompt, default). SSH may be left blank — `provision`
 # or the bootstrap can fill it. Advanced knobs stay in .env / the Helmfile defaults.
@@ -46,6 +49,70 @@ def derive_secret(seed, secret_id, length=32):
     nothing secret read from the cluster.
     """
     return hashlib.sha256(f"{seed}:{secret_id}".encode()).hexdigest()[:length]
+
+
+def seed_fingerprint(seed):
+    """Non-reversible check value stored in the machine state: lets a later run
+    refuse a WRONG seed (which would silently re-derive — i.e. rotate — every
+    credential) without ever persisting the seed itself (ADR-012)."""
+    return hashlib.sha256(seed.encode()).hexdigest()[:12]
+
+
+def require_seed(st, *, interactive=None):
+    """Return the secret seed, prompting instead of failing mid-run (issue #82).
+
+    Exported OWNSUITE_SECRET_SEED wins. Otherwise, interactively: offer to
+    generate one on a genuinely new deployment (no fingerprint in the state yet),
+    else prompt for a paste. Non-interactive (CI) without an export is a hard
+    error. Whatever seed is used is validated against the state fingerprint and
+    exported to os.environ for every subprocess this run spawns.
+    """
+    if interactive is None:
+        interactive = sys.stdin.isatty()
+    seed = (os.environ.get("OWNSUITE_SECRET_SEED") or "").strip()
+    if not seed:
+        if not interactive:
+            raise SuiteError(
+                "OWNSUITE_SECRET_SEED must be exported — every credential derives "
+                "from it and it is never stored (ADR-012)."
+            )
+        from . import prompt  # local import: questionary only needed interactively
+
+        if not st.get("seed_check") and prompt.confirm(
+            "No OWNSUITE_SECRET_SEED exported. Generate a NEW seed (first "
+            "deployment only — a wrong answer rotates every credential)?",
+            default=False,
+        ):
+            seed = generate_seed()
+            seed_banner(seed)
+        else:
+            seed = prompt.password("Paste OWNSUITE_SECRET_SEED (from your password manager)")
+        if not seed:
+            raise SuiteError("no seed provided — aborting (ADR-012).")
+    check = seed_fingerprint(seed)
+    known = st.get("seed_check")
+    if known and known != check:
+        raise SuiteError(
+            "this OWNSUITE_SECRET_SEED is NOT the seed this deployment was created "
+            "with — applying would silently rotate every derived credential "
+            "(Keycloak admin, DB passwords, S3 keys). Export the original seed, or "
+            "delete .suite-state.json if the rotation is intentional."
+        )
+    st["seed_check"] = check  # callers persist the state after a successful run
+    os.environ["OWNSUITE_SECRET_SEED"] = seed
+    return seed
+
+
+def seed_banner(seed):
+    print(
+        "\n" + "=" * 70 + "\n"
+        "SECRET SEED — store this in your password manager NOW. It is shown once\n"
+        "and is NEVER written to the repo. Every credential derives from it; lose\n"
+        "it and you must rotate everything (ADR-012).\n\n"
+        f"  OWNSUITE_SECRET_SEED={seed}\n\n"
+        "Re-run with it exported (export OWNSUITE_SECRET_SEED=...) to resume.\n"
+        + "=" * 70
+    )
 
 
 def load_env(path):
