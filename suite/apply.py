@@ -257,7 +257,8 @@ def _live_issuer():
 def _helm_list():
     """{release: status} in the workloads namespace, or None when the cluster is
     not reachable (fresh server / nothing bootstrapped yet)."""
-    proc = run(["helm", "-n", NS, "list", "-a", "-o", "json"],
+    # helm v4 dropped `-a`/`--all`; `list` already reports every status by default.
+    proc = run(["helm", "-n", NS, "list", "-o", "json"],
                capture=True, check=False, step="helm list")
     if proc.returncode != 0:
         return None

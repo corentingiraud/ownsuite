@@ -44,7 +44,8 @@ def run_apps(args):
     process.preflight(["kubectl", "helm"], ssh=ctx.ssh, no_tunnel=args.no_tunnel)
     enabled = set(ctx.spec.enabled_apps())
     with tunnel.maybe(ctx.ssh, no_tunnel=args.no_tunnel):
-        proc = run(["helm", "-n", NS, "list", "-a", "-o", "json"],
+        # helm v4 dropped `-a`/`--all`; `list` already reports every status by default.
+        proc = run(["helm", "-n", NS, "list", "-o", "json"],
                    capture=True, check=False, step="helm list")
         installed = set()
         if proc.returncode == 0:
