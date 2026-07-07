@@ -103,7 +103,9 @@ def resolve_issuer():
 def _show_diff(env, selector=()):
     print("\n==> Pending changes (helmfile diff):\n")
     # helmfile diff exits non-zero (2) when there ARE changes; that is not a failure.
-    run(["helmfile", "-f", HELMFILE, "diff", *selector], env=env, check=False)
+    # --context 3 trims unchanged YAML around each hunk (helm-diff defaults to full context),
+    # keeping the same 3-line convention as unified diffs.
+    run(["helmfile", "-f", HELMFILE, "diff", "--context", "3", *selector], env=env, check=False)
 
 
 def _confirm():
