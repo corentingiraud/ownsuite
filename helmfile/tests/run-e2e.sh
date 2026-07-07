@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# Full platform + installer + backup/restore definition-of-done on a throwaway k3d
+# Full platform + apply + backup/restore definition-of-done on a throwaway k3d
 # cluster:
-#   create single-node K3s (Traefik kept) -> `suite install` brings the stack up
-#   (self-signed issuer, backups ON to a second in-cluster Garage as the off-site
-#   store) -> assert the shared infra DoD + provision a user via the `suite user` CLI
-#   -> seed a media object -> back up (PostgreSQL base backup + off-site object copy)
-#   -> DESTROY the primary state -> `make restore` -> assert all THREE storage classes
-#   SURVIVED (ADR-006): the Keycloak user (Postgres PITR), the media object (rclone
-#   object-copy, ADR-030) and a PVC document (pvc_backup_roundtrip, ADR-032) -> destroy.
+#   create single-node K3s (Traefik kept) -> `suite apply` brings the stack up from
+#   a generated suite.yaml (self-signed issuer, backups ON to a second in-cluster
+#   Garage as the off-site store) -> assert the shared infra DoD + provision a user
+#   via the `suite user` CLI -> seed a media object -> back up (PostgreSQL base
+#   backup + off-site object copy) -> DESTROY the primary state -> `make restore`
+#   -> assert all THREE storage classes SURVIVED (ADR-006): the Keycloak user
+#   (Postgres PITR), the media object (rclone object-copy, ADR-030) and a PVC
+#   document (pvc_backup_roundtrip, ADR-032) -> destroy.
 #
 # This asserts NO application: each app's boot DoD lives in apps-e2e.yml / test_apps.py.
 # Docs is the one app kept enabled here, SOLELY to provide a primary object bucket for
 # the object-copy survival check (Garage only creates buckets for enabled apps) — a
 # restore fixture, not an app DoD.
 #
-# Provisioning goes through the installer (ADR-018), so this ONE cluster proves the
-# `suite install` orchestration AND the platform/restore DoD — there is no second
-# from-scratch build (the old run-install-e2e.sh is folded in here).
+# Provisioning goes through `suite apply` (ADR-042), so this ONE cluster proves the
+# declarative orchestration AND the platform/restore DoD — there is no second
+# from-scratch build.
 #
 # Heavy (pulls operators + Keycloak + runs a recovery); runs in helmfile-e2e.yml
 # (scheduled + on helmfile changes) and locally via `make test-platform`.
@@ -64,6 +65,20 @@ export OWNSUITE_E2E_USER_PW="${OWNSUITE_E2E_USER_PW:-$(openssl rand -hex 16)}"
 export OWNSUITE_BACKUP_ENABLED="${OWNSUITE_BACKUP_ENABLED:-true}"
 export OWNSUITE_BACKUP_S3_TARGET="${OWNSUITE_BACKUP_S3_TARGET:-in-cluster}"
 DOCS_BUCKET="${OWNSUITE_S3_BUCKET:-docs-media-storage}"
+
+# The declarative input for `suite apply` (ADR-042), in a temp dir so a developer's
+# real suite.yaml/.suite-state.json are never touched. The exported OWNSUITE_* above
+# still win for scalar values (ambient env > suite.yaml); the APP SET comes from
+# this file only. The raw-helmfile destroy/restore steps below read the env directly.
+export OWNSUITE_CONFIG="$(mktemp -d)/suite.yaml"
+cat > "$OWNSUITE_CONFIG" <<EOF
+domain: ${OWNSUITE_DOMAIN}
+tls: selfsigned
+object_storage: {mode: garage}
+backup: {enabled: true, target: in-cluster}
+apps:
+  docs: {}
+EOF
 # rclone image (pinned), reused by the seed/verify helper Jobs below.
 RCLONE_IMAGE="rclone/rclone:$(sed -nE 's/^[[:space:]]*rclone:[[:space:]]*"([^"]+)".*/\1/p' helmfile/versions/versions.yaml | head -1)"
 MEDIA_FIXTURE="e2e/media-fixture.txt"
@@ -127,22 +142,22 @@ k3d cluster create "$CLUSTER" \
 KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
 export KUBECONFIG
 
-# The installer verifies HTTPS for auth.{domain} + each ENABLED app (ADR-035) with
+# apply verifies HTTPS for auth.{domain} + each ENABLED app (ADR-035) with
 # Python's TLS stack (urllib honours /etc/hosts); point auth + the one enabled app
 # (docs, kept only as the object-bucket vehicle) at the k3d loadbalancer so that step
 # runs hermetically. The pytest below resolves per-request with `curl --resolve`.
 echo "127.0.0.1 auth.${OWNSUITE_DOMAIN} docs.${OWNSUITE_DOMAIN}" | sudo tee -a /etc/hosts >/dev/null
 
-# --- Bring the stack up VIA THE INSTALLER and assert the platform DoD ----------
-# `suite install` (ADR-018) is the provisioning path, so this single e2e proves the
-# installer orchestration AND the platform/restore DoD on one cluster. The installer
-# reads OWNSUITE_SECRET_SEED from the environment and inherits the exported OWNSUITE_*
-# (backups on, garage, direct grants) through `helmfile sync`; in self-signed mode it
-# syncs once, waits for the keycloak/docs certs, verifies HTTPS.
+# --- Bring the stack up VIA `suite apply` and assert the platform DoD ----------
+# `suite apply` (ADR-042) is the provisioning path, so this single e2e proves the
+# declarative orchestration AND the platform/restore DoD on one cluster. apply reads
+# the suite.yaml above (no provider/ssh -> ambient k3d cluster, selfsigned -> no
+# DNS), inherits the exported CI knobs (direct grants) through the env, applies once
+# with the pinned issuer, waits for the keycloak/docs certs, verifies HTTPS. --yes:
+# no TTY here — apply must never block on a confirmation. Idempotent, so the
+# watchdog's one retry re-applies safely (the snapshot skips itself mid-bring-up).
 provision_with_watchdog "domain=$OWNSUITE_DOMAIN, issuer=$OWNSUITE_TLS_ISSUER, backups=on" \
-  python3 -m suite install \
-    --non-interactive --no-tunnel --skip-bootstrap --skip-dns --skip-propagation \
-    --tls-mode selfsigned --domain "$OWNSUITE_DOMAIN" --env-file "$(mktemp)"
+  python3 -m suite apply --yes --no-tunnel
 wait_for_certs keycloak-tls docs-tls
 
 echo "==> Provisioning the restore-survivor user through the suite CLI"
@@ -217,8 +232,8 @@ kubectl -n "$NS" get statefulset,cluster 2>/dev/null || true
 echo "==> RESTORING from off-site backups (make restore)"
 # Docs stays enabled through the restore so Garage recreates the primary bucket and the
 # object-copy can land the media fixture back in it. Restore is a direct `helmfile sync`
-# (recovery bootstrap), NOT the installer — only the initial provisioning goes through
-# `suite install` (above).
+# (recovery bootstrap, the low-level path `suite restore` wraps) — only the initial
+# provisioning goes through `suite apply` (above).
 OWNSUITE_RESTORE=true provision_with_watchdog "RESTORE: CNPG recovery + object copy" \
   helmfile -f "$HELMFILE" sync
 wait_for_certs keycloak-tls docs-tls
