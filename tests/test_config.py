@@ -30,6 +30,9 @@ def test_load_env_file(tmp_path, monkeypatch):
         "OWNSUITE_ALREADY=from_file\n"
     )
     monkeypatch.chdir(tmp_path)
+    # load_env_file writes os.environ directly (setdefault); monkeypatch can't undo
+    # that, so isolate on a throwaway copy or SCWKEY leaks into later tests.
+    monkeypatch.setattr(os, "environ", dict(os.environ))
     monkeypatch.delenv("OWNSUITE_S3_ACCESS_KEY", raising=False)
     monkeypatch.setenv("OWNSUITE_ALREADY", "from_env")  # ambient must win
     config.load_env_file()
