@@ -52,11 +52,14 @@ backup:
   # schedule: "0 2 * * *"   # CNPG base-backup cron; WAL archiving is continuous
   # retention: 30d          # PITR window
   # bucket: ownsuite-backups
-  # endpoint:               # SET THIS to bring your own off-site store (different
-  #                         # provider/account — real DR, ADR-006). Left empty on
-  #                         # Scaleway, apply provisions a bucket in another region
-  #                         # (nl-ams) under the SAME account: fine for the restore
-  #                         # drill, not a substitute for a separate account.
+  # provision: true         # Who owns the bucket. Defaults to true when a provider
+  #                         # is set: Terraform mints a bucket in another region
+  #                         # (nl-ams) under the SAME account — fine for the restore
+  #                         # drill, not a substitute for a separate account. Set
+  #                         # `provision: false` to bring your own off-site store
+  #                         # (different provider/account — real DR, ADR-006).
+  # endpoint:               # Off-site S3 endpoint — valid with any provision value;
+  #                         # describes where the store lives, not who owns it.
   # region: eu-west
 
 # PostgreSQL volume size.

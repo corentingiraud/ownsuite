@@ -136,7 +136,7 @@ def test_issuer_by_tls():
 
 def test_tfvars_app_flags_and_buckets():
     sp = spec.Spec({
-        "domain": "x.org", "tls": "prod",
+        "domain": "x.org", "tls": "prod", "provider": "scaleway",
         "backup": {"enabled": True, "target": "external"},
         "apps": {"docs": {}, "meet": {"turn": True}, "messages": {},
                  "tchap": {"s3_bucket": "custom-tchap"}},
@@ -168,11 +168,31 @@ def test_tfvars_garage_mode_has_no_buckets():
     assert spec.tfvars_for(sp)["bucket_names"] == []
 
 
-def test_tfvars_byo_backup_store_not_provisioned():
-    # An endpoint set = bring-your-own off-site store (ADR-006): no bucket minted.
-    sp = spec.Spec({"domain": "x.org", "tls": "prod",
+def test_tfvars_endpoint_alone_still_provisions():
+    # issue #86: setting endpoint/region no longer disables provisioning — the
+    # bucket is still Terraform-owned (provision defaults on with a provider).
+    sp = spec.Spec({"domain": "x.org", "tls": "prod", "provider": "scaleway",
                     "backup": {"enabled": True, "target": "external",
+                               "endpoint": "https://s3.nl-ams.scw.cloud",
+                               "region": "nl-ams", "bucket": "own-backups"},
+                    "apps": {}}, P)
+    assert spec.tfvars_for(sp)["backup_bucket_name"] == "own-backups"
+
+
+def test_tfvars_byo_backup_store_not_provisioned():
+    # BYO/real-DR off-site store (ADR-006): provision: false → no bucket minted.
+    sp = spec.Spec({"domain": "x.org", "tls": "prod", "provider": "scaleway",
+                    "backup": {"enabled": True, "target": "external",
+                               "provision": False,
                                "endpoint": "https://elsewhere.example"},
+                    "apps": {}}, P)
+    assert spec.tfvars_for(sp)["backup_bucket_name"] == ""
+
+
+def test_tfvars_no_provider_defaults_provision_off():
+    # No provider = no cloud to mint the bucket; default provision off (BYO server).
+    sp = spec.Spec({"domain": "x.org", "tls": "prod",
+                    "backup": {"enabled": True, "target": "external"},
                     "apps": {}}, P)
     assert spec.tfvars_for(sp)["backup_bucket_name"] == ""
 

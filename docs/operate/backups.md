@@ -22,12 +22,24 @@ Set `backup.target` in `suite.yaml`:
 - **`in-cluster`** (CI / hermetic) — a **second in-cluster Garage** (`garage-backup`) with its
   own volume and bucket, deployed automatically. Used by the e2e; not for production DR.
 
+### Who owns the bucket: `backup.provision`
+
+`backup.provision` decides whether the CLI/Terraform **provisions** the off-site bucket,
+independently of where it lives (`endpoint`/`region` describe the store regardless of owner):
+
+- **`provision: true`** — Terraform owns the bucket. Default when a `provider` is set. You can
+  now set `endpoint`/`region`/`bucket` alongside it (e.g. the `nl-ams` default) without turning
+  provisioning off.
+- **`provision: false`** — the bucket already exists elsewhere (a separate account/provider,
+  the real-DR case in ADR-006); the CLI never touches it. Default when no `provider` is set.
+
 !!! note "Provisioned by `suite apply`"
-    On Scaleway with `backup.endpoint` left empty, `suite apply` provisions the backup
-    bucket for you (in `nl-ams` — off the `fr-par` primary) and **reuses the workload S3
-    key** (same project → not account-isolated, but it survives losing the server, which
-    is what the restore drill tests). **Prod DR** wants a separate account/provider: set
-    `backup.endpoint` to that account's S3 and override the keys (below).
+    On Scaleway with `backup.provision: true` (the default when a provider is set), `suite apply`
+    provisions the backup bucket for you (in `nl-ams` — off the `fr-par` primary) and **reuses
+    the workload S3 key** (same project → not account-isolated, but it survives losing the server,
+    which is what the restore drill tests). **Prod DR** wants a separate account/provider: set
+    `backup.provision: false`, point `backup.endpoint` at that account's S3 and override the keys
+    (below).
 
 ### Credentials
 
@@ -58,6 +70,7 @@ backup:
   schedule: "0 2 * * *"        # CNPG base-backup cron; WAL archiving is continuous
   retention: 30d               # Barman recovery window (PITR)
   target: external
+  provision: true              # CLI/Terraform owns the bucket (default with a provider); false = BYO store
   endpoint: https://s3.example-eu.com
   region: eu-west
   bucket: ownsuite-backups
