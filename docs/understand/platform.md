@@ -52,9 +52,11 @@ helmfile/
   tests/                      # end-to-end checks (platform, per-app, PVC backup/restore)
 ```
 
-There is no `.env` (and no `.env.example`): the human input is `suite.yaml`, the machine
-state is `.suite-state.json`, and the only thing left in the environment is the secret
-seed (plus optional CI overrides).
+Nothing secret is committed: the human input is `suite.yaml`, the machine state is
+`.suite-state.json`, and the environment carries the secret seed plus any external
+credentials (S3 / backup / relay keys). A git-ignored **`.env`** in the repo root is
+**auto-loaded at CLI startup**, so those exports persist between `suite` commands without
+`source .env` — an already-exported variable still wins over the file.
 
 ## Secrets — one seed, nothing committed
 

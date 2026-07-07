@@ -73,8 +73,8 @@ export OWNSUITE_SECRET_SEED=...        # from your password manager
 ## `suite init`
 
 Interactive questionnaire → writes `suite.yaml`: domain, admin email, where the server
-comes from (Scaleway / Infomaniak / bring-your-own), TLS mode, object storage, backups,
-and which apps to enable. Refuses to overwrite an existing file — from then on you edit
+comes from (Scaleway or bring-your-own), TLS mode, object storage, backups, and which apps
+to enable. Refuses to overwrite an existing file — from then on you edit
 `suite.yaml` directly. In CI, skip init and write the file yourself (see
 [suite.yaml.example](https://github.com/corentingiraud/ownsuite/blob/main/suite.yaml.example)).
 

@@ -87,12 +87,12 @@ plugins:
         Overview:
           - index.md: Project overview and product vision.
         Get started:
-          - get-started/provision.md: The Terraform layer `suite apply` runs when a provider is set — server, buckets and firewall on Scaleway (recommended) or Infomaniak — and how to bring your own server.
-          - get-started/bootstrap.md: The Ansible bootstrap phase of `suite apply` — bare Debian server into a single-node K3s cluster.
-          - get-started/install.md: The install guide — suite init writes suite.yaml, suite plan previews, suite apply takes a bare server + domain to all-in-HTTPS.
+          - get-started/install.md: The guided install — suite init writes suite.yaml, suite plan previews, suite apply takes a bare server + domain to all-in-HTTPS (provision → bootstrap → DNS → deploy).
+          - operate/sizing.md: Server sizing — minimum and recommended VPS specs (RAM/CPU/disk) per enabled app; decide before provisioning.
+          - get-started/provision.md: The Terraform phase `suite apply` runs when a provider is set — server, buckets and firewall on Scaleway — and how to bring your own server.
+          - get-started/bootstrap.md: The Ansible phase of `suite apply` — bare Debian server into a single-node K3s cluster; not a command you run directly.
         Operate:
           - operate/users.md: User provisioning with the `suite user` CLI (one Keycloak identity, JIT to all apps).
-          - operate/sizing.md: Server sizing — minimum and recommended VPS specs (RAM/CPU/disk) per enabled app.
           - operate/status.md: Health monitoring with `suite status` (node, database, certificates, backups, per-app pods).
           - operate/upgrade.md: Safe upgrades with `suite upgrade` (backup-gated snapshot, diff, apply, health check, auto rollback).
           - operate/backups.md: Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
@@ -117,12 +117,12 @@ plugins:
 nav:
   - Home: index.md
   - Get started:
+      - Install: get-started/install.md
+      - Server sizing: operate/sizing.md
       - Provisioning (Terraform): get-started/provision.md
       - Bootstrap (Ansible): get-started/bootstrap.md
-      - Install: get-started/install.md
   - Operate:
       - Users: operate/users.md
-      - Server sizing: operate/sizing.md
       - Status & monitoring: operate/status.md
       - Upgrading: operate/upgrade.md
       - Backups & restore: operate/backups.md

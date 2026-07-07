@@ -7,7 +7,7 @@ template ships as
 [`suite.yaml.example`](https://github.com/corentingiraud/ownsuite/blob/main/suite.yaml.example).
 
 ```yaml
-provider: scaleway            # scaleway | infomaniak | omit = bring-your-own server
+provider: scaleway            # scaleway | omit = bring-your-own server
 domain: assoc.example.org
 admin_email: admin@assoc.example.org
 tls: prod                     # selfsigned | staging | prod
@@ -39,7 +39,7 @@ Anything `suite.yaml` omits keeps its documented default below.
 
 | Key | Default | Purpose |
 |---|---|---|
-| `provider` | _(unset = bring-your-own)_ | `scaleway` (recommended, ADR-038) or `infomaniak`. When set, `suite apply` provisions the server, buckets and firewall with Terraform. |
+| `provider` | _(unset = bring-your-own)_ | `scaleway` — the documented, tested provider (ADR-038). When set, `suite apply` provisions the server, buckets and firewall with Terraform. (An experimental `infomaniak` module also ships in-tree — see [Provisioning](../get-started/provision.md#adding-another-cloud-provider).) |
 | `domain` | _(required)_ | Base domain. Each component is exposed at `<name>.<domain>` (e.g. `auth.<domain>`, `docs.<domain>`). |
 | `admin_email` | `admin@<domain>` | Contact address for app admin accounts and ACME registration. |
 | `tls` | _(required)_ | `prod` (Let's Encrypt, staging→production ladder on first issuance — ADR-019), `staging` (untrusted leaf, high rate limits), or `selfsigned` (CI/local; skips the DNS step). |
@@ -52,17 +52,17 @@ Pluggable (ADR-003): `external` (a managed EU S3 — files live off the box) or 
 in external mode, `suite apply` creates the buckets for your enabled apps; in `garage`
 mode Garage creates them in-cluster.
 
-!!! tip "`external` on Scaleway, `garage` on Infomaniak"
+!!! tip "`external` needs a CORS-capable S3"
     `external` mode needs an S3 endpoint that can serve **CORS** for Drive's browser
     uploads. **Scaleway** (recommended) and other CORS-capable RGW providers (AWS, OVH)
-    support it. **Infomaniak's** Swift+s3api endpoint cannot, so use `garage` there (it
-    proxies media same-origin).
+    support it. On an endpoint that can't (e.g. some OpenStack Swift `s3api` layers), use
+    `garage` instead — it proxies media same-origin.
 
 | Key | Default | Purpose |
 |---|---|---|
 | `object_storage.mode` | `external` | `external` (managed S3) or `garage` (in-cluster). |
 | `object_storage.endpoint` | _(from provisioning)_ | External S3 endpoint URL. |
-| `object_storage.region` | `eu-west` | S3 region (Scaleway: `fr-par`; Infomaniak reports `us-east-1`). |
+| `object_storage.region` | `eu-west` | S3 region (Scaleway: `fr-par`). |
 
 ## Backups & restore
 
