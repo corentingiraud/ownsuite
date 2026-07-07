@@ -5,6 +5,7 @@ rollback-on-health-failure branch are exercised without a live cluster."""
 from types import SimpleNamespace
 
 import pytest
+from conftest import make_ctx
 
 from suite import upgrade
 from suite.errors import SuiteError
@@ -12,87 +13,82 @@ from suite.errors import SuiteError
 
 def _args(**kw):
     return SimpleNamespace(
-        env_file=kw.get("env_file", ".env"),
-        ssh=kw.get("ssh"),
-        no_tunnel=kw.get("no_tunnel", True),  # no tunnel in tests
-        yes=kw.get("yes", True),              # non-interactive
+        no_tunnel=True,               # no tunnel in tests
+        yes=kw.get("yes", True),      # non-interactive
     )
 
 
-def _patch_common(monkeypatch, *, calls, cfg, health_failed):
-    """Record every `run(argv)` into `calls`; stub config/seed/preflight/health."""
-    monkeypatch.setenv("OWNSUITE_SECRET_SEED", "seed")
-    monkeypatch.setattr(upgrade.config, "load_env", lambda p: dict(cfg))
-    monkeypatch.setattr(upgrade, "_preflight", lambda *a, **k: None)
+def _patch_common(monkeypatch, *, calls, ctx, health_failed=()):
+    """Record every `run(argv)` into `calls`; stub spec/seed/preflight/health."""
+    monkeypatch.setattr(upgrade.spec, "load_context", lambda: ctx)
+    monkeypatch.setattr(upgrade.config, "require_seed", lambda st, **kw: "seed")
+    monkeypatch.setattr(upgrade.process, "preflight", lambda *a, **kw: None)
     monkeypatch.setattr(upgrade, "resolve_issuer", lambda: "letsencrypt-http01")
+    monkeypatch.setattr(upgrade.backup, "snapshot",
+                        lambda: calls.append(["snapshot"]) or ("pg", "job"))
+    monkeypatch.setattr(upgrade.state, "save", lambda st: None)
     monkeypatch.setattr(upgrade, "run", lambda argv, **kw: calls.append(list(argv)))
-    monkeypatch.setattr(upgrade, "_health_check", lambda domain, enabled: list(health_failed))
-
-
-BASE_CFG = {"OWNSUITE_DOMAIN": "assoc.org", "OWNSUITE_BACKUP_ENABLED": "true"}
+    monkeypatch.setattr(upgrade.steps, "verify_https",
+                        lambda domain, enabled, trusted: list(health_failed))
 
 
 def test_refuses_when_backups_disabled(monkeypatch):
     calls = []
-    cfg = {**BASE_CFG, "OWNSUITE_BACKUP_ENABLED": "false"}
-    monkeypatch.delenv("OWNSUITE_BACKUP_ENABLED", raising=False)
-    _patch_common(monkeypatch, calls=calls, cfg=cfg, health_failed=[])
+    ctx = make_ctx(view={"OWNSUITE_BACKUP_ENABLED": "false"})
+    _patch_common(monkeypatch, calls=calls, ctx=ctx)
     with pytest.raises(SuiteError, match="backups are disabled"):
         upgrade.run_upgrade(_args())
     # Gate fires before any snapshot/apply — nothing was run.
     assert calls == []
 
 
-def test_requires_seed(monkeypatch):
-    monkeypatch.delenv("OWNSUITE_SECRET_SEED", raising=False)
-    monkeypatch.setattr(upgrade.config, "load_env", lambda p: dict(BASE_CFG))
-    with pytest.raises(SuiteError, match="OWNSUITE_SECRET_SEED"):
+def test_refuses_when_backup_machinery_missing(monkeypatch):
+    calls = []
+    ctx = make_ctx()
+    _patch_common(monkeypatch, calls=calls, ctx=ctx)
+    monkeypatch.setattr(upgrade.backup, "snapshot", lambda: None)
+    with pytest.raises(SuiteError, match="machinery is not installed"):
         upgrade.run_upgrade(_args())
 
 
 def test_happy_path_snapshots_then_applies(monkeypatch):
     calls = []
-    _patch_common(monkeypatch, calls=calls, cfg=BASE_CFG, health_failed=[])
+    _patch_common(monkeypatch, calls=calls, ctx=make_ctx())
     upgrade.run_upgrade(_args())
-    # snapshot (make backup) happens before helmfile apply; no rollback on success.
-    assert ["make", "helmfile", "helmfile"] == [c[0] for c in calls]
-    assert calls[0] == ["make", "backup"]
+    # snapshot happens before helmfile diff/apply; no rollback on success.
+    assert [c[0] for c in calls] == ["snapshot", "helmfile", "helmfile"]
     assert calls[1][:3] == ["helmfile", "-f", upgrade.HELMFILE] and calls[1][-1] == "diff"
     assert calls[2][-1] == "apply"
     assert not any("rollback" in c for c in calls)
 
 
-def test_rolls_back_affected_release_on_health_failure(monkeypatch):
+def test_rolls_back_every_release_of_a_failed_app(monkeypatch):
+    """The old RELEASE_BY_HOST map was missing meet/tchap entirely and knew only
+    one release per app — a broken meet upgrade was never rolled back. The
+    manifest fixes both: every release of the failed app rolls back."""
     calls = []
-    cfg = {**BASE_CFG, "OWNSUITE_APP_GRIST": "true"}
-    _patch_common(monkeypatch, calls=calls, cfg=cfg, health_failed=["docs", "auth"])
+    ctx = make_ctx(apps=("meet", "tchap"))
+    _patch_common(monkeypatch, calls=calls, ctx=ctx,
+                  health_failed=["meet", "auth"])
     with pytest.raises(SuiteError, match="rolled back"):
         upgrade.run_upgrade(_args())
-    rollbacks = [c for c in calls if "rollback" in c]
-    # docs -> release "docs", auth -> release "keycloak"
-    assert ["helm", "-n", upgrade.NS, "rollback", "docs"] in rollbacks
-    assert ["helm", "-n", upgrade.NS, "rollback", "keycloak"] in rollbacks
-
-
-def test_health_check_targets_keycloak_plus_enabled_apps(monkeypatch):
-    seen = {}
-    monkeypatch.setattr(upgrade.verify, "https_ok", lambda url, **kw: seen.setdefault(url, True))
-    failed = upgrade._health_check("assoc.org", ["docs", "drive"])
-    assert failed == []
-    assert "https://auth.assoc.org/realms/ownsuite/.well-known/openid-configuration" in seen
-    assert "https://docs.assoc.org/" in seen
-    assert "https://drive.assoc.org/" in seen
+    rollbacks = [c[-1] for c in calls if "rollback" in c]
+    assert rollbacks == ["meet", "meet-media-proxy", "livekit", "livekit-egress",
+                         "keycloak"]
 
 
 def test_injects_resolved_issuer_into_apply_env(monkeypatch):
     """The apply must render with the live issuer, never the helmfile `selfsigned`
     default — the footgun that reissued real certs as self-signed (issue #62)."""
     seen = {}
-    monkeypatch.setenv("OWNSUITE_SECRET_SEED", "seed")
-    monkeypatch.setattr(upgrade.config, "load_env", lambda p: dict(BASE_CFG))
-    monkeypatch.setattr(upgrade, "_preflight", lambda *a, **k: None)
+    ctx = make_ctx()
+    monkeypatch.setattr(upgrade.spec, "load_context", lambda: ctx)
+    monkeypatch.setattr(upgrade.config, "require_seed", lambda st, **kw: "seed")
+    monkeypatch.setattr(upgrade.process, "preflight", lambda *a, **kw: None)
     monkeypatch.setattr(upgrade, "resolve_issuer", lambda: "letsencrypt-http01")
-    monkeypatch.setattr(upgrade, "_health_check", lambda domain, enabled: [])
+    monkeypatch.setattr(upgrade.backup, "snapshot", lambda: ("pg", "job"))
+    monkeypatch.setattr(upgrade.state, "save", lambda st: None)
+    monkeypatch.setattr(upgrade.steps, "verify_https", lambda d, e, trusted: [])
 
     def _run(argv, **kw):
         if argv[-1] == "apply":

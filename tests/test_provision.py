@@ -1,7 +1,12 @@
-"""Unit tests for `suite provision` pure helpers + CLI wiring. No terraform, no
-TTY: only the serialization / output-mapping logic and the parser are exercised."""
+"""Unit tests for the Terraform layer (suite.provision) — pure helpers plus the
+ensure_infra drift detection. No terraform, no TTY: the subprocess boundary and
+prompts are mocked."""
 
-from suite import cli, provision
+from types import SimpleNamespace
+
+from conftest import make_spec
+
+from suite import provision, spec, state
 
 
 def _out(value, sensitive=False):
@@ -27,7 +32,7 @@ def test_tfvars_text_renders_strings_lists_and_bools():
     assert "enable_mailbox = false" in text
 
 
-def test_env_from_outputs_maps_ssh_and_object_storage_only():
+def test_env_from_outputs_maps_object_storage_only():
     outputs = {
         "ssh_target": _out("root@203.0.113.10"),
         "env_object_storage": _out(
@@ -39,9 +44,10 @@ def test_env_from_outputs_maps_ssh_and_object_storage_only():
         "s3_secret_key": _out("secret", sensitive=True),
     }
     env = provision._env_from_outputs(outputs)
-    assert env["OWNSUITE_SERVER_SSH"] == "root@203.0.113.10"
     assert env["OWNSUITE_S3_ENDPOINT"] == "https://s3.fr-par.scw.cloud"
     assert env["OWNSUITE_S3_BUCKET"] == "mon-assoc-media"
+    # The ssh target goes to the state's own key, not the env map.
+    assert "OWNSUITE_SERVER_SSH" not in env
     # _env_from_outputs stays non-secret; secrets come from _secrets_from_outputs.
     assert "OWNSUITE_S3_ACCESS_KEY" not in env
     assert "OWNSUITE_S3_SECRET_KEY" not in env
@@ -125,7 +131,57 @@ def test_inventory_yaml_defaults_user_when_no_prefix():
     assert 'ansible_user: "root"' in yaml
 
 
-def test_provision_subcommand_parses():
-    args = cli.build_parser().parse_args(["provision", "--provider", "scaleway", "--yes"])
-    assert args.command == "provision"
-    assert args.provider == "scaleway" and args.yes is True
+# --- ensure_infra drift detection ---------------------------------------------
+
+def _wire_infra(monkeypatch, tmp_path, *, outputs=None):
+    """A fake terraform env dir + recorded subprocess calls + silenced state IO."""
+    calls = []
+    env_dir = tmp_path / "terraform" / "environments" / "scaleway"
+    env_dir.mkdir(parents=True)
+    (env_dir / "terraform.tfvars").write_text('project_id = "p"\n')
+    monkeypatch.setattr(provision, "ENV_ROOT", str(tmp_path / "terraform" / "environments"))
+    monkeypatch.setattr(provision, "_tf_bin", lambda: "tofu")
+    monkeypatch.setattr(provision, "_warn_missing_creds", lambda p: None)
+    monkeypatch.setattr(provision, "write_inventory", lambda ssh: None)
+    monkeypatch.setattr(state, "save", lambda st: None)
+
+    import json
+
+    def run(argv, **kw):
+        calls.append(list(argv))
+        out = json.dumps(outputs or {}) if "output" in argv else ""
+        return SimpleNamespace(returncode=0, stdout=out)
+
+    monkeypatch.setattr(provision, "run", run)
+    return calls, env_dir
+
+
+def test_ensure_infra_skips_when_inputs_unchanged(monkeypatch, tmp_path):
+    sp = make_spec(provider="scaleway")
+    calls, _ = _wire_infra(monkeypatch, tmp_path)
+    st = {"provisioned": True, "provider": "scaleway", "tfvars": spec.tfvars_for(sp)}
+    assert provision.ensure_infra(sp, st, assume_yes=True) is False
+    assert calls == []
+
+
+def test_ensure_infra_applies_on_drift_and_updates_state(monkeypatch, tmp_path):
+    sp = make_spec(provider="scaleway", apps=("docs", "meet"))
+    outputs = {"ssh_target": _out("root@203.0.113.10")}
+    calls, env_dir = _wire_infra(monkeypatch, tmp_path, outputs=outputs)
+    st = {"provisioned": True, "provider": "scaleway",
+          "tfvars": spec.tfvars_for(make_spec(provider="scaleway", apps=("docs",)))}
+    assert provision.ensure_infra(sp, st, assume_yes=True) is True
+    assert [c[-1] for c in calls] == ["init", "plan", "-auto-approve", "-json"]
+    # The derived inputs land in suite.auto.tfvars — enable_meet flips there.
+    auto = (env_dir / "suite.auto.tfvars").read_text()
+    assert "enable_meet = true" in auto
+    assert st["ssh"] == "root@203.0.113.10"
+    assert st["tfvars"] == spec.tfvars_for(sp)
+    assert st["provisioned"] is True
+
+
+def test_ensure_infra_plan_only_stops_after_plan(monkeypatch, tmp_path):
+    sp = make_spec(provider="scaleway")
+    calls, _ = _wire_infra(monkeypatch, tmp_path)
+    assert provision.ensure_infra(sp, {}, assume_yes=True, plan_only=True) is False
+    assert [c[-1] for c in calls] == ["init", "plan"]

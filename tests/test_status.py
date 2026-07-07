@@ -105,13 +105,14 @@ def test_summarise_app_pods_ignores_job_pods():
     assert status.summarise_app_pods(pods, "meet") == (1, 1, True)
 
 
-def test_enabled_apps_honours_env_then_defaults(monkeypatch):
-    for app in ("DOCS", "DRIVE", "GRIST", "PROJECTS"):
-        monkeypatch.delenv(f"OWNSUITE_APP_{app}", raising=False)
-    monkeypatch.setenv("OWNSUITE_APP_MESSAGES", "true")
-    # All apps default OFF (ADR-035): messages is on via env, drive via .env (cfg),
-    # docs/grist/projects stay at their off default.
-    assert set(status.enabled_apps({"OWNSUITE_APP_DRIVE": "true"})) == {"drive", "messages"}
+def test_logs_rejects_unknown_app():
+    from types import SimpleNamespace
+
+    import pytest
+
+    from suite.errors import SuiteError
+    with pytest.raises(SuiteError, match="unknown app 'wiki'"):
+        status.run_logs(SimpleNamespace(app="wiki", no_tunnel=True, tail=100))
 
 
 def test_render_smoke():
