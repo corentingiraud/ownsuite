@@ -1,12 +1,13 @@
-# Server bootstrap
+# Bootstrap (the Ansible phase of `suite apply`)
 
-Turn a **bare Debian server** into a ready **single-node K3s** cluster — the
-bootstrap phase of [`suite apply`](install.md).
+The bootstrap turns a **bare Debian server** into a ready **single-node K3s** cluster. It
+is **not a command you run** — it is the second phase of [`suite apply`](install.md), after
+[provisioning](provision.md) (or the first thing apply does when you
+[bring your own server](provision.md#bring-your-own-server)).
 
-> **What you get:** `suite apply` turns a bare Debian server into a ready
-> single-node K3s cluster, then deploys onto it. It re-runs this phase only when
-> needed — the server was never bootstrapped, or the firewall flags changed
-> (enabling Meet or the Mailbox).
+> **What you get:** `suite apply` writes the Ansible inventory and runs this phase when the
+> server needs it — it was never bootstrapped, or the firewall flags changed (enabling Meet
+> or the Mailbox) — then deploys onto the cluster.
 
 This phase is handled by **Ansible**, which applies three sets of changes in order:
 `common` → `security` → `k3s`.
@@ -24,7 +25,7 @@ This phase is handled by **Ansible**, which applies three sets of changes in ord
 - A server running **Debian 12 (bookworm)** or **13 (trixie)**, reachable over SSH.
 - On your machine: Python 3.10+, then `python3 -m suite deps` (installs Ansible + collections).
 
-## Run it
+## How `suite apply` runs it
 
 You don't run this phase yourself: `suite apply` writes the Ansible inventory (from
 `server.ssh` in `suite.yaml`, or from the provisioned machine state) and runs the

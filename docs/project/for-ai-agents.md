@@ -15,8 +15,10 @@ Facts an agent must not get wrong (details: [CLI reference](../reference/cli.md)
 [under the hood](../understand/platform.md)):
 
 1. **One human-owned file: `suite.yaml`** (written by `suite init`, then edited directly).
-   Machine state lives in `.suite-state.json` (git-ignored, never hand-edited). There is
-   **no `.env`** — the only environment input is `OWNSUITE_SECRET_SEED` (plus CI overrides).
+   Machine state lives in `.suite-state.json` (git-ignored, never hand-edited). The only
+   environment input is `OWNSUITE_SECRET_SEED` (plus external creds / CI overrides); a
+   git-ignored `.env` in the repo root is **auto-loaded at startup**, so exports persist
+   without `source .env`.
 2. **`suite apply` reconciles everything** — Terraform, Ansible bootstrap, DNS, apps —
    touching only what changed. Every operator action is a `suite` verb: `init`, `plan`,
    `apply`, `status`, `apps`, `logs`, `info`, `upgrade`, `backup`, `restore`, `destroy`,

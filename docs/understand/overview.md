@@ -4,40 +4,48 @@ Everything runs on **one server**. You don't need to be a Kubernetes expert to r
 `suite.yaml` and the `suite` commands do the heavy lifting — but here's the picture of
 what's inside, so nothing feels like a black box.
 
-At the centre is **single sign-on**: every app trusts the same login, so a person you add
-once can open all of them. Around it sit the shared pieces every app needs — a database, a
-cache, file storage — plus automatic HTTPS and off-site backups.
+The diagram reads top to bottom: **`suite apply`** builds the server up in a fixed order —
+provision → bootstrap → DNS → platform → apps — and the box beneath is what ends up
+running. At the centre of that is **single sign-on**: every app trusts the same login, so a
+person you add once can open all of them. Around it sit the shared pieces every app needs —
+a database, a cache, file storage — plus automatic HTTPS and off-site backups.
 
 ```mermaid
 flowchart TB
-    subgraph server["Single server — single-node K3s"]
-        T["Traefik (bundled with K3s)\nIngress + TLS"]
-        CM["cert-manager\nLet's Encrypt"]
-        subgraph APPS["Applications"]
-            D["Docs"]
-            DR["Drive"]
-            OPT["Grist · Projects · Mailbox · Meet\n(off by default)"]
-        end
-        KC["Keycloak\nSSO OIDC — 1 realm"]
-        subgraph INFRA["Shared infrastructure"]
-            PG["CloudNativePG\nPostgreSQL + PITR"]
-            VK["Valkey\ncache / broker"]
-        end
-        BK["Backups\nBarman (Postgres) · rclone (files)"]
-    end
-    S3[("Object storage\nGarage  or  external EU S3")]
-    OFF[("Off-site store\ndifferent-account S3")]
+    CFG["suite.yaml — the one file you own<br/>(domain · provider · which apps)"]
 
-    T --> APPS
-    T --> KC
-    CM -. certs .-> T
-    APPS -- OIDC --> KC
-    APPS --> PG
-    APPS --> VK
-    APPS --> S3
-    PG -- WAL/PITR --> OFF
-    S3 -. rclone copy .-> OFF
-    BK --> OFF
+    subgraph APPLY["suite apply — one command, safe to re-run"]
+        P1["1 · Provision (Terraform)<br/>server · buckets · firewall<br/>skipped when you bring your own server"]
+        P2["2 · Bootstrap (Ansible)<br/>bare Debian → single-node K3s"]
+        P3["3 · DNS<br/>print records, wait for propagation"]
+        P4["4 · Platform (Helmfile)<br/>HTTPS · database · cache · SSO"]
+        P5["5 · Apps (Helmfile)<br/>the apps you enabled"]
+        P1 --> P2 --> P3 --> P4 --> P5
+    end
+
+    subgraph SERVER["The result — one server, single-node K3s"]
+        T["Traefik + cert-manager<br/>ingress · Let's Encrypt HTTPS"]
+        KC["Keycloak<br/>single sign-on (OIDC)"]
+        subgraph APPS2["Applications"]
+            AD["Docs · Drive"]
+            OPT["Grist · Projects · Mailbox · Meet · Tchap<br/>(off by default)"]
+        end
+        INFRA["CloudNativePG (PostgreSQL + PITR)<br/>Valkey cache"]
+        T --> APPS2
+        T --> KC
+        APPS2 -- OIDC --> KC
+        APPS2 --> INFRA
+        KC --> INFRA
+    end
+
+    S3[("Object storage<br/>external EU S3 or in-cluster Garage")]
+    OFF[("Off-site backups<br/>separate account · tested restore")]
+
+    CFG --> P1
+    P5 ==> SERVER
+    APPS2 --> S3
+    INFRA -- WAL / PITR --> OFF
+    S3 -. scheduled copy .-> OFF
 ```
 
 ## The building blocks

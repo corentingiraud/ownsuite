@@ -42,10 +42,14 @@ beyond what the bootstrap phase sets up.
     (see the [CLI reference](../reference/cli.md)).
 
 2. **A domain** whose DNS records you can edit at your registrar.
-3. **Somewhere for the server to come from** — a [Scaleway or Infomaniak](provision.md)
-   account (`suite apply` provisions the server, buckets and firewall; export the
-   provider credentials first), **or** your own Debian 12/13 server reachable over SSH
-   (set `server: {ssh: user@host}` in `suite.yaml` and omit `provider`; read the SSH-key
+3. **A size for the server.** OwnSuite runs on **one** machine, so which VPS you rent is a
+   first decision — pick it against the apps you plan to enable **before** you provision.
+   See [Server sizing](../operate/sizing.md): a common Docs + Drive start is **8 GB /
+   2 vCPU / 40 GB**, stepping up for the Mailbox or Meet.
+4. **Somewhere for the server to come from** — a [Scaleway](provision.md) account
+   (`suite apply` provisions the server, buckets and firewall; export the provider
+   credentials first), **or** your own Debian 12/13 server reachable over SSH (set
+   `server: {ssh: user@host}` in `suite.yaml` and omit `provider`; read the SSH-key
    warning in [Server bootstrap](bootstrap.md#caveats) first).
 
 ## Describe the suite (`suite init`)
@@ -94,6 +98,12 @@ A first run offers to generate the secret seed and shows it **once**.
     `OWNSUITE_SECRET_SEED` is never written anywhere. Every password and key is derived
     from it. Save it in your password manager. To resume later, re-export it
     (`export OWNSUITE_SECRET_SEED=...`) — or let the command prompt you for it.
+
+!!! tip "`.env` is auto-loaded — no `source .env`"
+    The CLI reads a git-ignored `.env` in the repo root at startup, so any `OWNSUITE_*`
+    you keep there — the seed, or external S3/backup/relay credentials when you bring your
+    own storage — is picked up on every `suite` command. An already-exported variable still
+    wins over the file.
 
 `apply` then reconciles every layer, touching only what changed; if anything stops you,
 fix it and re-run `suite apply` to resume:

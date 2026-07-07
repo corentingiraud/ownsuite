@@ -59,7 +59,8 @@ Some upstream La Suite apps (People, Calendars…) are deliberately not packaged
 <div class="grid cards" markdown>
 
 - :material-rocket-launch: **[Install](get-started/install.md)** — `suite init` writes `suite.yaml`, `suite apply` takes you to the apps you chose, on HTTPS. Start here.
-- :material-cloud-outline: **[Under the hood: the server](get-started/provision.md)** — what apply provisions with Terraform on Scaleway (or Infomaniak), and how to bring your own server instead.
+- :material-server-network: **[Pick a server size](operate/sizing.md)** — how much RAM, CPU and disk to rent, per app. Decide this before you provision.
+- :material-cloud-outline: **[Under the hood: the server](get-started/provision.md)** — what apply provisions with Terraform on Scaleway, and how to bring your own server instead.
 - :material-server: **[Under the hood: the bootstrap](get-started/bootstrap.md)** — how apply turns a bare Debian server into a ready K3s cluster.
 
 </div>
@@ -70,7 +71,6 @@ Some upstream La Suite apps (People, Calendars…) are deliberately not packaged
 
 - :material-account-multiple: **[Add your people](operate/users.md)** — one command per person, instant access to every app.
 - :material-backup-restore: **[Backups & restore](operate/backups.md)** — off-site, encrypted, with a restore you can trust.
-- :material-server-network: **[Pick a server size](operate/sizing.md)** — how much RAM, CPU and disk to rent.
 
 </div>
 

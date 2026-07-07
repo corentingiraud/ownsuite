@@ -51,7 +51,7 @@ default: **external S3 on Scaleway** — its Object Storage is CORS-capable, whi
 browser uploads require ([ADR-038](#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative)).
 
 **Consequences.** No storage ops with external S3, smaller server disk, simpler backups;
-Garage for full sovereignty or CORS-incapable hosts (Infomaniak's Swift+s3api). Even with
+Garage for full sovereignty or CORS-incapable hosts (e.g. some OpenStack Swift+s3api layers). Even with
 external S3, an **off-site application-level backup** of the objects is still required
 (accidental deletion, lock-in).
 
@@ -1374,8 +1374,10 @@ is **Swift with an `s3api` layer that does not implement bucket CORS** ([OpenSta
 which Drive's browser-direct uploads need in `external` mode; and (b) it has **no native
 transactional-email product**, so the Mailbox's outbound relay must be bolted on separately.
 
-**Decision.** **Scaleway is the recommended host; Infomaniak stays a supported alternative.** Both
-ship as sibling Terraform modules behind the **same output contract** (`public_ip`, `ssh_target`,
+**Decision.** **Scaleway is the recommended and documented host; the Infomaniak module stays in-tree
+but experimental** — untested end-to-end and no longer part of the documented path (use Scaleway or
+bring your own server). Both ship as sibling Terraform modules behind the **same output contract**
+(`public_ip`, `ssh_target`,
 `s3_endpoint`, `s3_region`, `buckets`, `s3_access_key`, `s3_secret_key`), so bootstrap and Helmfile
 are provider-agnostic ([ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3)). Scaleway
 wins on the two limits above:
@@ -1400,7 +1402,8 @@ no Swift/S3 namespace split):
 | Outbound mail | external SMTP relay | `scaleway_tem_domain` (native) |
 
 **Consequences.** The happy path is `external` S3 + TEM on Scaleway, with Garage and an external
-relay as the fallbacks for Infomaniak or full sovereignty. Two Scaleway specifics the module already
+relay as the fallbacks for full sovereignty (or the experimental Infomaniak module). Two Scaleway
+specifics the module already
 handles but operators must know: **Object Storage is IAM-authorized** — the S3 key needs a policy
 (`ObjectStorageFullAccess`) scoped to the project *and* `default_project_id` set to that project, or
 every S3 call 403s; and the Terraform key itself needs **`IAMManager`** (org-scoped) to mint the
