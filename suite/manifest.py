@@ -67,8 +67,8 @@ APPS: dict[str, App] = {
             ("messages",),
             options={
                 "s3_bucket": ("OWNSUITE_MESSAGES_S3_BUCKET", "messages-media-storage"),
-                "relay_host": ("OWNSUITE_MTA_RELAY_HOST", "mail.infomaniak.com:587"),
-                "spf_include": ("OWNSUITE_MTA_SPF_INCLUDE", "spf.infomaniak.ch"),
+                "relay_host": ("OWNSUITE_MTA_RELAY_HOST", "smtp.tem.scaleway.com:2587"),
+                "spf_include": ("OWNSUITE_MTA_SPF_INCLUDE", "_spf.tem.scaleway.com"),
                 "dkim_selector": ("OWNSUITE_MTA_DKIM_SELECTOR", "ownsuite"),
                 "dmarc_rua": ("OWNSUITE_MTA_DMARC_RUA", ""),
             },

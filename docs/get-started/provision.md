@@ -18,7 +18,7 @@ are emitted for you to add (the [DNS phase](install.md)), never created here.
     OwnSuite is provisioned and tested on **Scaleway**. Its Object Storage is CORS-capable
     (so `external` object storage works end-to-end, including Drive's browser uploads) and
     its native **Transactional Email** gives the Mailbox a working relay — see
-    [ADR-038](../understand/decisions.md#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative).
+    [ADR-038](../understand/decisions.md#adr-038-hosting-provider-scaleway).
     Don't want to provision at all? [Bring your own server](#bring-your-own-server).
 
 ## How `suite apply` drives it
@@ -217,28 +217,17 @@ provider-agnostic:
 terraform/
   modules/
     scaleway/          # native: server + Object Storage + IAM key (+ TEM)
-    infomaniak/        # OpenStack: server + Swift/S3 buckets + S3 keys (experimental)
   environments/
     scaleway/          # provider config + your values; run terraform here
-    infomaniak/
 ```
 
-1. Create `modules/<provider>/` exposing the same outputs as the existing modules:
+1. Create `modules/<provider>/` exposing the same outputs as the Scaleway module:
    `public_ip`, `ssh_target`, `s3_endpoint`, `s3_region`, `buckets`, `s3_access_key`,
    `s3_secret_key`.
 2. Create `environments/<provider>/` with that provider's `provider {}` block and a
    `module "suite"` pointing at the new module.
 
 No switch logic, no change to existing providers.
-
-!!! note "Infomaniak is experimental (in-tree, undocumented)"
-    An **Infomaniak** Public Cloud (OpenStack) module ships in-tree and follows the same
-    contract, but it is **not tested end-to-end and not a supported path** — its object
-    storage (Swift + `s3api`) can't serve CORS, so it needs `garage` mode, and it has no
-    native transactional-email product. Prefer Scaleway or
-    [bring your own server](#bring-your-own-server). The Scaleway ↔ OpenStack resource
-    mapping and the rationale are in
-    [ADR-038](../understand/decisions.md#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative).
 
 ## Validate
 

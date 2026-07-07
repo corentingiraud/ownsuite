@@ -24,7 +24,7 @@ from pathlib import Path
 from . import manifest, state
 from .errors import SuiteError
 
-PROVIDERS = ("scaleway", "infomaniak")
+PROVIDERS = ("scaleway",)
 TLS_MODES = ("selfsigned", "staging", "prod")
 # suite.yaml speaks admin ("prod"); the helmfile speaks cert-manager issuer names.
 ISSUER_BY_TLS = {
@@ -297,7 +297,6 @@ def run_init(args):
     source = prompt.select(
         "Where does the server come from?",
         ["scaleway — provision it with Terraform (recommended)",
-         "infomaniak — provision it with Terraform",
          "byo — I already have a Debian server"],
     )
     provider = source.split(" ", 1)[0]

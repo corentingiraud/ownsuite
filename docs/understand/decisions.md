@@ -48,7 +48,7 @@ binaries/images discontinued. Drive can store hundreds of GB.
 **Decision.** **Pluggable** object storage via config: a **managed EU S3** (Scaleway,
 OVH, AWS) **or** **Garage** (self-hosted, French, lightweight). Recommended production
 default: **external S3 on Scaleway** — its Object Storage is CORS-capable, which Drive's
-browser uploads require ([ADR-038](#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative)).
+browser uploads require ([ADR-038](#adr-038-hosting-provider-scaleway)).
 
 **Consequences.** No storage ops with external S3, smaller server disk, simpler backups;
 Garage for full sovereignty or CORS-incapable hosts (e.g. some OpenStack Swift+s3api layers). Even with
@@ -596,8 +596,8 @@ Keycloak** via OIDC. It is a full mail provider, not an IMAP client:
   reputable SMTP relay (STARTTLS, `MTA_OUT_RELAY_*` credentials,
   `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure`). On the recommended Scaleway host that relay is native
   **Transactional Email (TEM)**, `smtp.tem.scaleway.com:2587` — the alternate port matters because
-  Scaleway Instances block outbound 25/465/587 ([ADR-038](#adr-038-hosting-provider-scaleway-recommended-infomaniak-alternative)).
-  Any EU relay works as an alternative (Infomaniak `mail.infomaniak.com:587`).
+  Scaleway Instances block outbound 25/465/587 ([ADR-038](#adr-038-hosting-provider-scaleway)).
+  Any authenticated EU SMTP relay works as an alternative.
 
 **Why.** Owning the easy half (receiving) and renting the hard half (deliverability) is the
 same stance ADR-008 took — outbound from a fresh VPS IP loses on reputation/PTR/port-25. The
@@ -610,7 +610,8 @@ relay carries SPF/DKIM alignment; messages signs DKIM for the domain and SPF `in
 - **Heavier than the Stalwart path:** adds **OpenSearch** (RAM-hungry on a single VPS) + Redis +
   two Postfix containers. Server sizing must budget for it; the mailbox stays **optional and
   isolated**, blocking no earlier work.
-- **Outbound is rate-capped by the relay** (Infomaniak: 1440 msg/24h, 100 recipients/msg). Set
+- **Outbound is rate-capped by the relay** (Scaleway TEM, like most relays, imposes a per-24h send
+  cap and a per-message recipient cap). Set
   messages' `THROTTLE_MAILBOX_OUTBOUND_EXTERNAL_RECIPIENTS` /
   `THROTTLE_MAILDOMAIN_OUTBOUND_EXTERNAL_RECIPIENTS` below that ceiling so it fails gracefully
   in-app. Not suitable for bulk/newsletters — that's a separate product.
@@ -919,8 +920,8 @@ an earlier scout pass wrongly claimed messages publishes no images and had no re
   the MDA without it. socks-proxy only serves `MTA_OUT_MODE=direct`, and we relay. Both carry a
   `ponytail:` marker and a one-line re-enable path.
 - **Outbound relayed, throttled.** `MTA_OUT_MODE=relay`, `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure` to
-  the EU relay (Infomaniak `mail.infomaniak.com:587`); `THROTTLE_{MAILBOX,MAILDOMAIN}_OUTBOUND_EXTERNAL_RECIPIENTS`
-  set below the relay's 1440 msg/24h ceiling so it fails gracefully in-app.
+  the EU relay (Scaleway TEM `smtp.tem.scaleway.com:2587`); `THROTTLE_{MAILBOX,MAILDOMAIN}_OUTBOUND_EXTERNAL_RECIPIENTS`
+  set below the relay's per-24h ceiling so it fails gracefully in-app.
 - **Mailbox provisioning needs no `suite user add` change.** A maildomain with `oidc_autojoin=True`
   auto-creates a user's mailbox on first OIDC login — exactly the JIT model the CLI already relies on
   (ADR-023). The one new piece is a **one-time maildomain seed Job** (mirrors `keycloak-config`) that
@@ -1365,22 +1366,22 @@ unaffected because it already invoked `pip`/`ansible-galaxy` directly rather tha
 
 ---
 
-## ADR-038 — Hosting provider: Scaleway recommended (Infomaniak alternative)
+## ADR-038 — Hosting provider: Scaleway
 
-**Context.** OwnSuite provisions its infrastructure half with Terraform ([Provision](../get-started/provision.md)),
-and two providers now ship. The first target was **Infomaniak** Public Cloud (OpenStack) for its
-low EU/CH price, but a full end-to-end trial surfaced two structural limits: (a) its object storage
-is **Swift with an `s3api` layer that does not implement bucket CORS** ([OpenStack bug #2077629](https://bugs.launchpad.net/swift/+bug/2077629)),
+**Context.** OwnSuite provisions its infrastructure half with Terraform ([Provision](../get-started/provision.md)).
+The first target evaluated was **Infomaniak** Public Cloud (OpenStack) for its low EU/CH price, but a
+full end-to-end trial surfaced two structural limits: (a) its object storage is **Swift with an
+`s3api` layer that does not implement bucket CORS** ([OpenStack bug #2077629](https://bugs.launchpad.net/swift/+bug/2077629)),
 which Drive's browser-direct uploads need in `external` mode; and (b) it has **no native
 transactional-email product**, so the Mailbox's outbound relay must be bolted on separately.
 
-**Decision.** **Scaleway is the recommended and documented host; the Infomaniak module stays in-tree
-but experimental** — untested end-to-end and no longer part of the documented path (use Scaleway or
-bring your own server). Both ship as sibling Terraform modules behind the **same output contract**
-(`public_ip`, `ssh_target`,
+**Decision.** **Scaleway is the only provisioning provider** (or bring your own Debian server). The
+Infomaniak/OpenStack module was **evaluated and removed** — it was never tested end-to-end and lost on
+both limits above. The Scaleway module and a bring-your-own server sit behind the **same output
+contract** (`public_ip`, `ssh_target`,
 `s3_endpoint`, `s3_region`, `buckets`, `s3_access_key`, `s3_secret_key`), so bootstrap and Helmfile
-are provider-agnostic ([ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3)). Scaleway
-wins on the two limits above:
+stay provider-agnostic ([ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3)). Scaleway
+clears both limits:
 
 - **Object Storage is fully S3-compatible and CORS-capable** → `external` mode works end-to-end,
   including Drive uploads (the module sets a bucket CORS rule); no in-cluster Garage required.
@@ -1389,27 +1390,26 @@ wins on the two limits above:
   port **2587** (STARTTLS) ([ADR-021](#adr-021-mailbox-suitenumeriquemessages-outbound-via-eu-relay),
   [ADR-027](#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb)).
 
-The Scaleway module is also **shorter** than the OpenStack one (no floating-IP-via-port indirection,
-no Swift/S3 namespace split):
+The Scaleway resources the module wires:
 
-| Need | Infomaniak (OpenStack) | Scaleway (native) |
-|---|---|---|
-| Server | `openstack_compute_instance_v2` + boot volume | `scaleway_instance_server` (root `sbs_volume`; PRO2 has no local SSD) |
-| Public IP | floating IP + port + associate | `scaleway_instance_ip` (attached to the server) |
-| Firewall | `openstack_networking_secgroup*` | `scaleway_instance_security_group` |
-| SSH key | `openstack_compute_keypair_v2` | `scaleway_iam_ssh_key` (project, injected via cloud-init) |
-| Object storage | EC2 credential + `aws` provider → S3 | `scaleway_object_bucket` + `scaleway_iam_application`/`policy`/`api_key` |
-| Outbound mail | external SMTP relay | `scaleway_tem_domain` (native) |
+| Need | Scaleway resource |
+|---|---|
+| Server | `scaleway_instance_server` (root `sbs_volume`; PRO2 has no local SSD) |
+| Public IP | `scaleway_instance_ip` (attached to the server) |
+| Firewall | `scaleway_instance_security_group` |
+| SSH key | `scaleway_iam_ssh_key` (project, injected via cloud-init) |
+| Object storage | `scaleway_object_bucket` + `scaleway_iam_application`/`policy`/`api_key` |
+| Outbound mail | `scaleway_tem_domain` (native) |
 
 **Consequences.** The happy path is `external` S3 + TEM on Scaleway, with Garage and an external
-relay as the fallbacks for full sovereignty (or the experimental Infomaniak module). Two Scaleway
+relay as the fallbacks for full sovereignty. Two Scaleway
 specifics the module already
 handles but operators must know: **Object Storage is IAM-authorized** — the S3 key needs a policy
 (`ObjectStorageFullAccess`) scoped to the project *and* `default_project_id` set to that project, or
 every S3 call 403s; and the Terraform key itself needs **`IAMManager`** (org-scoped) to mint the
 apps' S3 key. Scaleway also **caps API-key lifetime** (~1 year), so the apps' key must be rotated
-and re-applied before it lapses. Scaleway Debian images log in as **`root`** (Infomaniak uses
-`debian`); the bootstrap hardens root afterward.
+and re-applied before it lapses. Scaleway Debian images log in as **`root`**; the bootstrap hardens
+root afterward.
 
 ## ADR-039 — Meet media ports: single UDP mux + TCP fallback
 
@@ -1428,8 +1428,8 @@ dedicated `enable_meet` flag, reusing the port-25 seam from
 - LiveKit runs with **`hostNetwork`** and binds those two ports on the node directly
   (`use_external_ip: true` to advertise the server's public IP). Signaling stays a normal Traefik
   ingress on 443 (`wss://livekit.{domain}`).
-- **`enable_meet`** opens `7881/tcp` + `7882/udp` in both the Terraform security group (Scaleway +
-  Infomaniak) and the Ansible UFW rules — a boolean mirror of `enable_mailbox`. Off by default.
+- **`enable_meet`** opens `7881/tcp` + `7882/udp` in both the Terraform security group (Scaleway)
+  and the Ansible UFW rules — a boolean mirror of `enable_mailbox`. Off by default.
 - Recording (LiveKit Egress) writes to its own **`meet-recordings`** S3 bucket; the AI/transcription
   components ship at zero replicas.
 

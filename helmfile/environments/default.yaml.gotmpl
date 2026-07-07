@@ -24,7 +24,7 @@ secretSeed: {{ requiredEnv "OWNSUITE_SECRET_SEED" | quote }}
 # to the repo. The mailbox's relay account + DKIM key (ADR-026) are captured by the
 # installer and exported as OWNSUITE_MTA_* before `helmfile sync`.
 secretOverrides:
-  {{- /* Primary object-storage keys: external S3 (e.g. Infomaniak) mints its own
+  {{- /* Primary object-storage keys: external S3 mints its own
          keys, which cannot be seed-derived. Export them before sync, like the seed. */}}
   {{- if env "OWNSUITE_S3_ACCESS_KEY" }}
   s3-access: {{ env "OWNSUITE_S3_ACCESS_KEY" | quote }}
@@ -152,11 +152,11 @@ apps:
   messages:
     enabled: {{ env "OWNSUITE_APP_MESSAGES" | default "false" }}
     # The reputable EU SMTP relay messages' mta-out delivers through (never direct
-    # from the VPS IP, ADR-021). Default: Infomaniak. Format host:port (STARTTLS 587).
-    relayHost: {{ env "OWNSUITE_MTA_RELAY_HOST" | default "mail.infomaniak.com:587" | quote }}
+    # from the VPS IP, ADR-021). Default: Scaleway TEM. Format host:port (STARTTLS).
+    relayHost: {{ env "OWNSUITE_MTA_RELAY_HOST" | default "smtp.tem.scaleway.com:2587" | quote }}
     # The relay's SPF include (published in the SPF TXT). Provider-specific; the
-    # default matches the Infomaniak relay above.
-    spfInclude: {{ env "OWNSUITE_MTA_SPF_INCLUDE" | default "spf.infomaniak.ch" | quote }}
+    # default matches the Scaleway TEM relay above.
+    spfInclude: {{ env "OWNSUITE_MTA_SPF_INCLUDE" | default "_spf.tem.scaleway.com" | quote }}
     # DKIM selector — must match the published DKIM TXT record (_domainkey).
     dkimSelector: {{ env "OWNSUITE_MTA_DKIM_SELECTOR" | default "ownsuite" | quote }}
     # Optional DMARC aggregate-report mailbox.
@@ -189,12 +189,12 @@ adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote 
 # verification) for the apps. Delivered through the SAME external SMTP relay the
 # mailbox uses (OWNSUITE_MTA_RELAY_*) — one relay account for the whole platform.
 # Scaleway TEM is the recommended relay (smtp.tem.scaleway.com:2587) but ANY
-# authenticated SMTP relay works (Infomaniak, etc.). Optional: with no relay account
+# authenticated SMTP relay works. Optional: with no relay account
 # set the apps skip sending (Django falls back to a dummy backend; recordings stay
 # reachable via a presigned S3 URL). Enable by exporting the relay account below.
 email:
   # Relay endpoint (host:port, STARTTLS). Shared with the mailbox mta-out relayHost.
-  host: {{ env "OWNSUITE_MTA_RELAY_HOST" | default "mail.infomaniak.com:587" | quote }}
+  host: {{ env "OWNSUITE_MTA_RELAY_HOST" | default "smtp.tem.scaleway.com:2587" | quote }}
   # Envelope/From address on outgoing mail (must be an allowed sender on the relay).
   from: {{ env "OWNSUITE_EMAIL_FROM" | default (printf "no-reply@%s" (env "OWNSUITE_DOMAIN" | default "ownsuite.localhost")) | quote }}
   # True once the operator has supplied the relay account (username set) — same

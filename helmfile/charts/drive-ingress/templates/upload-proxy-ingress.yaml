@@ -2,8 +2,8 @@
 Same-origin presigned-upload proxy for Drive (ADR-022, finding #20). For uploads
 Drive hands the browser a presigned S3 PUT URL; in garage mode it is signed against
 the public Drive host (AWS_S3_DOMAIN_REPLACE=https://drive.<domain>, see
-values/drive.yaml.gotmpl), so it is same-origin (no S3 CORS — Infomaniak's Swift+s3api
-has none) and path-style:
+values/drive.yaml.gotmpl), so it is same-origin (no S3 CORS — for CORS-incapable
+Swift/s3api stores) and path-style:
 
     https://drive.<domain>/<bucket>/<key>?X-Amz-...
 

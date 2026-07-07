@@ -72,8 +72,8 @@ the recommended Scaleway host, that relay is **Transactional Email (TEM)**, prov
     DMARC — printed by apply after provisioning) before Scaleway validates the domain and outbound
     works, on top of OwnSuite's own DKIM below.
 
-Any reputable EU SMTP relay works as an alternative (e.g. `relay_host: mail.infomaniak.com:587`,
-`spf_include: spf.infomaniak.ch`, cap 1440 msg/24h) — set the account with
+Any reputable authenticated EU SMTP relay works as an alternative (override `relay_host` /
+`spf_include` for the messages app) — set the account with
 `export OWNSUITE_MTA_RELAY_USERNAME=... OWNSUITE_MTA_RELAY_PASSWORD=...`. See
 [Configuration → Mailbox](../reference/configuration.md#per-app-options).
 

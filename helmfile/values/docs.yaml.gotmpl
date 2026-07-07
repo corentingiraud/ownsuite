@@ -103,7 +103,7 @@ backend:
         name: s3-credentials
         key: AWS_S3_SECRET_ACCESS_KEY
     AWS_STORAGE_BUCKET_NAME: {{ .Values.objectStorage.bucket | quote }}
-    # S3-compatible stores (Infomaniak/Ceph/MinIO) reject the aws-chunked streaming
+    # Some S3-compatible stores (Ceph/MinIO) reject the aws-chunked streaming
     # checksum that boto3 >=1.36 sends by default ("NotImplemented" on PutObject).
     # Only add checksums when the API requires them.
     AWS_REQUEST_CHECKSUM_CALCULATION: "when_required"

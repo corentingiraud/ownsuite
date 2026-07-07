@@ -1,6 +1,5 @@
-# Inputs for the Scaleway host + object storage. Mirrors modules/infomaniak so
-# environments/scaleway is a drop-in, with Scaleway-flavored names (instance
-# `type` instead of OpenStack `flavor`, marketplace image label, region).
+# Inputs for the Scaleway host + object storage, consumed by environments/scaleway
+# (instance `type`, marketplace image label, region).
 
 variable "name" {
   description = "Name prefix for the server and its network/IAM/storage resources (e.g. the association slug). Bucket names derive from var.bucket_names, not this."
