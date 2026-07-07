@@ -12,27 +12,13 @@ import json
 import os
 import shutil
 
-from . import config, tunnel
+from . import config, manifest, tunnel
 from .errors import SuiteError
 from .process import run
 
 NS = "ownsuite"
-# App -> subdomain label, mirrored from the Helmfile release conditions. Only the
-# enabled ones are reported (read from .env / env via OWNSUITE_APP_*).
-APPS = {
-    "docs": "docs",
-    "drive": "drive",
-    "grist": "grist",
-    "projects": "projects",
-    "messages": "messages",
-    "meet": "meet",
-    "tchap": "tchap",
-}
-# Defaults match helmfile/environments/default.yaml.gotmpl: every app is off by
-# default (ADR-035); only the operator's OWNSUITE_APP_* / .env turns one on.
-APP_DEFAULTS = {"docs": "false", "drive": "false", "grist": "false",
-                "projects": "false", "messages": "false", "meet": "false",
-                "tchap": "false"}
+# App names from the single manifest; every app is off by default (ADR-035).
+APPS = list(manifest.APPS)
 
 
 def run_status(args):
@@ -56,11 +42,10 @@ def enabled_apps(cfg):
     """Apps that are switched on, honouring env first then .env then the defaults
     (same precedence the Helmfile uses)."""
     on = []
-    for app in APPS:
-        key = f"OWNSUITE_APP_{app.upper()}"
-        val = os.environ.get(key, cfg.get(key, APP_DEFAULTS[app]))
+    for app in manifest.APPS.values():
+        val = os.environ.get(app.env_key, cfg.get(app.env_key, "false"))
         if str(val).lower() == "true":
-            on.append(app)
+            on.append(app.name)
     return on
 
 

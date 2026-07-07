@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import os
 
-from . import config, tunnel, verify
+from . import config, manifest, tunnel, verify
 from .errors import SuiteError
 from .process import run
 from .upgrade import (
@@ -36,24 +36,13 @@ from .upgrade import (
     resolve_issuer,
 )
 
-# Release groups per app — the single source for both `--app` expansion and the scoped
-# health check. Verified against helmfile/helmfile.yaml.gotmpl.
-APP_RELEASES = {
-    "docs": ["docs-ingress", "docs", "docs-media-proxy"],
-    "drive": ["drive-ingress", "drive", "drive-media-proxy"],
-    "grist": ["grist"],
-    "projects": ["projects"],
-    "messages": ["messages"],
-    "meet": ["meet", "meet-media-proxy", "livekit", "livekit-egress"],
-    # Tchap is a single helm release (the ess-helm matrix-stack chart bundles Synapse +
-    # MAS + Element Web). Health check hits https://tchap.{domain}/ (the Element Web client).
-    "tchap": ["tchap"],
-}
+# Release groups per app, from the single manifest (drift-guarded against the
+# helmfile by tests/test_manifest.py).
+APP_RELEASES = {name: list(a.releases) for name, a in manifest.APPS.items()}
 # Which public host answers for a release, so a scoped sync health-checks (and rolls
 # back) only the affected app(s). Keycloak's host is `auth`. Releases absent here are
 # platform releases with no public HTTPS endpoint — synced, but not health-checked.
-RELEASE_HOST = {r: app for app, rels in APP_RELEASES.items() for r in rels}
-RELEASE_HOST["keycloak"] = "auth"
+RELEASE_HOST = {**manifest.RELEASE_TO_APP, "keycloak": "auth"}
 
 # The release that owns the shared, seed-derived secrets + config every app/keycloak
 # consumes by secretKeyRef (email-relay, db creds, OIDC secrets, S3 creds — ADR-012).

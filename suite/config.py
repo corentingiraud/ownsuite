@@ -11,6 +11,8 @@ import hashlib
 import secrets
 from pathlib import Path
 
+from . import manifest
+
 # Free-text fields (env key, prompt, default). SSH may be left blank — `provision`
 # or the bootstrap can fill it. Advanced knobs stay in .env / the Helmfile defaults.
 TEXT_PROMPTS = [
@@ -20,19 +22,8 @@ TEXT_PROMPTS = [
 ]
 
 # App toggles — every app is off by default (ADR-035); the operator opts each in
-# via a checkbox (or OWNSUITE_APP_*).
-# The mailbox (ADR-026) is more involved: if enabled, the installer also generates
-# a DKIM key and prints MX/SPF/DKIM/DMARC + the rDNS/port-25 manual steps and needs
-# the relay account (OWNSUITE_MTA_RELAY_USERNAME/PASSWORD) exported before sync.
-APPS = [
-    ("OWNSUITE_APP_DOCS", "Docs (collaborative documents)"),
-    ("OWNSUITE_APP_DRIVE", "Drive (file storage)"),
-    ("OWNSUITE_APP_GRIST", "Grist (spreadsheets/tables)"),
-    ("OWNSUITE_APP_PROJECTS", "Projects (kanban)"),
-    ("OWNSUITE_APP_MESSAGES", "Mailbox (email — needs extra DNS/relay setup)"),
-    ("OWNSUITE_APP_MEET", "Meet (video — needs media ports via enable_meet)"),
-    ("OWNSUITE_APP_TCHAP", "Tchap (Matrix/Element chat — text-only, SSO via Keycloak)"),
-]
+# via a checkbox (or OWNSUITE_APP_*). Derived from the single app manifest.
+APPS = [(a.env_key, a.label) for a in manifest.APPS.values()]
 
 
 def _b(value):

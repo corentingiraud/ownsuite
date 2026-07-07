@@ -20,7 +20,7 @@ from __future__ import annotations
 import os
 import shutil
 
-from . import config, tunnel, verify
+from . import config, manifest, tunnel, verify
 from .errors import SuiteError
 from .process import run
 from .status import enabled_apps
@@ -28,16 +28,6 @@ from .status import enabled_apps
 HELMFILE = "helmfile/helmfile.yaml.gotmpl"
 NS = "ownsuite"
 REALM = "ownsuite"
-# Health target per app/host -> the Helm release to roll back if it fails.
-# Keycloak underpins every app's SSO, so it is always checked.
-RELEASE_BY_HOST = {
-    "auth": "keycloak",
-    "docs": "docs",
-    "drive": "drive",
-    "grist": "grist",
-    "projects": "projects",
-    "messages": "messages",
-}
 
 
 def run_upgrade(args):
@@ -145,16 +135,16 @@ def _health_check(domain, enabled):
 
 
 def _rollback(failed_hosts):
-    """Roll back each failed host's Helm release to its previous revision."""
+    """Roll back every release of each failed host's app (manifest.HOST_RELEASES —
+    a multi-release app like meet rolls back whole) to its previous revision."""
     print("\n==> Health check failed — rolling back affected release(s)")
     for host in failed_hosts:
-        release = RELEASE_BY_HOST.get(host)
-        if not release:
-            continue
-        print(f"  helm rollback {release}")
-        # check=False: roll back as many as we can; a single failure must not stop
-        # the rest from recovering.
-        run(["helm", "-n", NS, "rollback", release], check=False, step=f"rollback {release}")
+        for release in manifest.HOST_RELEASES.get(host, ()):
+            print(f"  helm rollback {release}")
+            # check=False: roll back as many as we can; a single failure must not
+            # stop the rest from recovering.
+            run(["helm", "-n", NS, "rollback", release], check=False,
+                step=f"rollback {release}")
 
 
 def _preflight(args, ssh):
