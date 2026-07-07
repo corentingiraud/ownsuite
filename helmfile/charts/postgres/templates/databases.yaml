@@ -9,6 +9,9 @@ metadata:
 spec:
   name: {{ .name }}
   owner: {{ .name }}
+  # Disabling an app drops its Database CR from the render; retain (CNPG's default,
+  # pinned here) keeps the actual database so re-enabling finds the data intact.
+  databaseReclaimPolicy: retain
   cluster:
     name: {{ $.Values.cluster.name }}
 {{- end }}

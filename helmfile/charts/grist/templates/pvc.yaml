@@ -7,6 +7,10 @@ metadata:
   name: grist-persist
   labels:
     app.kubernetes.io/name: grist
+  annotations:
+    # Survive `helm uninstall` (apply-prune / destroy): documents must never ride
+    # the release lifecycle. Re-enabling Grist re-binds the same PVC.
+    helm.sh/resource-policy: keep
 spec:
   accessModes:
     - ReadWriteOnce
