@@ -32,6 +32,7 @@ runs:
         # Pinned CLI tools (tracked by Renovate via the workflow customManager).
         HELM_VERSION: "v4.2.2" # renovate: datasource=github-releases depName=helm/helm
         HELMFILE_VERSION: "v1.6.0" # renovate: datasource=github-releases depName=helmfile/helmfile
+        HELMDIFF_VERSION: "v3.15.10" # renovate: datasource=github-releases depName=databus23/helm-diff
         KUBECONFORM_VERSION: "v0.8.0" # renovate: datasource=github-releases depName=yannh/kubeconform
         K3D_VERSION: "v5.9.0" # renovate: datasource=github-releases depName=k3d-io/k3d
         KUBECTL_VERSION: "v1.36.2" # renovate: datasource=github-releases depName=kubernetes/kubernetes
@@ -45,6 +46,11 @@ runs:
         install -m 0755 helmfile "$bin/helmfile"
         curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar xz kubeconform
         install -m 0755 kubeconform "$bin/kubeconform"
+        # helm-diff plugin: `suite apply` runs `helmfile apply`/`diff`, which shell out
+        # to `helm diff`. The release tarball ships the prebuilt binary, so extract it
+        # straight into a cached HELM_PLUGINS dir — no install hook, no provenance step.
+        mkdir -p "$bin/helm-plugins"
+        curl -fsSL "https://github.com/databus23/helm-diff/releases/download/${HELMDIFF_VERSION}/helm-diff-linux-amd64.tgz" | tar xz -C "$bin/helm-plugins"
         if [ "${{ inputs.cluster }}" = "true" ]; then
           curl -fsSL "https://github.com/k3d-io/k3d/releases/download/${K3D_VERSION}/k3d-linux-amd64" -o k3d
           install -m 0755 k3d "$bin/k3d"
@@ -52,7 +58,10 @@ runs:
           install -m 0755 kubectl "$bin/kubectl"
         fi
 
-    # Always (cache hit or miss): expose the bin dir on PATH for later steps.
+    # Always (cache hit or miss): expose the bin dir on PATH and point helm/helmfile
+    # at the cached helm-diff plugin (HELM_PLUGINS is read by both).
     - name: Add cluster CLIs to PATH
       shell: bash
-      run: echo "${RUNNER_TEMP}/cluster-tools-bin" >> "$GITHUB_PATH"
+      run: |
+        echo "${RUNNER_TEMP}/cluster-tools-bin" >> "$GITHUB_PATH"
+        echo "HELM_PLUGINS=${RUNNER_TEMP}/cluster-tools-bin/helm-plugins" >> "$GITHUB_ENV"
