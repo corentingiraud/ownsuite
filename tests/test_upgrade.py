@@ -57,7 +57,7 @@ def test_happy_path_snapshots_then_applies(monkeypatch):
     upgrade.run_upgrade(_args())
     # snapshot happens before helmfile diff/apply; no rollback on success.
     assert [c[0] for c in calls] == ["snapshot", "helmfile", "helmfile"]
-    assert calls[1][:3] == ["helmfile", "-f", upgrade.HELMFILE] and calls[1][-1] == "diff"
+    assert calls[1][:4] == ["helmfile", "-f", upgrade.HELMFILE, "diff"] and "--context" in calls[1]
     assert calls[2][-1] == "apply"
     assert not any("rollback" in c for c in calls)
 
