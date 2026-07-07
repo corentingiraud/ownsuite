@@ -11,15 +11,34 @@ from collections.abc import Mapping, Sequence
 from .errors import SuiteError
 
 
-def preflight(tools, *, ssh="", no_tunnel=False):
+def preflight(tools, *, ssh="", no_tunnel=False, helm_diff=False):
     """Fail fast when a required CLI tool is missing. `ssh` is only needed when a
-    tunnel will actually be opened (an SSH target and no --no-tunnel)."""
+    tunnel will actually be opened (an SSH target and no --no-tunnel). Set
+    `helm_diff=True` for commands that run `helmfile apply`/`diff`."""
     tools = list(tools)
     if ssh and not no_tunnel:
         tools.append("ssh")
     missing = [t for t in tools if not shutil.which(t)]
     if missing:
         raise SuiteError(f"missing required tools on PATH: {', '.join(missing)}")
+    # helm-diff is a helm PLUGIN, not a PATH binary: `helmfile apply`/`diff` shell
+    # out to `helm diff`. Verify it here so a missing plugin fails fast with an
+    # actionable message instead of helmfile's opaque `unknown command "diff"`.
+    if helm_diff and not _helm_diff_available():
+        raise SuiteError(
+            "the helm-diff plugin is missing (`helm diff` is unavailable) — "
+            "run `suite deps` to install it."
+        )
+
+
+def _helm_diff_available():
+    try:
+        return subprocess.run(
+            ["helm", "diff", "version"],
+            capture_output=True, text=True, check=False,
+        ).returncode == 0
+    except OSError:
+        return False
 
 
 def run(

@@ -29,8 +29,13 @@ beyond what the bootstrap phase sets up.
 
     ```bash
     git clone https://github.com/corentingiraud/ownsuite.git && cd ownsuite
-    python3 -m suite deps        # one-time: Python tooling + Ansible collections
+    python3 -m suite deps        # one-time: Python tooling + Ansible collections + the helm-diff plugin
     ```
+
+    `suite deps` also installs the pinned **helm-diff** plugin into helm's plugin
+    dir — `helmfile apply`/`diff` shell out to `helm diff`, which helm has no
+    built-in command for. (`suite apply` fails fast with a clear message if it is
+    missing.)
 
     The docs write `suite <command>`; that short spelling comes from a one-time
     `pipx install --editable .` — or substitute `python3 -m suite <command>` throughout

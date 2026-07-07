@@ -68,7 +68,7 @@ def _run(args, plan_only):
     tools = ["helmfile", "helm", "kubectl"]
     if sp.tls != "selfsigned":
         tools.append("dig")  # propagation gate
-    process.preflight(tools, ssh=ssh, no_tunnel=args.no_tunnel)
+    process.preflight(tools, ssh=ssh, no_tunnel=args.no_tunnel, helm_diff=True)
 
     # The DKIM key must exist before the DNS records and the helmfile render.
     mail_dns = _mail_dns(sp, st, plan_only=plan_only) if "messages" in enabled else None

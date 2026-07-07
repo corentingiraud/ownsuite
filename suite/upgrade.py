@@ -36,7 +36,7 @@ def run_upgrade(args):
     config.require_seed(ctx.state)
     _require_backups_enabled(ctx.view)
     process.preflight(["helmfile", "helm", "kubectl"], ssh=ctx.ssh,
-                      no_tunnel=args.no_tunnel)
+                      no_tunnel=args.no_tunnel, helm_diff=True)
 
     domain = ctx.spec.domain
     env = ctx.env
