@@ -10,13 +10,11 @@ existing SSH tunnel (ADR-014) + a short-lived kubectl port-forward.
 from __future__ import annotations
 
 import contextlib
-import os
 import secrets
-import shutil
 import subprocess
 import time
 
-from . import config, tunnel
+from . import config, process, spec, tunnel
 from .errors import SuiteError
 from .keycloak import KeycloakAdmin
 
@@ -28,17 +26,12 @@ ADMIN_USER = "admin"
 
 
 def run(args):
-    cfg = config.load_env(args.env_file)
-    ssh = getattr(args, "ssh", None) or cfg.get("OWNSUITE_SERVER_SSH", "")
-    seed = os.environ.get("OWNSUITE_SECRET_SEED")
-    if not seed:
-        raise SuiteError(
-            "OWNSUITE_SECRET_SEED must be exported — it is never stored (ADR-012)."
-        )
-    _preflight(args, ssh)
+    ctx = spec.load_context()
+    seed = config.require_seed(ctx.state)
+    process.preflight(["kubectl"], ssh=ctx.ssh, no_tunnel=args.no_tunnel)
     admin_password = config.derive_secret(seed, "keycloak-admin")
 
-    with tunnel.maybe(ssh, no_tunnel=args.no_tunnel), \
+    with tunnel.maybe(ctx.ssh, no_tunnel=args.no_tunnel), \
             _port_forward(KC_SERVICE, args.local_port, KC_PORT) as port:
         kc = KeycloakAdmin(f"http://127.0.0.1:{port}", REALM, ADMIN_USER, admin_password)
         _dispatch(args, kc)
@@ -112,15 +105,6 @@ def _port_forward(service, local_port, remote_port, *, namespace=NS):
         yield local_port
     finally:
         proc.terminate()
-
-
-def _preflight(args, ssh):
-    tools = ["kubectl"]
-    if not args.no_tunnel and ssh:
-        tools.append("ssh")
-    missing = [t for t in tools if not shutil.which(t)]
-    if missing:
-        raise SuiteError(f"missing required tools on PATH: {', '.join(missing)}")
 
 
 def _password_banner(email, password, *, temporary):

@@ -6,21 +6,23 @@
 # ponytail: hand-maintained — keep the command/flag lists in sync with
 # suite/cli.py (tests/test_completion.py guards the subcommand list).
 _suite() {
-    local -a commands common
+    local -a commands apps
     commands=(
-        'deps:Install Python tooling + Ansible collections'
-        'bootstrap:Provision a bare server into a single-node K3s cluster'
-        'check:Dry-run the bootstrap (--check --diff)'
-        'install:Guided install: bare server + domain -> HTTPS'
-        'provision:Provision infra with Terraform (server + S3)'
-        'dns:Print DNS records + write the BIND zone file'
-        'user:Manage Keycloak users (one identity, all apps)'
+        'init:Interactive questionnaire -> writes suite.yaml'
+        'plan:Preview what apply would change (read-only)'
+        'apply:Reconcile everything to suite.yaml'
         'status:Show a health summary'
+        'apps:App catalog: available / enabled / healthy / URL'
+        'logs:Show an app'\''s pod logs'
+        'info:URLs, admin credentials, DNS records'
         'upgrade:Apply pending chart/image upgrades (backup-gated)'
-        'sync:Apply ONE release/app with the upgrade rails'
+        'backup:Take a backup now and wait for completion'
         'restore:Restore a CLEAN cluster from off-site backups'
+        'destroy:Uninstall the whole suite (data kept)'
+        'user:Manage Keycloak users (one identity, all apps)'
+        'deps:Install Python tooling + Ansible collections'
     )
-    common=(--env-file --ssh --no-tunnel)
+    apps=(docs drive grist projects messages meet tchap)
 
     if (( CURRENT == 2 )); then
         _describe 'suite command' commands
@@ -32,18 +34,19 @@ _suite() {
             if (( CURRENT == 3 )); then
                 _values 'action' add passwd disable
             else
-                _values 'flag' $common --local-port --password --permanent --first-name --last-name
+                _values 'flag' --no-tunnel --local-port --password --permanent --first-name --last-name
             fi
             ;;
-        install)
-            _values 'flag' $common --domain --public-ip --tls-mode --non-interactive \
-                --skip-provision --skip-bootstrap --skip-dns --skip-propagation \
-                --provider --force-tfvars --yes ;;
-        provision) _values 'flag' --env-file --provider --force-tfvars --yes ;;
-        dns)       _values 'flag' $common --domain --public-ip --out ;;
-        sync)      _values 'flag' $common --app --selector --no-snapshot --yes ;;
-        upgrade|restore) _values 'flag' $common --yes ;;
-        status)    _values 'flag' $common ;;
+        logs)
+            if (( CURRENT == 3 )); then
+                _values 'app' $apps
+            else
+                _values 'flag' --no-tunnel --tail
+            fi
+            ;;
+        apply)                   _values 'flag' --no-tunnel --no-snapshot --yes ;;
+        upgrade|restore|destroy) _values 'flag' --no-tunnel --yes ;;
+        plan|status|apps|backup) _values 'flag' --no-tunnel ;;
     esac
 }
 compdef _suite suite

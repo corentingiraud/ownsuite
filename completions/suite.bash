@@ -11,8 +11,8 @@ _suite() {
         prev="${COMP_WORDS[COMP_CWORD-1]}"
     }
 
-    local commands="deps bootstrap check install provision dns user status upgrade sync restore"
-    local common="--env-file --ssh --no-tunnel"
+    local commands="init plan apply status apps logs info upgrade backup restore destroy user deps"
+    local apps="docs drive grist projects messages meet tchap"
 
     # Top-level command.
     if [[ $COMP_CWORD -eq 1 ]]; then
@@ -26,26 +26,24 @@ _suite() {
             if [[ $COMP_CWORD -eq 2 ]]; then
                 COMPREPLY=( $(compgen -W "add passwd disable" -- "$cur") )
             else
-                COMPREPLY=( $(compgen -W "$common --local-port --password --permanent --first-name --last-name" -- "$cur") )
+                COMPREPLY=( $(compgen -W "--no-tunnel --local-port --password --permanent --first-name --last-name" -- "$cur") )
             fi
             ;;
-        install)
-            COMPREPLY=( $(compgen -W "$common --domain --public-ip --tls-mode --non-interactive --skip-provision --skip-bootstrap --skip-dns --skip-propagation --provider --force-tfvars --yes" -- "$cur") )
+        apply)
+            COMPREPLY=( $(compgen -W "--no-tunnel --no-snapshot --yes" -- "$cur") )
             ;;
-        provision)
-            COMPREPLY=( $(compgen -W "--env-file --provider --force-tfvars --yes" -- "$cur") )
+        logs)
+            if [[ $COMP_CWORD -eq 2 ]]; then
+                COMPREPLY=( $(compgen -W "$apps" -- "$cur") )
+            else
+                COMPREPLY=( $(compgen -W "--no-tunnel --tail" -- "$cur") )
+            fi
             ;;
-        dns)
-            COMPREPLY=( $(compgen -W "$common --domain --public-ip --out" -- "$cur") )
+        upgrade|restore|destroy)
+            COMPREPLY=( $(compgen -W "--no-tunnel --yes" -- "$cur") )
             ;;
-        sync)
-            COMPREPLY=( $(compgen -W "$common --app --selector --no-snapshot --yes" -- "$cur") )
-            ;;
-        upgrade|restore)
-            COMPREPLY=( $(compgen -W "$common --yes" -- "$cur") )
-            ;;
-        status)
-            COMPREPLY=( $(compgen -W "$common" -- "$cur") )
+        plan|status|apps|backup)
+            COMPREPLY=( $(compgen -W "--no-tunnel" -- "$cur") )
             ;;
         *)
             COMPREPLY=( $(compgen -W "--help" -- "$cur") )
