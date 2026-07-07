@@ -3,8 +3,8 @@
 **Drive** (the [suitenumerique](https://github.com/suitenumerique/drive) file manager) is
 wired to the same shared foundation as Docs, so
 someone you add once has Docs **and** Drive — with no extra setup per app. Like every app
-it is **opt-in / off by default**; enable it with `OWNSUITE_APP_DRIVE=true` (or via the
-installer prompt).
+it is **opt-in / off by default**; enable it by adding `drive: {}` under `apps:` in
+`suite.yaml`.
 
 > **What it proves:** `suite user add firstname@assoc.org` gives that person access to
 > `https://drive.{domain}` over single sign-on, immediately — checked automatically in CI.
@@ -25,8 +25,7 @@ It is gated on `apps.drive.enabled` and depends, via `needs:`, on the shared inf
 
 ## How it is wired
 
-It is the Docs wiring with two pieces removed and a few names changed
-:
+It is the Docs wiring with two pieces removed and a few names changed:
 
 - **Database** — `DB_HOST` points at the CNPG `-rw` service; the `drive` role password comes
   from the seed-derived `drive-db` Secret.
@@ -46,14 +45,13 @@ All of it is in `helmfile/values/drive.yaml.gotmpl`; nothing secret is committed
 ## Run it
 
 ```bash
-set -a && source .env && set +a          # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
-make tunnel                              # in another terminal
-make sync                                # brings up the infra + whichever apps are enabled
-                                         # (enable Docs/Drive first: OWNSUITE_APP_DOCS=true OWNSUITE_APP_DRIVE=true)
+$EDITOR suite.yaml     # add `drive: {}` under apps:  (alongside docs: {}, or on its own)
+suite apply            # -> https://drive.<domain>/
 ```
 
 When it finishes, Drive answers at `https://drive.{domain}`; log in with a Keycloak user.
-Turn an app off independently with `OWNSUITE_APP_DRIVE=false` (or `OWNSUITE_APP_DOCS=false`).
+Turn an app off independently by removing its line and re-applying — its data (database,
+bucket) is kept.
 
 ## Tests
 

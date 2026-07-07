@@ -1,7 +1,7 @@
 # Status &amp; roadmap
 
 > Self-host La Suite numérique, production-ready, on a single server, for a non-profit.
-> The org arrives with a domain name; the installer hands them the DNS records to set;
+> The org arrives with a domain name; `suite apply` hands them the DNS records to set;
 > everything works. The admin then creates users in a single step.
 
 This is a feature and status board — what is **shipped**, what is **optional**, and what is
@@ -10,8 +10,9 @@ This is a feature and status board — what is **shipped**, what is **optional**
 ## Product vision (the global "definition of done")
 
 1. A volunteer rents a server + a domain name.
-2. They run an installer and answer ~5 questions (domain, admin email, which apps).
-3. The installer prints **the exact list of DNS records** to set at the registrar.
+2. They run `suite init` and answer ~5 questions (domain, admin email, which apps) —
+   the answers land in `suite.yaml`, the one file they own.
+3. `suite apply` prints **the exact list of DNS records** to set at the registrar.
 4. Once DNS has propagated: every app responds over HTTPS, with **shared SSO**.
 5. The admin creates `firstname@assoc.org` once → that person has access to Docs, Drive, etc.
 6. **Backups** run automatically — encrypted, off-site — and **restore is tested**
@@ -45,7 +46,8 @@ Production essentials, implemented and **proven in CI**:
   pluggable Garage / external EU S3. See [shared infrastructure](../understand/platform.md).
 - **Shared SSO + JIT user provisioning** — one Keycloak identity, just-in-time into every app;
   `suite user add/passwd/disable`. See [Users](../operate/users.md).
-- **Guided installer** — `suite install` generates the DNS records, gates on propagation, issues
+- **Declarative install** — `suite init` writes `suite.yaml`; `suite apply` reconciles
+  everything to it: provisions, generates the DNS records, gates on propagation, issues
   Let's Encrypt certificates (staging → production), and brings the whole stack up. See
   [Guided install](../get-started/install.md).
 - **Off-site backups + tested restore** — CNPG PITR plus an encrypted off-site copy of **every
@@ -59,32 +61,36 @@ Production essentials, implemented and **proven in CI**:
   health check → rollback on failure) and `suite status`. See [Upgrade](../operate/upgrade.md)
   and [Status](../operate/status.md).
 - **Real external mail deliverability** — proven end-to-end on a real domain + relay: mail from
-  the Mailbox app lands in an external inbox **not in spam**, with SPF/DKIM/DMARC aligned. The
-  installer emits the records and `dns_check` verifies alignment. See
+  the Mailbox app lands in an external inbox **not in spam**, with SPF/DKIM/DMARC aligned.
+  `suite apply` emits the records and `dns_check` verifies alignment. See
   [Mailbox application](../understand/messages.md).
 
 ## Apps (all off by default)
 
-Every app is opt-in via one `OWNSUITE_APP_*` flag; they reuse the same SSO + JIT seam and are
-boot-checked in CI. Enable any combination.
+Every app is opt-in via one line under `apps:` in `suite.yaml`; they reuse the same SSO +
+JIT seam and are boot-checked in CI. Enable any combination.
 
 - **Docs** — collaborative documents, `suitenumerique/impress`
-  (`OWNSUITE_APP_DOCS`), wired to SSO, Postgres and S3. See [Docs application](../understand/docs.md).
-- **Drive** — file manager, `suitenumerique/drive` (`OWNSUITE_APP_DRIVE`), on the same
+  (`docs: {}`), wired to SSO, Postgres and S3. See [Docs application](../understand/docs.md).
+- **Drive** — file manager, `suitenumerique/drive` (`drive: {}`), on the same
   foundation; one identity reaches Docs **and** Drive. See [Drive application](../understand/drive.md).
 - **Grist** — spreadsheets that behave like a database
-  (`OWNSUITE_APP_GRIST`). See [Grist application](../understand/grist.md).
+  (`grist: {}`). See [Grist application](../understand/grist.md).
 - **Projects** — kanban boards / task management
-  (`OWNSUITE_APP_PROJECTS`). See [Projects application](../understand/projects.md).
+  (`projects: {}`). See [Projects application](../understand/projects.md).
 - **Mailbox** — La Suite's own mail app, `suitenumerique/messages`
-  (`OWNSUITE_APP_MESSAGES`). Mail is the hardest part to make reliable, so it ships isolated
+  (`messages: {...}`). Mail is the hardest part to make reliable, so it ships isolated
   and disabled by default. See [Mailbox application](../understand/messages.md).
 - **Meet** — video conferencing, `suitenumerique/meet` on LiveKit
-  (`OWNSUITE_APP_MEET`). The only app needing non-HTTP ports: LiveKit media on
-  `7882/udp` (mux) + `7881/tcp` (fallback), opened via the Terraform/Ansible
-  `enable_meet` flag ([ADR-039](../understand/decisions.md#adr-039-meet-media-ports-single-udp-mux-tcp-fallback)).
+  (`meet: {}`). The only app needing non-HTTP ports: LiveKit media on
+  `7882/udp` (mux) + `7881/tcp` (fallback), opened automatically by `suite apply`
+  ([ADR-039](../understand/decisions.md#adr-039-meet-media-ports-single-udp-mux-tcp-fallback)).
   Recording is written to its own S3 bucket; the AI/transcription components are
   disabled. See [Meet application](../understand/meet.md).
+- **Tchap** — Matrix/Element secure chat (text-only), the French State's
+  [`tchapgouv`](https://github.com/tchapgouv) messenger on Element's `matrix-stack` chart
+  (`tchap: {}`). Media lands in its own S3 bucket and is copied off-site. See
+  [Tchap application](../understand/tchap.md).
 
 ## Not supported (and why)
 
@@ -98,7 +104,6 @@ single-server fit and real value over what the shared foundation already provide
 | **Conversations** | AI chatbot | Early upstream prototype; not integrated yet. |
 | **Calc** | Collaborative spreadsheets | Upstream prototype; overlaps with the shipped **Grist**. |
 | **Hub** | Meet + chat, unified | A portal over the other apps; overlaps with the shipped **Meet** + the suite landing. Not integrated yet. |
-| **Tchap** | Matrix-based secure messaging | Separate `tchapgouv` org, not part of La Suite's `suitenumerique` catalog. Heavy Synapse stack + its own SSO seam; out of scope. |
 
 ## Planned
 
@@ -115,7 +120,7 @@ single-VPS RAM — note the cost if re-enabled). For upstream apps we don't pack
 ## Main risks to watch
 
 1. **Email deliverability** (mailbox) — the biggest risk; deliberately isolated as an optional module.
-2. **Kubernetes learning curve** for a volunteer — hidden behind the installer + CLI.
+2. **Kubernetes learning curve** for a volunteer — hidden behind `suite.yaml` + the CLI.
 3. **Upstream drift** — official charts move; pin versions, track releases via Renovate.
 4. **Per-app OIDC quirks** — validate one by one.
 5. **Storage sovereignty** — if external S3, pick an EU/CH provider and encrypt.

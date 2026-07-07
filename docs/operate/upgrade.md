@@ -9,8 +9,6 @@ The command will not upgrade unless backups are enabled, and it always takes a f
 the version that was working.
 
 ```bash
-set -a && source .env && set +a       # OWNSUITE_SECRET_SEED + OWNSUITE_SERVER_SSH
-
 suite upgrade
 ```
 
@@ -18,9 +16,10 @@ suite upgrade
 
 1. **Checks backups are on.** If off-site backups are disabled, it refuses and stops — an
    upgrade without a recovery net is not allowed.
-2. **Takes a pre-upgrade snapshot.** It runs the same on-demand backup as `make backup` (a
-   database base backup plus an off-site copy of your files), so you have a clean restore point
-   from the moment just before the change.
+2. **Takes a pre-upgrade snapshot.** It runs the same on-demand backup as
+   [`suite backup`](backups.md#take-a-backup-on-demand) (a database base backup plus an
+   off-site copy of your files), so you have a clean restore point from the moment just
+   before the change.
 3. **Shows you the diff.** It prints exactly what would change and asks you to confirm. Nothing
    is applied until you say yes. Use `--yes` to skip the prompt (for unattended runs).
 4. **Applies the upgrade.**
@@ -39,10 +38,11 @@ release notes for that version) and re-run `suite upgrade`.
 
 ## How it connects
 
-`suite upgrade` works over the same private SSH tunnel as the rest of the admin commands, and
-needs your `OWNSUITE_SECRET_SEED` exported (to render the deployment). Add `--no-tunnel` if a
-tunnel is already open or you have a working `KUBECONFIG`; point it elsewhere with
-`--ssh user@host`.
+`suite upgrade` works over the same private SSH tunnel as the rest of the admin commands —
+the server target comes from `suite.yaml` (or the machine state written by provisioning).
+It needs your `OWNSUITE_SECRET_SEED` (to render the deployment): use the exported value,
+or let it prompt you. Add `--no-tunnel` if a tunnel is already open or you have a working
+`KUBECONFIG`.
 
 !!! warning "The snapshot is your safety net"
     A rollback restores the previous **version**, but only the pre-upgrade **backup** can undo
@@ -52,29 +52,26 @@ tunnel is already open or you have a working `KUBECONFIG`; point it elsewhere wi
 
 ## Surgical change to one component
 
-Sometimes you need to reapply **one** component — say you changed a single app's config and
-want it live without reconciling everything else. `suite sync` does exactly that, keeping the
-same rails as `suite upgrade` but scoped to the releases you name:
+Sometimes you need to reapply **one** component — say you changed a single app's option in
+`suite.yaml` and want it live. There is no separate verb for that: `suite apply` **scopes
+itself by diff**. Edit `suite.yaml` (or change nothing at all), run apply, and only the
+releases that actually differ are touched — with the same rails (pre-change snapshot, a
+diff you confirm, health checks, per-app rollback):
 
 ```bash
-set -a && source .env && set +a       # OWNSUITE_SECRET_SEED + OWNSUITE_SERVER_SSH
-
-suite sync --app drive                # drive's whole release group (ingress + app + media proxy)
-suite sync -l drive-media-proxy       # just one release, by name
+$EDITOR suite.yaml       # e.g. bump apps.grist.storage
+suite apply
 ```
-
-It takes a pre-sync snapshot, shows a diff **limited to those releases**, applies only them,
-and health-checks (and, on failure, rolls back) **only** the affected app — nothing else in the
-stack is touched. Crucially, it always applies the TLS issuer that's actually in force, so a
-targeted sync can never silently reissue your certificates as self-signed.
 
 For a config-only change with no data at risk, skip the snapshot:
 
 ```bash
-suite sync -l drive-media-proxy --no-snapshot
+suite apply --no-snapshot
 ```
 
-!!! note "Use this instead of a hand-run `helmfile -l`"
-    Running `helmfile -l name=… sync` by hand skips the snapshot, the health check **and** the
-    TLS issuer injection — the last silently downgrades live certificates to `selfsigned`.
-    `suite sync` is the safe way to target a single release.
+!!! note "Raw `helmfile -l` is a dev escape hatch"
+    Running `helmfile -l name=… sync` by hand skips the snapshot, the health check **and**
+    the TLS issuer pinning — the last silently downgrades live certificates to `selfsigned`
+    unless you export `OWNSUITE_TLS_ISSUER` first. Reach for it only when debugging a
+    single release; see the dev path in
+    [Under the hood → Run it](../understand/platform.md#run-it-manual-fallback).

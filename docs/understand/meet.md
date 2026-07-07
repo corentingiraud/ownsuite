@@ -7,9 +7,9 @@ foundation, with Keycloak SSO so a user provisioned once reaches it on first log
 (JIT — no per-app step).
 
 !!! note "Off by default"
-    Meet ships **disabled** (`OWNSUITE_APP_MEET`, default `false`). It is the only app
-    that needs **non-HTTP ports** open on the server, so enabling it is a two-part
-    switch: the app flag **and** the `enable_meet` firewall flag (below).
+    Meet ships **disabled** (no `meet:` entry under `apps:` by default). It is the only
+    app that needs **non-HTTP ports** open on the server — `suite apply` opens them
+    automatically when you enable it (below).
 
 Like Docs/Drive, Meet is an official `suitenumerique` app with a published Helm chart,
 so OwnSuite consumes it as an **upstream chart** (no local `charts/meet`). It comes as
@@ -46,16 +46,12 @@ footprint** on a single node:
 - **Signaling** (the `wss://livekit.{domain}` WebSocket) is a normal Traefik ingress on
   443 — only the media ports are special.
 
-These ports are opened with the **`enable_meet`** flag, mirroring the mailbox's port-25
-seam ([ADR-027](decisions.md#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb))
-extended to UDP ([ADR-039](decisions.md#adr-039-meet-media-ports-single-udp-mux-tcp-fallback)):
-
-- **Terraform** (cloud security group): `enable_meet = true` in your
-  `terraform.tfvars` opens `7881/tcp` + `7882/udp` to the world.
-- **Ansible** (host UFW): `enable_meet: true` in `group_vars/all.yml` adds the matching
-  UFW rules.
-
-Leave both `false` unless you deploy Meet.
+The firewall follows the app set: with `meet:` present in `suite.yaml`, `suite apply`
+derives the underlying `enable_meet` flag and opens `7881/tcp` + `7882/udp` in **both**
+the cloud security group (Terraform) and the host UFW (Ansible) — nothing to edit by
+hand, and removing the app closes them again. This mirrors the mailbox's port-25 seam
+([ADR-027](decisions.md#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb))
+extended to UDP ([ADR-039](decisions.md#adr-039-meet-media-ports-single-udp-mux-tcp-fallback)).
 
 ## How it is wired
 
@@ -92,17 +88,13 @@ off too. Core video calls + recording are the shipped feature set.
 ## Enabling Meet
 
 ```bash
-# 1. Open the media ports (pick your provider), then re-apply:
-#    terraform.tfvars:  enable_meet = true
-#    ansible group_vars/all.yml:  enable_meet: true
-# 2. Turn the app on and sync:
-export OWNSUITE_APP_MEET=true
-make sync
+$EDITOR suite.yaml     # add `meet: {}` under apps:
+suite apply            # opens 7881/tcp + 7882/udp, deploys -> https://meet.<domain>/
 ```
 
-In `garage` object-storage mode the `meet-recordings` bucket is created automatically;
-on external S3, pre-create it (and, if your provider needs it, a CORS rule for
-`https://*.{domain}`).
+The `meet-recordings` bucket is created for you — in-cluster in `garage` mode, on your
+S3 with a `provider`. Bringing your own external S3, pre-create it (and, if your
+provider needs it, a CORS rule for `https://*.{domain}`).
 
 ## Sizing
 
@@ -116,15 +108,11 @@ inviting large meetings.
 The UDP mux + TCP fallback cover association-scale networks, but a client behind a
 firewall that blocks **both** `7882/udp` and `7881/tcp` cannot connect. For those cases
 LiveKit can terminate an embedded **TURN/TLS** relay on the node — **off by default**
-(it adds one open port). Enabling it needs two flags, mirroring the media-port seam:
+(it adds one open port). One option turns it on:
 
-```bash
-# 1. Open the TURN port (pick your provider), then re-apply:
-#    terraform.tfvars:  enable_meet_turn = true
-#    ansible group_vars/all.yml:  enable_meet_turn: true
-# 2. Turn TURN on for the app and sync:
-export OWNSUITE_MEET_TURN=true
-make sync
+```yaml
+apps:
+  meet: {turn: true}     # then: suite apply
 ```
 
 - Trade-off: **one extra open port** (`5349/tcp`) reachable from the world.
@@ -132,8 +120,9 @@ make sync
   `livekit.{domain}` (clients reach it as `turns:livekit.{domain}:5349`), so the cert SAN
   already matches. With `hostNetwork` LiveKit binds `5349` on the node directly — no extra
   Service.
-- You must set **both** flags: `OWNSUITE_MEET_TURN` enables it in LiveKit's config, and
-  `enable_meet_turn` opens the firewall. Setting only one has no useful effect.
+- `suite apply` keeps LiveKit's config and the firewall (the underlying
+  `enable_meet_turn` flag, in both the security group and UFW) in agreement — the two
+  can't drift apart.
 
 ## Known limitations
 

@@ -5,8 +5,9 @@ messenger) brings chat to OwnSuite. It is a Matrix homeserver + web client with 
 user provisioned once reaches it on first login (JIT — no per-app step).
 
 !!! note "Off by default"
-    Tchap ships **disabled** (`OWNSUITE_APP_TCHAP`, default `false`). It's an optional extra, not
-    part of the tested core. It's fully wired and ready; turn it on with one flag (below).
+    Tchap ships **disabled** (no `tchap:` entry under `apps:` by default). It's an optional
+    extra, not part of the tested core. It's fully wired and ready; enabling it is **one line
+    in `suite.yaml` + one `suite apply`** (below).
 
 Unlike the `suitenumerique` apps, Tchap is not a single container: it is Element's
 **[`ess-helm` `matrix-stack`](https://github.com/element-hq/ess-helm)** chart (Element Server Suite,
@@ -71,14 +72,15 @@ is committed (everything derives from the seed — ADR-012).
 ## Run it
 
 ```bash
-set -a && source .env && set +a          # OWNSUITE_SECRET_SEED, OWNSUITE_DOMAIN, ...
-export OWNSUITE_APP_TCHAP=true            # opt in (off by default)
-make tunnel                               # in another terminal
-make sync                                 # brings up the infra + enabled apps + Tchap
+$EDITOR suite.yaml     # add `tchap: {}` under apps:
+suite apply            # -> https://tchap.<domain>/
 ```
 
-When it finishes, the web client answers at `https://tchap.{domain}`; log in with a Keycloak user
-(e.g. one created by `suite user add`). Tune the media bucket with `OWNSUITE_TCHAP_S3_BUCKET`.
+That's the whole procedure: apply shows the diff (the four components joining the stack),
+snapshots, deploys, and health-checks the result. When it finishes, the web client answers at
+`https://tchap.{domain}`; log in with a Keycloak user (e.g. one created by `suite user add`).
+Tune the media bucket with `apps.tchap.s3_bucket` — e.g. `tchap: {s3_bucket: tchap-media}`.
+Remove the line and re-apply to uninstall; the chat history and media are kept.
 
 ## Tests
 
