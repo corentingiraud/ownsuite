@@ -86,6 +86,39 @@ synapse:
     01-s3-media:
       configSecret: tchap-secrets
       configSecretKey: synapse-s3.yaml
+    # UX simplification for a single-organisation, SSO-gated deployment (no identity
+    # server, no ProConnect). Three homeserver defaults:
+    #  - No E2EE by default on newly created rooms. "off" is QUOTED: bare off is YAML
+    #    boolean false, but Synapse wants the string "off" (vs "invite"/"all"). NOTE: the
+    #    Tchap web client sets m.room.encryption itself per room type (private=encrypted,
+    #    public/forum=clear) and ignores this default; so this only governs rooms Synapse
+    #    creates (the auto-join room below) and any non-Tchap client.
+    #  - Searchable user directory: stock Synapse only surfaces users you already share a
+    #    room with, so a fresh user finds nobody. search_all_users makes every homeserver
+    #    user discoverable (fine here — membership is already gated by Keycloak).
+    #  - Publishable room directory: Synapse's built-in default for room_list_publication_rules
+    #    is an EMPTY list, which means DENY. So a Tchap Forum — created with visibility: public
+    #    — has its directory publication silently refused ("Not allowed to publish room") and
+    #    never shows up under "Salons publics". One catch-all allow rule restores it, so a
+    #    top-level Forum auto-lists on creation (search itself, enable_room_list_search, is
+    #    already true by default).
+    02-ux:
+      config: |
+        encryption_enabled_by_default_for_room_type: "off"
+        user_directory:
+          enabled: true
+          search_all_users: true
+          prefer_local_users: true
+        # Catch-all allow (no user/room pattern) lets any local user publish a room to the
+        # directory; without it Synapse's empty-list default denies every publication.
+        room_list_publication_rules:
+          - action: allow
+        # Every new SSO user auto-joins a shared room on first login, so nobody lands on
+        # an empty home screen. Synapse auto-creates the room on the first registration
+        # (autocreate_auto_join_rooms defaults true) — unencrypted, per the setting above.
+        # The alias carries the server_name, which is the bare domain (interpolated here).
+        auto_join_rooms:
+          - "#general:{{ $domain }}"
 
 # --- Matrix Authentication Service (MAS) --------------------------------------------
 # MAS owns login/registration and brokers SSO to Keycloak. It needs its own host: it
@@ -147,6 +180,24 @@ elementWeb:
   additional:
     sso-redirect: |
       {"sso_redirect_options": {"immediate": true}}
+    # Tchap's room-directory dropdown (NetworkDropdown -> TchapUtils.toFriendlyServerName)
+    # does an UNGUARDED `.find` on the top-level config key `homeserver_list`. The chart's
+    # generated config.json omits it, so opening "Salons publics" throws
+    # "Cannot read properties of undefined (reading 'find')" and the directory never loads.
+    # Supply the single entry Tchap expects: `base_url` MUST equal "https://matrix." +
+    # server_name (the lookup key the code builds) — i.e. our Synapse host. The entry's
+    # `server_name` is only the display label (Tchap convention: the org name, not the
+    # Matrix name), so we derive a tidy one from the domain's first label (Fabrique).
+    homeserver-list: |
+      {"homeserver_list": [{"server_name": "{{ splitList "." $domain | first | title }}", "base_url": "https://matrix.{{ $domain }}"}]}
+    # Force the legacy (stable) room list. Tchap ships feature_new_room_list ON by default,
+    # but its virtualized list (react-virtuoso 4.18) throws "Cannot read properties of
+    # undefined (reading 'align')" the moment a room is joined, leaving the left panel blank.
+    # It's a library bug in the new list, unreachable by config; the flag is the only lever
+    # we control. setting_defaults is prioritised over the device level for this flag, so
+    # this pins every client to the working list until Tchap's new one stabilises.
+    room-list-stable: |
+      {"setting_defaults": {"feature_new_room_list": false}}
 
 # --- well-known delegation ----------------------------------------------------------
 # Serves /.well-known/matrix/{client,server} on the bare {domain} so clients discover
