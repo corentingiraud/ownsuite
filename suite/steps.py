@@ -55,9 +55,17 @@ def mail_manual_steps(ipv4, mail_host):
     )
 
 
+# Most apps expose one ingress cert named <app>-tls; tchap (ess-helm
+# matrix-stack) ships several component ingresses with its own secret names.
+TCHAP_CERTS = ("synapse-tls", "mas-tls", "tchap-web-tls", "well-known-tls")
+
+
 def certs(enabled):
-    """Certificates to wait on: Keycloak always, plus `<app>-tls` per enabled app."""
-    return ["keycloak-tls", *(f"{app}-tls" for app in enabled)]
+    """Certs to wait on: Keycloak always, plus each app's ingress cert(s)."""
+    out = ["keycloak-tls"]
+    for app in enabled:
+        out += TCHAP_CERTS if app == "tchap" else [f"{app}-tls"]
+    return out
 
 
 def issue(env, issuer, enabled, *, verb="apply"):

@@ -10,8 +10,16 @@ from types import SimpleNamespace
 import pytest
 from conftest import make_spec
 
-from suite import apply, manifest
+from suite import apply, manifest, steps
 from suite.errors import SuiteError
+
+
+def test_certs_maps_tchap_to_its_component_certs():
+    # tchap (ess-helm) has no `tchap-tls`; it ships four component certs.
+    assert steps.certs(["docs", "tchap"]) == [
+        "keycloak-tls", "docs-tls",
+        "synapse-tls", "mas-tls", "tchap-web-tls", "well-known-tls",
+    ]
 
 
 def _args(**kw):
