@@ -111,6 +111,14 @@ matrixAuthenticationService:
     01-upstream-oidc:
       configSecret: tchap-secrets
       configSecretKey: mas-upstream-oidc.yaml
+    # SSO-only: hide the local username/password form so the Sign in page shows only
+    # "Continue with Keycloak". No secrets here, so an inline config fragment is fine.
+    02-local-passwords:
+      config: |
+        passwords:
+          enabled: false
+        account:
+          password_registration_enabled: false
 
 # --- Element Web (Tchap fork) -------------------------------------------------------
 # tchapgouv/tchap-web-v4 tracks a moving branch tag (develop_tchap); the real build is
