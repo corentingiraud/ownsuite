@@ -22,5 +22,6 @@ emailSecretName: email-relay
 clients:
 {{- range .Values.keycloak.clients }}
   - clientId: {{ .clientId | quote }}
+    redirectHost: {{ .redirectHost | default "" | quote }}
     directAccessGrants: {{ .directAccessGrants | default false }}
 {{- end }}
