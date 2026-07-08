@@ -149,8 +149,8 @@ resource "scaleway_object_bucket" "this" {
   region   = var.region
 
   # Browser-direct (presigned) uploads/downloads need CORS in external-S3 mode.
-  # Scaleway RGW honours PutBucketCors (unlike Infomaniak's Swift+s3api), so the
-  # preflight OPTIONS succeeds once the app origin is allowed.
+  # Scaleway RGW honours PutBucketCors (unlike some OpenStack Swift s3api layers),
+  # so the preflight OPTIONS succeeds once the app origin is allowed.
   dynamic "cors_rule" {
     for_each = length(var.cors_allowed_origins) > 0 ? [1] : []
     content {

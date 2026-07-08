@@ -67,6 +67,11 @@ def test_provider_choices(tmp_path):
         _load(tmp_path, "provider: aws\ndomain: x.org\ntls: prod\n")
 
 
+def test_infomaniak_provider_rejected(tmp_path):
+    with pytest.raises(SuiteError, match="provider must be one of"):
+        _load(tmp_path, "provider: infomaniak\ndomain: x.org\ntls: prod\n")
+
+
 def test_backup_target_choices(tmp_path):
     with pytest.raises(SuiteError, match="backup.target"):
         _load(tmp_path, "domain: x.org\ntls: prod\nbackup: {target: offsite}\n")

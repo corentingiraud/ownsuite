@@ -21,7 +21,7 @@ from . import prompt, spec, state
 from .errors import SuiteError
 from .process import run
 
-PROVIDERS = ("scaleway", "infomaniak")
+PROVIDERS = ("scaleway",)
 ENV_ROOT = "terraform/environments"
 INVENTORY = "ansible/inventory/hosts.yml"
 TEM_RELAY_HOST = "smtp.tem.scaleway.com:2587"  # Scaleway blocks 25/465/587 (ADR-038)
@@ -101,17 +101,11 @@ def _prompt_provider_params(provider):
         ("name", "Deployment name / slug (prefixes resources)", ""),
         ("ssh_public_key", "SSH public key (OpenSSH)", _default_ssh_key()),
     ]
-    if provider == "scaleway":
-        fields = [
-            ("project_id", "Scaleway project ID", ""),
-            ("organization_id", "Scaleway organization ID (IAM is org-scoped)", ""),
-            *common,
-        ]
-    else:  # infomaniak
-        fields = [
-            ("openstack_cloud", "clouds.yaml entry name", "ownsuite"),
-            *common,
-        ]
+    fields = [
+        ("project_id", "Scaleway project ID", ""),
+        ("organization_id", "Scaleway organization ID (IAM is org-scoped)", ""),
+        *common,
+    ]
     return {key: prompt.text(label, default=default) for key, label, default in fields}
 
 
@@ -234,8 +228,3 @@ def _warn_missing_creds(provider):
         if not (have_env or have_file):
             print("\nWARNING: SCW_ACCESS_KEY/SCW_SECRET_KEY not set and no "
                   "~/.config/scw/config.yaml — Terraform will fail to authenticate.")
-    else:  # infomaniak
-        have_file = (Path.home() / ".config/openstack/clouds.yaml").exists()
-        if not (have_file or os.environ.get("OS_AUTH_URL")):
-            print("\nWARNING: no ~/.config/openstack/clouds.yaml and no OS_* env — "
-                  "Terraform will fail to authenticate.")

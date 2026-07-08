@@ -230,7 +230,7 @@ def _mail_dns(sp, st, *, plan_only):
     opts = sp.app_options("messages")
     return dns.MailDns(
         mail_host=f"mail.{sp.domain}",
-        spf_include=str(opts.get("spf_include", "spf.infomaniak.ch")),
+        spf_include=str(opts.get("spf_include", "_spf.tem.scaleway.com")),
         dkim_selector=str(opts.get("dkim_selector", "ownsuite")),
         dkim_public_key=mail.dkim_public_p(key),
         dmarc_rua=str(opts.get("dmarc_rua", "")),

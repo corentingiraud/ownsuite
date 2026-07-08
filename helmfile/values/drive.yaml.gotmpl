@@ -101,7 +101,7 @@ backend:
         name: s3-credentials
         key: AWS_S3_SECRET_ACCESS_KEY
     AWS_STORAGE_BUCKET_NAME: {{ .Values.objectStorage.driveBucket | quote }}
-    # S3-compatible stores (Infomaniak/Ceph/MinIO) reject the aws-chunked streaming
+    # Some S3-compatible stores (Ceph/MinIO) reject the aws-chunked streaming
     # checksum that boto3 >=1.36 sends by default ("NotImplemented" on PutObject).
     AWS_REQUEST_CHECKSUM_CALCULATION: "when_required"
     AWS_RESPONSE_CHECKSUM_VALIDATION: "when_required"
@@ -112,7 +112,7 @@ backend:
     # browser and mixed-content (http on an https page). AWS_S3_DOMAIN_REPLACE overrides
     # ONLY the host used to sign that upload URL (the backend keeps using the internal
     # endpoint for its own calls — no hairpin). Pointed at the public Drive host, the
-    # presigned PUT is same-origin (no S3 CORS needed — Infomaniak has none) and
+    # presigned PUT is same-origin (no S3 CORS needed for CORS-incapable stores) and
     # path-style (https://drive.{domain}/<bucket>/<key>), which Traefik proxies to Garage
     # preserving Host+path so the SigV4 signature still validates (see drive-ingress).
     AWS_S3_DOMAIN_REPLACE: {{ printf "https://%s" $host | quote }}

@@ -39,7 +39,7 @@ Anything `suite.yaml` omits keeps its documented default below.
 
 | Key | Default | Purpose |
 |---|---|---|
-| `provider` | _(unset = bring-your-own)_ | `scaleway` — the documented, tested provider (ADR-038). When set, `suite apply` provisions the server, buckets and firewall with Terraform. (An experimental `infomaniak` module also ships in-tree — see [Provisioning](../get-started/provision.md#adding-another-cloud-provider).) |
+| `provider` | _(unset = bring-your-own)_ | `scaleway` — the only provisioning provider (ADR-038). When set, `suite apply` provisions the server, buckets and firewall with Terraform. |
 | `domain` | _(required)_ | Base domain. Each component is exposed at `<name>.<domain>` (e.g. `auth.<domain>`, `docs.<domain>`). |
 | `admin_email` | `admin@<domain>` | Contact address for app admin accounts and ACME registration. |
 | `tls` | _(required)_ | `prod` (Let's Encrypt, staging→production ladder on first issuance — ADR-019), `staging` (untrusted leaf, high rate limits), or `selfsigned` (CI/local; skips the DNS step). |
@@ -117,8 +117,8 @@ Options go under the app's key; every one is optional.
 | | `sandbox` | `unsandboxed` | Formula sandbox flavor; `gvisor` on a node configured for it. |
 | [Projects](../understand/projects.md) | `s3_bucket` | `projects-media-storage` | Uploads bucket. |
 | [Mailbox](../understand/messages.md) | `s3_bucket` | `messages-media-storage` | Message blobs/attachments bucket. |
-| | `relay_host` | `mail.infomaniak.com:587` | SMTP relay (`host:port`, STARTTLS). On Scaleway use TEM: `smtp.tem.scaleway.com:2587`. |
-| | `spf_include` | `spf.infomaniak.ch` | The relay's SPF include for the SPF TXT record (TEM: `_spf.tem.scaleway.com`). |
+| | `relay_host` | `smtp.tem.scaleway.com:2587` | SMTP relay (`host:port`, STARTTLS). Default is Scaleway TEM; any authenticated relay works. |
+| | `spf_include` | `_spf.tem.scaleway.com` | The relay's SPF include for the SPF TXT record. |
 | | `dkim_selector` | `ownsuite` | DKIM selector — must match the published `_domainkey` TXT record. |
 | | `dmarc_rua` | _(empty)_ | Optional DMARC aggregate-report mailbox. |
 | [Meet](../understand/meet.md) | `s3_bucket` | `meet-recordings` | Room-recordings bucket. |

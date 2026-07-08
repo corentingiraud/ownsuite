@@ -66,7 +66,7 @@ def test_records_omit_mail_by_default():
 def _mail():
     return dns.MailDns(
         mail_host="mail.assoc.example.org",
-        spf_include="spf.infomaniak.ch",
+        spf_include="_spf.tem.scaleway.com",
         dkim_selector="ownsuite",
         dkim_public_key="MIIBIjANBgkq...PUBKEY",
         dmarc_rua="postmaster@assoc.example.org",
@@ -78,7 +78,7 @@ def test_mail_records_mx_spf_dkim_dmarc():
         (r.name, r.type): r.value for r in dns.mail_records("assoc.example.org", _mail())
     }
     assert recs[("assoc.example.org", "MX")] == "10 mail.assoc.example.org."
-    assert recs[("assoc.example.org", "TXT")] == "v=spf1 include:spf.infomaniak.ch ~all"
+    assert recs[("assoc.example.org", "TXT")] == "v=spf1 include:_spf.tem.scaleway.com ~all"
     assert recs[("ownsuite._domainkey.assoc.example.org", "TXT")] == (
         "v=DKIM1; k=rsa; p=MIIBIjANBgkq...PUBKEY"
     )

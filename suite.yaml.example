@@ -17,7 +17,7 @@
 # machine state file `.suite-state.json` (git-ignored) — never edit either by hand.
 
 # Cloud provider for `suite apply` to provision the server + buckets with
-# Terraform: scaleway (recommended, ADR-038) or infomaniak. OMIT the key entirely
+# Terraform: scaleway (ADR-038). OMIT the key entirely
 # to bring your own Debian server (then set server.ssh below).
 provider: scaleway
 
@@ -77,6 +77,6 @@ apps:
   # meet:                   # video conferencing — apply opens its media ports
   #   turn: false           # TURN on 5349/tcp for clients behind strict firewalls
   # messages:               # mailbox — needs relay + extra DNS (ADR-026); export
-  #   relay_host: mail.infomaniak.com:587   # OWNSUITE_MTA_RELAY_USERNAME/PASSWORD
-  #   spf_include: spf.infomaniak.ch
+  #   relay_host: smtp.tem.scaleway.com:2587   # OWNSUITE_MTA_RELAY_USERNAME/PASSWORD
+  #   spf_include: _spf.tem.scaleway.com
   #   dkim_selector: ownsuite

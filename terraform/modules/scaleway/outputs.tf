@@ -1,5 +1,4 @@
-# Output contract — MUST match modules/infomaniak/outputs.tf so
-# environments/scaleway stays a drop-in for the bootstrap + Helmfile flow.
+# Output contract consumed by environments/scaleway, the bootstrap + Helmfile flow.
 
 output "public_ip" {
   description = "Public IP of the server."
@@ -7,7 +6,7 @@ output "public_ip" {
 }
 
 output "ssh_target" {
-  description = "SSH target for the inventory / OWNSUITE_SERVER_SSH. Scaleway Debian images log in as 'root' (unlike Infomaniak's 'debian'); the bootstrap then hardens root."
+  description = "SSH target for the inventory / OWNSUITE_SERVER_SSH. Scaleway Debian images log in as 'root'; the bootstrap then hardens root."
   value       = "root@${scaleway_instance_ip.this.address}"
 }
 

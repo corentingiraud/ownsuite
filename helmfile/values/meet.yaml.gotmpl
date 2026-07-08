@@ -103,7 +103,7 @@ backend:
     AWS_STORAGE_BUCKET_NAME: {{ .Values.objectStorage.meetBucket | quote }}
     AWS_S3_REGION_NAME: {{ $s3Region | quote }}
     AWS_S3_SIGNATURE_VERSION: s3v4
-    # S3-compatible stores (Infomaniak/Ceph/Garage) reject boto3's default aws-chunked
+    # Some S3-compatible stores (Ceph/Garage) reject boto3's default aws-chunked
     # streaming checksum ("NotImplemented" on PutObject); only add it when required.
     AWS_REQUEST_CHECKSUM_CALCULATION: "when_required"
     AWS_RESPONSE_CHECKSUM_VALIDATION: "when_required"
