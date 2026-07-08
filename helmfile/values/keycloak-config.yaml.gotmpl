@@ -22,6 +22,9 @@ emailSecretName: email-relay
 clients:
 {{- range .Values.keycloak.clients }}
   - clientId: {{ .clientId | quote }}
-    redirectHost: {{ .redirectHost | default "" | quote }}
+    {{- /* dig, not `.redirectHost`: helmfile renders values files with missingkey=error,
+           so a bare field access on a client without this key aborts the whole render
+           before `default` can run (only tchap sets redirectHost). */}}
+    redirectHost: {{ dig "redirectHost" "" . | quote }}
     directAccessGrants: {{ .directAccessGrants | default false }}
 {{- end }}
