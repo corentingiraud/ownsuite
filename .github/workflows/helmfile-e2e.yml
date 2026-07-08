@@ -29,7 +29,7 @@ permissions:
 # main / nightly runs (distinct ref) are left to finish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   # Fast, isolated ADR-032 PVC backup/restore round-trip (a single off-site garage +

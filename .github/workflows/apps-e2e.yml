@@ -65,7 +65,7 @@ permissions:
 # nightly / dispatch runs (distinct ref) are left to finish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   # Decide which apps this run must boot. For a PR, diff against the base and keep
