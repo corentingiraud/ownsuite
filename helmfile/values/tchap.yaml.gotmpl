@@ -128,6 +128,17 @@ elementWeb:
     # (no-latest rule). Both come from versions.yaml; the chart resolves repo@digest.
     tag: {{ .Values.imageVersions.tchapWeb | quote }}
     digest: {{ .Values.imageVersions.tchapWebDigest | quote }}
+  # Skip the Tchap fork's "enter your professional email" (email-precheck) login screen
+  # and go straight to SSO. immediate:true makes Element auto-redirect unauthenticated
+  # users to the OIDC flow (MAS -> Keycloak) at app load, before the email-precheck
+  # screen renders. We run a single homeserver, so the per-email homeserver_list routing
+  # that the email screen (and immediate-redirect) skips is not needed. The chart already
+  # derives default_server_config from serverName, and MAS/MSC3861 issuer discovery is
+  # automatic via well-known delegation, so this one flag is all that's required.
+  # Each additional entry is a JSON string deep-merged into config.json (chart contract).
+  additional:
+    sso-redirect: |
+      {"sso_redirect_options": {"immediate": true}}
 
 # --- well-known delegation ----------------------------------------------------------
 # Serves /.well-known/matrix/{client,server} on the bare {domain} so clients discover
