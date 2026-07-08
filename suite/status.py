@@ -187,13 +187,19 @@ def _job_pod(pod):
 
 def _pod_app(pod):
     labels = pod.get("metadata", {}).get("labels", {})
-    name = labels.get("app.kubernetes.io/name") or labels.get("app") or ""
-    # Upstream charts prefix release names (e.g. "docs-impress"); match on substring
-    # so "docs"/"drive"/"grist"/"projects"/"messages" all resolve.
-    for app in APPS:
-        if name == app or name.startswith(f"{app}-") or app in name.split("-"):
-            return app
-    return name
+    # Most charts carry the app name in .../name (or the legacy `app`) label, prefixed
+    # with the release name (e.g. "docs-impress"). Multi-component third-party charts
+    # (tchap = ess-helm matrix-stack) instead name their pods by component — "synapse",
+    # "element-web", "matrix-authentication-service", "well-known-delegation" — so .../name
+    # never carries "tchap"; only .../instance ties them to the release. Match on any.
+    for name in (labels.get("app.kubernetes.io/name"),
+                 labels.get("app"),
+                 labels.get("app.kubernetes.io/instance")):
+        name = name or ""
+        for app in APPS:
+            if name == app or name.startswith(f"{app}-") or app in name.split("-"):
+                return app
+    return labels.get("app.kubernetes.io/name") or labels.get("app") or ""
 
 
 def render(nodes, clusters, certs, cronjobs, jobs, pods, enabled):

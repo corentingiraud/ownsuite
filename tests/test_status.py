@@ -89,6 +89,28 @@ def test_summarise_app_pods_matches_release_prefixed_names():
     assert status.summarise_app_pods(pods, "grist") == (0, 0, False)
 
 
+def test_summarise_app_pods_matches_matrix_stack_via_instance_label():
+    # tchap = ess-helm matrix-stack: component pods name themselves by component
+    # ("synapse-main"/"element-web"/...), so only .../instance (release-prefixed) ties
+    # them to "tchap". Without instance matching this app reports a false 0/0 FAIL.
+    # Labels below are the chart's real rendered values for a release named "tchap".
+    pods = {"items": [
+        {"metadata": {"labels": {"app.kubernetes.io/name": "synapse-main",
+                                 "app.kubernetes.io/instance": "tchap-synapse-main"}},
+         "status": {"phase": "Running", "conditions": _conds(True)}},
+        {"metadata": {"labels": {"app.kubernetes.io/name": "element-web",
+                                 "app.kubernetes.io/instance": "tchap-element-web"}},
+         "status": {"phase": "Running", "conditions": _conds(True)}},
+        {"metadata": {"labels": {"app.kubernetes.io/name": "matrix-authentication-service",
+                                 "app.kubernetes.io/instance": "tchap-matrix-authentication-service"}},
+         "status": {"phase": "Running", "conditions": _conds(True)}},
+        {"metadata": {"labels": {"app.kubernetes.io/name": "haproxy",
+                                 "app.kubernetes.io/instance": "tchap-haproxy"}},
+         "status": {"phase": "Running", "conditions": _conds(True)}},
+    ]}
+    assert status.summarise_app_pods(pods, "tchap") == (4, 4, True)
+
+
 def test_summarise_app_pods_ignores_job_pods():
     # A healthy deployment pod plus failed CronJob pods (meet's clean_pending_files):
     # the Job-owned pods must not count toward the app's service health.
