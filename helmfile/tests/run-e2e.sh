@@ -141,6 +141,7 @@ k3d cluster create "$CLUSTER" \
 
 KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
 export KUBECONFIG
+wait_for_cluster_api
 
 # apply verifies HTTPS for auth.{domain} + each ENABLED app (ADR-035) with
 # Python's TLS stack (urllib honours /etc/hosts); point auth + the one enabled app

@@ -36,6 +36,23 @@ dump_failure_diagnostics() {
   done
 }
 
+# k3d's `--wait` returns once the k3s server process is up, but the Kubernetes API
+# can still answer 503 ("the server is currently unable to handle the request") for
+# tens of seconds on a slow shared runner. `suite apply` hits the API on its very
+# first call (a reachability preflight) and gives up the instant it 503s, so block on
+# the API's own /readyz endpoint before provisioning against a freshly created cluster.
+wait_for_cluster_api() {
+  echo "==> Waiting for the cluster API to be ready"
+  local i
+  for i in $(seq 1 60); do
+    kubectl get --raw='/readyz' >/dev/null 2>&1 && return 0
+    sleep 2
+  done
+  echo "==> cluster API never became ready"
+  kubectl cluster-info 2>&1 | head -5 || true
+  return 1
+}
+
 # `helmfile sync` blocks silently on `helm --wait` (up to 900s/release). Run it in
 # the background with a watchdog that prints a per-pod-phase heartbeat and aborts
 # IMMEDIATELY on an unrecoverable pod state (image pull errors, container start
