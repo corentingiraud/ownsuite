@@ -65,9 +65,11 @@ spec:
                       "user": None,
                       "organization": None,
                       "is_active": True,
-                      # read to list invitations, write to accept/decline (RSVP over CalDAV);
-                      # calendars:write is only allowed on global channels (which this is).
-                      "settings": {"scopes": ["calendars:read", "calendars:write"]},
+                      # calendars:read -> PROPFIND discovery; events:read -> REPORT to list
+                      # invitations; events:write -> PUT/DELETE to accept/decline (RSVP over
+                      # CalDAV). The calendars:* scopes only cover calendar-collection lifecycle
+                      # (MKCALENDAR/PROPPATCH), so event traffic needs the events:* scopes.
+                      "settings": {"scopes": ["calendars:read", "events:read", "events:write"]},
                       # EncryptedJSONField; the /caldav proxy compares this with the token
                       # half of the Basic-auth password via secrets.compare_digest.
                       "encrypted_settings": {"token": token},
