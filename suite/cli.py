@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import argparse
 
-from . import apply, backup, bootstrap, config, info, restore, spec, status, upgrade, users
+from . import apply, backup, bootstrap, config, info, restore, spec, status, tunnel, upgrade, users
 from .errors import SuiteError
 
 
@@ -45,6 +45,7 @@ def build_parser():
     lg.add_argument("--tail", type=int, default=100,
                     help="Lines per pod (default: 100)")
     sub.add_parser("info", help="URLs, admin credentials, DNS records.")
+    sub.add_parser("tunnel", help="Hold the SSH tunnel to the K8s API open for ad-hoc kubectl/k9s.")
 
     _cluster_flags(sub.add_parser(
         "upgrade", help="Safely apply pending chart/image upgrades (backup-gated)."),
@@ -97,6 +98,7 @@ def main(argv=None):
         "apps": status.run_apps,
         "logs": status.run_logs,
         "info": info.run_info,
+        "tunnel": tunnel.run_tunnel,
         "upgrade": upgrade.run_upgrade,
         "backup": backup.run_backup,
         "restore": restore.run_restore,
