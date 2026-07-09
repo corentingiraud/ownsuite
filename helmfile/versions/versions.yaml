@@ -77,6 +77,16 @@ imageVersions:
   # the backend image). Off by default.
   # renovate: datasource=docker depName=ghcr.io/suitenumerique/messages-backend
   messages: "0.8.0"
+  # Calendars (suitenumerique) — shared calendars (ADR-043). No official Helm chart; the
+  # local ./charts/calendars chart runs three images (the worker reuses the backend). They
+  # version independently upstream, so each is pinned separately. Upstream is at v0.1.0
+  # (pre-production, expect churn on `main`); the Docker tags have no "v" prefix.
+  # renovate: datasource=docker depName=ghcr.io/suitenumerique/calendars-backend
+  calendarsBackend: "0.1.0"
+  # renovate: datasource=docker depName=ghcr.io/suitenumerique/calendars-frontend
+  calendarsFrontend: "0.1.0"
+  # renovate: datasource=docker depName=ghcr.io/suitenumerique/calendars-caldav
+  calendarsCaldav: "0.1.0"
   # Meet (suitenumerique) — the official ./meet chart has no appVersion, so its
   # backend + frontend images are pinned here to the same app release tag. The
   # AI/transcription components (summary, agents) are disabled (replicas 0), so

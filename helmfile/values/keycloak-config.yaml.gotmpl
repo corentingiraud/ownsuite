@@ -27,4 +27,11 @@ clients:
            before `default` can run (only tchap sets redirectHost). */}}
     redirectHost: {{ dig "redirectHost" "" . | quote }}
     directAccessGrants: {{ .directAccessGrants | default false }}
+    {{- /* Optional hardcoded org-claim mapper (issue #106) — only Calendars sets it.
+           dig for the same missingkey=error reason as redirectHost above. */}}
+    {{- with dig "orgClaim" dict . }}
+    orgClaim:
+      name: {{ .name | quote }}
+      value: {{ .value | quote }}
+    {{- end }}
 {{- end }}

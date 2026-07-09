@@ -29,6 +29,8 @@ apps:
     enabled: true
   tchap:
     enabled: true
+  calendars:
+    enabled: true
 
 # Transactional-email relay gate. False by default (no relay account) so the shared
 # email-relay Secret is not rendered standalone; Helmfile flips it on when a relay is set.

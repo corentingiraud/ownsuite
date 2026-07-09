@@ -17,6 +17,8 @@ apps:
     enabled: {{ .Values.apps.meet.enabled }}
   tchap:
     enabled: {{ .Values.apps.tchap.enabled }}
+  calendars:
+    enabled: {{ .Values.apps.calendars.enabled }}
 email:
   # Gates the shared email-relay Secret (transactional email for all apps).
   configured: {{ .Values.email.configured }}

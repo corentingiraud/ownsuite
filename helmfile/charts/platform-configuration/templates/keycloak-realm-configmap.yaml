@@ -38,6 +38,24 @@ Phase 2 by appending to keycloak.clients).
           "post.logout.redirect.uris" (printf "https://%s/*" $host)
           "user.info.response.signature.alg" "")
   -}}
+  {{- /* Optional hardcoded org claim in userinfo (issue #106, ADR-043). Calendars maps
+         OIDC_USERINFO_ORGANIZATION_CLAIM into its Organization model to gate same-org
+         free/busy sharing; a single-org OwnSuite emits one constant value for everyone.
+         `orgClaim: {name, value}` on a client adds the mapper — only Calendars sets it. */ -}}
+  {{- with .orgClaim }}
+    {{- $mapper := dict
+        "name" (printf "%s-organization" $client.clientId)
+        "protocol" "openid-connect"
+        "protocolMapper" "oidc-hardcoded-claim-mapper"
+        "config" (dict
+            "claim.name" .name
+            "claim.value" .value
+            "jsonType.label" "String"
+            "userinfo.token.claim" "true"
+            "id.token.claim" "true"
+            "access.token.claim" "false") -}}
+    {{- $_ := set $client "protocolMappers" (list $mapper) -}}
+  {{- end }}
   {{- $clients = append $clients $client -}}
 {{- end }}
 {{- /* Optional realm user for the e2e SSO check (CI only). Password derived from

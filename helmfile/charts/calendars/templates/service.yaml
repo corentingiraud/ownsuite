@@ -1,0 +1,27 @@
+{{- /*
+A Service per component that declares one (ADR-043). All are ClusterIP: only the
+frontend faces the internet, and it does so through the Traefik Ingress, not a
+LoadBalancer. The backend and caldav are reached in-cluster (the frontend proxies the
+API; the backend calls caldav over its internal API). The worker has no Service.
+*/}}
+{{- range $name, $c := .Values.components }}
+{{- with $c.service }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: calendars-{{ $name }}
+  labels:
+    app.kubernetes.io/name: calendars
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  type: {{ .type | default "ClusterIP" }}
+  selector:
+    app.kubernetes.io/name: calendars
+    app.kubernetes.io/component: {{ $name }}
+  ports:
+    - name: {{ $c.portName | default "http" }}
+      port: {{ .port }}
+      targetPort: {{ $c.portName | default "http" }}
+{{- end }}
+{{- end }}

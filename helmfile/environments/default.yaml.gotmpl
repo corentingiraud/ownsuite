@@ -112,6 +112,19 @@ keycloak:
       redirectHost: account
       directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
     {{- end }}
+    {{- if eq (env "OWNSUITE_APP_CALENDARS" | default "false") "true" }}
+    - clientId: calendars
+      # Only present when Calendars is enabled (ADR-043, off by default). A Django/
+      # mozilla-django-oidc app like Docs; the shared client template emits redirectUris
+      # https://calendars.{domain}/* and the profile+email scopes it maps to its user.
+      # `orgClaim` adds a hardcoded `organization` claim to userinfo so every user lands
+      # in ONE org — Calendars reads it (OIDC_USERINFO_ORGANIZATION_CLAIM) to gate
+      # same-org free/busy sharing (issue #106). Single-org OwnSuite: one constant value.
+      orgClaim:
+        name: organization
+        value: {{ env "OWNSUITE_DOMAIN" | default "ownsuite.localhost" | quote }}
+      directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
+    {{- end }}
   # Optional realm user seeded for the e2e SSO check (CI only). Its password is
   # derived from the seed (id "kc-test-user") — never committed in plaintext.
   seedTestUser:
@@ -181,6 +194,14 @@ apps:
   # ports in v1); media on S3. Enable with OWNSUITE_APP_TCHAP=true.
   tchap:
     enabled: {{ env "OWNSUITE_APP_TCHAP" | default "false" }}
+  # Calendars (suitenumerique/calendars) — shared calendars (ADR-043). OFF by default.
+  # HTTPS-only; reuses CNPG + Valkey + Keycloak SSO. Enable with OWNSUITE_APP_CALENDARS=true.
+  calendars:
+    enabled: {{ env "OWNSUITE_APP_CALENDARS" | default "false" }}
+    # Org-wide default availability colleagues grant each other (ORG_DEFAULT_SHARING_LEVEL):
+    # none | freebusy | read | write. Default freebusy — same-org "find a time" works out
+    # of the box (issue #106). Cross-org is always hard-blocked upstream.
+    sharingLevel: {{ env "OWNSUITE_CALENDARS_SHARING_LEVEL" | default "freebusy" | quote }}
 
 # Contact address used for app admin / superuser accounts.
 adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote }}
@@ -246,6 +267,13 @@ databases:
     secretName: synapse-db
   - name: mas
     secretName: mas-db
+  {{- end }}
+  {{- if eq (env "OWNSUITE_APP_CALENDARS" | default "false") "true" }}
+  # Calendars' database (events/calendars/organizations/sharing). The caldav service
+  # keeps its SabreDAV tables in a `sabre` schema of this SAME database (upstream's own
+  # default), connecting as the `calendars` owner role — so one database, not two.
+  - name: calendars
+    secretName: calendars-db
   {{- end }}
 
 # TLS issuance (ADR-013, ADR-019). Accepted `OWNSUITE_TLS_ISSUER` values:

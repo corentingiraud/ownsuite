@@ -91,6 +91,11 @@ JIT seam and are boot-checked in CI. Enable any combination.
   [`tchapgouv`](https://github.com/tchapgouv) messenger on Element's `matrix-stack` chart
   (`tchap: {}`). Media lands in its own S3 bucket and is copied off-site. See
   [Tchap application](../understand/tchap.md).
+- **Calendars** — shared calendars, `suitenumerique/calendars` (`calendars: {}`). Maximum
+  coupling with the suite: a one-click [Meet](../understand/meet.md) link on an event and
+  org free/busy so colleagues see each other's availability (via a Keycloak org-claim
+  mapper). Early upstream (v0.1.0) — the Meet link is shallow (URL only), org sharing is
+  real. See [Calendars application](../understand/calendars.md).
 
 ## Not supported (and why)
 
@@ -100,7 +105,6 @@ single-server fit and real value over what the shared foundation already provide
 | App | What it is | Why not (yet) |
 |---|---|---|
 | **People** | User & team management | It's an OIDC **client**, not an identity provider — it sits *behind* Keycloak, so it can't replace it. Identity is already covered by Keycloak + `suite user`; People would be one more app, not a simplification. |
-| **Calendars** | Shared calendars | Early upstream; not integrated yet. |
 | **Conversations** | AI chatbot | Early upstream prototype; not integrated yet. |
 | **Calc** | Collaborative spreadsheets | Upstream prototype; overlaps with the shipped **Grist**. |
 | **Hub** | Meet + chat, unified | A portal over the other apps; overlaps with the shipped **Meet** + the suite landing. Not integrated yet. |

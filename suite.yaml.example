@@ -73,6 +73,8 @@ apps:
   drive: {}                 # file storage
   # grist: {}               # spreadsheets  (options: storage, org, sandbox)
   # projects: {}            # kanban
+  # calendars: {}           # shared calendars — org free/busy + one-click Meet link
+  #                         # (options: sharing_level none|freebusy|read|write)
   # tchap: {}               # Matrix/Element chat  (options: s3_bucket)
   # meet:                   # video conferencing — apply opens its media ports
   #   turn: false           # TURN on 5349/tcp for clients behind strict firewalls

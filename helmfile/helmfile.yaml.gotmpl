@@ -461,3 +461,23 @@ releases:
       - cert-manager/issuers
     values:
       - values/tchap.yaml.gotmpl
+
+  # --- App: Calendars (suitenumerique/calendars) — shared calendars (ADR-043) ---------
+  # OFF by default. Four components from a local chart (no upstream chart exists): a
+  # Django/DRF backend, a Dramatiq worker (backend image, worker.py), a Next.js frontend
+  # and a SabreDAV/PHP CalDAV service. Reuses CNPG (its own `calendars` DB, caldav on a
+  # `sabre` schema of it), the shared Valkey (cache/broker/results, dbs 9/10/11) and
+  # Keycloak SSO with the Docs-style external/internal OIDC split. No S3 (no attachments).
+  # HTTPS-only (CalDAV stays cluster-internal in v1), so no Terraform/Ansible firewall flag.
+  - name: calendars
+    namespace: {{ $ns }}
+    chart: ./charts/calendars
+    condition: apps.calendars.enabled
+    needs:
+      - {{ $ns }}/platform-configuration
+      - {{ $ns }}/postgres
+      - {{ $ns }}/valkey
+      - {{ $ns }}/keycloak
+      - cert-manager/issuers
+    values:
+      - values/calendars.yaml.gotmpl

@@ -1,0 +1,40 @@
+{{- if .Values.ingress.enabled }}
+{{- /* One host, two services (ADR-043). The frontend's API origin is baked at BUILD
+       time (NEXT_PUBLIC_API_ORIGIN), so it MUST be served same-origin as the backend:
+       the SPA calls a relative /api on its own host. Traefik longest-prefix matches, so
+       the Django prefixes (/api, /admin, /static) route to the backend and everything
+       else (/) to the frontend — one host, calendars.{domain}. CalDAV stays
+       cluster-internal in v1 (no external caldav host); standard CalDAV clients are a
+       later addition. cert-manager issues calendars-tls. */}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: calendars
+  labels:
+    app.kubernetes.io/name: calendars
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          {{- range .Values.ingress.routes }}
+          - path: {{ .path | quote }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ .service }}
+                port:
+                  number: {{ .port }}
+          {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+{{- end }}

@@ -90,6 +90,12 @@ APPS: dict[str, App] = {
             ("tchap",),
             options={"s3_bucket": ("OWNSUITE_TCHAP_S3_BUCKET", "tchap-media")},
         ),
+        App(
+            "calendars", "Calendars (shared calendars)",
+            ("calendars",),
+            # HTTP-only (CalDAV stays cluster-internal in v1), so no tf_flags.
+            options={"sharing_level": ("OWNSUITE_CALENDARS_SHARING_LEVEL", "freebusy")},
+        ),
     )
 }
 

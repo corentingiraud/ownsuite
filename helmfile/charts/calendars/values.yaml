@@ -1,0 +1,138 @@
+---
+# Defaults are overridden by Helmfile (values/calendars.yaml.gotmpl). Listed here so
+# `helm lint` / `helm template` can render the chart standalone (ADR-043). The real
+# env/secretEnv (DB, OIDC, Valkey, CalDAV keys, ...) are filled in by the gotmpl.
+
+# Image tags are NOT pinned here. The single source of truth is
+# helmfile/versions/versions.yaml (imageVersions.calendars*); Helmfile injects them.
+# Each component image is "{repository}-{imageSuffix}:{imageTag}", e.g.
+# ghcr.io/suitenumerique/calendars-backend:0.1.0. The three images version
+# independently upstream, so each component pins its own imageTag.
+image:
+  repository: ghcr.io/suitenumerique/calendars
+  tag: ""
+
+# Single instance per component (single node, no horizontal scale).
+replicas: 1
+
+# The images run as a non-root uid; fsGroup is harmless and matches the sibling
+# charts. No volumes are mounted (state is external), so this is mostly future-proofing.
+podSecurityContext:
+  fsGroup: 1000
+
+# Shared resource fallback; heavier components (backend/worker) set their own below.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# One Deployment per entry. Fields:
+#   imageSuffix  the published image (calendars-<suffix>); the worker reuses backend.
+#   imageTag     the image tag (per-component; the gotmpl pins it from versions.yaml).
+#   command      overrides the image CMD (worker only).
+#   port         container port (omit for the worker); portName names it.
+#   portName     "http" (default).
+#   probe        health check: {type: http|tcp, path, ...}; drives startup + readiness
+#                + liveness (the deployment template).
+#   resources    per-component requests/limits (overrides the shared fallback).
+#   service      expose it: {type: ClusterIP, port}.
+#   env          plain env (filled by the gotmpl).
+#   secretEnv    list of {name, secretName, secretKey} (filled by the gotmpl).
+components:
+  backend:
+    imageSuffix: backend
+    port: 8000
+    # TCP, not HTTP: a kube httpGet probe sends Host: <pod-IP>, which Django rejects
+    # via ALLOWED_HOSTS (400). gunicorn accepts the connection once booted and the
+    # pre-upgrade migrate hook has already run, so TCP-ready is a sound signal (same
+    # reasoning as the messages/projects charts).
+    probe:
+      type: tcp
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+    service:
+      type: ClusterIP
+      port: 8000
+    env: {}
+    secretEnv: []
+  worker:
+    imageSuffix: backend
+    # Dramatiq consumer — same image as backend, run from worker.py; lighter steady-state.
+    command: ["python", "worker.py", "-v", "2"]
+    resources:
+      requests:
+        cpu: 100m
+        memory: 384Mi
+      limits:
+        memory: 768Mi
+    env: {}
+    secretEnv: []
+  frontend:
+    imageSuffix: frontend
+    # The frontend-production image is a Caddy static server on :8080 (NOT the dev
+    # compose's 8930). Its Caddyfile serves the SPA only and leaves /api/* routing to
+    # the ingress — which is exactly the same-origin split below.
+    port: 8080
+    probe:
+      type: http
+      path: /
+    # Static SPA server — light.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    service:
+      type: ClusterIP
+      port: 8080
+    env: {}
+    secretEnv: []
+  caldav:
+    imageSuffix: caldav
+    port: 80
+    probe:
+      type: http
+      path: /caldav/healthz
+    # SabreDAV/Apache/PHP — the sharing/free-busy enforcement layer.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    service:
+      type: ClusterIP
+      port: 80
+    env: {}
+    secretEnv: []
+
+# Traefik Ingress at calendars.{domain}. Same-origin routing: the Django prefixes go to
+# the backend, everything else to the frontend (see the ingress template header).
+ingress:
+  enabled: true
+  className: traefik
+  host: calendars.localhost
+  annotations: {}
+  routes:
+    - path: /api
+      service: calendars-backend
+      port: 8000
+    - path: /admin
+      service: calendars-backend
+      port: 8000
+    - path: /static
+      service: calendars-backend
+      port: 8000
+    - path: /
+      service: calendars-frontend
+      port: 8080
+  tls:
+    enabled: true
+    secretName: calendars-tls

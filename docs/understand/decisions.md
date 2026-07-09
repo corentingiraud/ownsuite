@@ -1613,3 +1613,57 @@ developer files safe). Migration is wholesale (alpha): port `.env` values into s
 secrets re-land in the state on the next provision, or stay exported. Deferred, recorded here:
 OS-keyring seed storage, `suite app enable <name>` sugar (dilutes the single source of truth),
 Keycloak client deletion on prune, and `logs -f` following.
+
+## ADR-043 — Calendars integration: local chart, four components, Valkey reuse, Keycloak org-claim mapper, off by default
+
+**Context.** Calendars ([suitenumerique/calendars](https://github.com/suitenumerique/calendars))
+is La Suite's shared-calendar app; the ask (issue #106) was **maximum coupling** with the rest of
+the suite — SSO like every other app, a one-click Meet link on an event, and colleagues seeing
+each other's availability. Two facts shaped the packaging. It ships **no Helm chart** (only a
+`compose.yaml`), and it is **four processes**, not one: a Django/DRF backend, a **Dramatiq**
+worker (not Celery), a Next.js/Vite frontend, and a first-class **SabreDAV/PHP CalDAV service**
+where sharing and free-busy are actually enforced. Upstream is at **v0.1.0** (pre-production), and
+the two headline coupling features are asymmetric: **org free/busy sharing is real and
+e2e-tested**, while the **Meet link is only URL-string generation** (a random room id), not
+authenticated room provisioning ([calendars#19](https://github.com/suitenumerique/calendars/issues/19)).
+
+**Decision.** Package it as a local chart, off by default, reusing the existing seams; add the one
+genuinely new piece of SSO config the org sharing needs.
+
+- **Local chart, four Deployments** (`helmfile/charts/calendars`, template: the messages chart's
+  generic `components` map). Backend + worker share one image (`worker.py`); frontend and CalDAV
+  are their own images, each tag pinned independently in `versions.yaml`. The backend migrates via
+  a pre-upgrade hook; CalDAV initialises its own schema on start.
+- **One database, not two.** Upstream's own topology keeps the SabreDAV tables in a `sabre`
+  **schema** of the app database, so OwnSuite provisions a single CNPG `calendars` database and the
+  CalDAV service connects as the same owner role — fewer moving parts than two databases for no
+  isolation the schema doesn't already give (deviates from the issue's "two DBs" sketch).
+- **Valkey reuse, no Redis pod.** Cache, the Dramatiq broker and its results take three dedicated
+  indices on the shared Valkey (dbs 9/10/11 — after Docs 0/1, Drive 2/3, Messages 4/5, Meet 6/7,
+  LiveKit 8), mirroring how Meet reuses Valkey. No S3 (no object attachments today).
+- **OIDC external/internal split** like Docs/Meet (not Grist's single-issuer discovery): browser →
+  `auth.{domain}`, backend → in-cluster. New confidential client `calendars` on the shared template.
+- **One host, served same-origin.** The frontend's API origin is baked at **build time**
+  (`NEXT_PUBLIC_API_ORIGIN`), so it can only reach a backend on its own origin. The single
+  `calendars.{domain}` ingress routes the Django prefixes (`/api`, `/admin`, `/static`) to the
+  backend and everything else to the frontend, rather than giving the frontend its own host.
+- **Keycloak org-claim mapper — the new piece.** Org membership comes from an OIDC claim
+  (`OIDC_USERINFO_ORGANIZATION_CLAIM`). A hardcoded-claim protocol mapper on the `calendars` client
+  emits a constant `organization` claim in userinfo (single-org OwnSuite: everyone in one org),
+  added to *both* the realm-import ConfigMap and the kcadm upsert Job so they converge. Without it
+  every user is org-less and org sharing does nothing. `ORG_DEFAULT_SHARING_LEVEL` defaults to
+  `freebusy`, so same-org "find a time" works out of the box; cross-org is hard-blocked upstream.
+- **Meet coupling via config, not code.** `FRONTEND_MEET_BASE_URL` is set to `https://meet.{domain}`
+  **only when Meet is enabled**, so the "create visio" button attaches a link to our own Meet and
+  never dangles one otherwise. Deep Meet-SDK room provisioning (upstream #19) is **deferred**.
+- **CalDAV internal-only for v1.** No external `caldav.{domain}` host; the web UI works, standard
+  desktop/mobile CalDAV clients are a later addition. HTTP-only, so no Terraform/Ansible firewall
+  flag (unlike Meet). Off by default (ADR-035), one `App(...)` record in the manifest (ADR-042).
+
+**Consequences.** Enabling it is `calendars: {}` + `suite apply` → `https://calendars.{domain}`,
+with org free/busy and (when Meet is on) a one-click meeting link. Image tags are pinned and
+Renovate-tracked, but `main` is a moving v0.1.0 target — the frontend's build-time API origin means
+a future image baking a non-relative origin would break same-origin serving. The org-claim mapper
+is the first per-client protocol mapper in the realm config; the `orgClaim` field is generic but
+only Calendars uses it. Deferred: external CalDAV host, deep Meet SDK, S3 attachments, anything
+cross-org (upstream hard-blocks it).

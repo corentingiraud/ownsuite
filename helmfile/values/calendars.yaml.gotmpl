@@ -1,0 +1,150 @@
+# Calendars (suitenumerique/calendars) — shared calendars (ADR-043). Deployed from the
+# local ./charts/calendars chart; OFF by default (gated on apps.calendars.enabled at the
+# Helmfile level). Four components: a Django/DRF backend, a Dramatiq worker (backend
+# image, worker.py), a Next.js/Vite frontend, and a SabreDAV/PHP CalDAV service. Image
+# tags are pinned in versions.yaml (the chart has no appVersion).
+#
+# OIDC uses the Docs-style external/internal endpoint split: the browser hits Keycloak at
+# https://auth.{domain}, the backend reaches it in-cluster over plain HTTP (no TLS trust
+# needed, works with the self-signed issuer in CI).
+#
+# State is external: ONE CNPG `calendars` database (the caldav service keeps its SabreDAV
+# tables in a `sabre` schema of the same DB — upstream's own default) and the shared
+# Valkey (cache db 9, Dramatiq broker db 10, Dramatiq results db 11 — distinct from Docs
+# 0/1, Drive 2/3, Messages 4/5, Meet 6/7, LiveKit 8). No S3 (no attachments yet). Every
+# credential comes from a seed-derived Secret via secretKeyRef (ADR-012); nothing secret
+# is rendered here.
+#
+# Two coupling features (issue #106): a one-click Meet link on an event
+# (FRONTEND_MEET_BASE_URL, set only when Meet is enabled) and org free/busy sharing
+# (ORG_DEFAULT_SHARING_LEVEL + the Keycloak org-claim mapper feeding
+# OIDC_USERINFO_ORGANIZATION_CLAIM).
+{{- $domain := .Values.domain -}}
+{{- $host := printf "calendars.%s" $domain -}}
+{{- $realm := .Values.keycloak.realm -}}
+{{- $ns := .Values.workloadsNamespace -}}
+{{- $pgHost := printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName $ns -}}
+{{- $kcExternal := printf "https://auth.%s/realms/%s/protocol/openid-connect" $domain $realm -}}
+{{- $kcInternal := printf "http://keycloak-keycloakx-http.%s.svc.cluster.local/realms/%s/protocol/openid-connect" $ns $realm -}}
+{{- $verifySsl := ternary "False" "True" (eq .Values.tls.issuer "selfsigned") -}}
+{{- $siteUrl := printf "https://%s" $host -}}
+{{- $caldavUrl := printf "http://calendars-caldav.%s.svc.cluster.local:80" $ns -}}
+{{- $backendUrl := printf "http://calendars-backend.%s.svc.cluster.local:8000" $ns -}}
+{{- /* The one-click "create visio" button generates a room under this base — coupled to
+       our own Meet, but only meaningful when Meet is deployed. Empty otherwise so the
+       button doesn't dangle a link to a host that doesn't exist (issue #106 Q1). */ -}}
+{{- $meetBaseUrl := ternary (printf "https://meet.%s" $domain) "" .Values.apps.meet.enabled -}}
+{{- /* The backend env block is large and the worker reuses it verbatim (same image, just
+       worker.py), so build it once and splat into both. */ -}}
+{{- $backendEnv := dict
+    "DJANGO_SETTINGS_MODULE" "calendars.settings"
+    "DJANGO_CONFIGURATION" "Production"
+    "DJANGO_ALLOWED_HOSTS" $host
+    "DJANGO_CSRF_TRUSTED_ORIGINS" $siteUrl
+    "DATA_DIR" "/data"
+    "DB_ENGINE" "django.db.backends.postgresql"
+    "DB_HOST" $pgHost
+    "DB_NAME" "calendars"
+    "DB_USER" "calendars"
+    "DB_PORT" "5432"
+    "OIDC_RP_CLIENT_ID" "calendars"
+    "OIDC_RP_SIGN_ALGO" "RS256"
+    "OIDC_RP_SCOPES" "openid email"
+    "OIDC_OP_AUTHORIZATION_ENDPOINT" (printf "%s/auth" $kcExternal)
+    "OIDC_OP_LOGOUT_ENDPOINT" (printf "%s/logout" $kcExternal)
+    "OIDC_OP_JWKS_ENDPOINT" (printf "%s/certs" $kcInternal)
+    "OIDC_OP_TOKEN_ENDPOINT" (printf "%s/token" $kcInternal)
+    "OIDC_OP_USER_ENDPOINT" (printf "%s/userinfo" $kcInternal)
+    "OIDC_VERIFY_SSL" $verifySsl
+    "OIDC_CREATE_USER" "True"
+    "OIDC_REDIRECT_ALLOWED_HOSTS" $siteUrl
+    "LOGIN_REDIRECT_URL" $siteUrl
+    "LOGIN_REDIRECT_URL_FAILURE" $siteUrl
+    "LOGOUT_REDIRECT_URL" $siteUrl
+    "OIDC_USERINFO_ORGANIZATION_CLAIM" "organization"
+    "ORG_DEFAULT_SHARING_LEVEL" .Values.apps.calendars.sharingLevel
+    "CALDAV_URL" $caldavUrl
+    "APP_URL" $siteUrl
+    "FRONTEND_MEET_BASE_URL" $meetBaseUrl
+-}}
+{{- $backendSecretEnv := list
+    (dict "name" "DJANGO_SECRET_KEY" "secretName" "calendars-secrets" "secretKey" "DJANGO_SECRET_KEY")
+    (dict "name" "SALT_KEY" "secretName" "calendars-secrets" "secretKey" "SALT_KEY")
+    (dict "name" "OIDC_RP_CLIENT_SECRET" "secretName" "calendars-secrets" "secretKey" "OIDC_RP_CLIENT_SECRET")
+    (dict "name" "DB_PASSWORD" "secretName" "calendars-db" "secretKey" "password")
+    (dict "name" "REDIS_URL" "secretName" "calendars-secrets" "secretKey" "REDIS_URL")
+    (dict "name" "DRAMATIQ_BROKER_URL" "secretName" "calendars-secrets" "secretKey" "DRAMATIQ_BROKER_URL")
+    (dict "name" "DRAMATIQ_RESULT_BACKEND_URL" "secretName" "calendars-secrets" "secretKey" "DRAMATIQ_RESULT_BACKEND_URL")
+    (dict "name" "CALDAV_OUTBOUND_API_KEY" "secretName" "calendars-secrets" "secretKey" "CALDAV_OUTBOUND_API_KEY")
+    (dict "name" "CALDAV_INBOUND_API_KEY" "secretName" "calendars-secrets" "secretKey" "CALDAV_INBOUND_API_KEY")
+    (dict "name" "CALDAV_INTERNAL_API_KEY" "secretName" "calendars-secrets" "secretKey" "CALDAV_INTERNAL_API_KEY")
+}}
+
+image:
+  repository: ghcr.io/suitenumerique/calendars
+  tag: {{ .Values.imageVersions.calendarsBackend | quote }}
+
+components:
+  # Backend (Django/DRF) — the API + OIDC + the config the SPA reads.
+  backend:
+    imageTag: {{ .Values.imageVersions.calendarsBackend | quote }}
+    env:
+      {{- range $k, $v := $backendEnv }}
+      {{ $k }}: {{ $v | quote }}
+      {{- end }}
+    secretEnv:
+      {{- toYaml $backendSecretEnv | nindent 6 }}
+  # Dramatiq worker — same image + env as the backend, just worker.py.
+  worker:
+    imageTag: {{ .Values.imageVersions.calendarsBackend | quote }}
+    env:
+      {{- range $k, $v := $backendEnv }}
+      {{ $k }}: {{ $v | quote }}
+      {{- end }}
+    secretEnv:
+      {{- toYaml $backendSecretEnv | nindent 6 }}
+  # Frontend (SPA). Its API origin is baked at BUILD time (NEXT_PUBLIC_API_ORIGIN), so it
+  # takes no runtime env from us — it is served same-origin as the backend (see the
+  # ingress). Everything the SPA shows (Meet base URL, sharing, OIDC) comes from the
+  # backend config API, not frontend env.
+  frontend:
+    imageTag: {{ .Values.imageVersions.calendarsFrontend | quote }}
+    env: {}
+    secretEnv: []
+  # CalDAV (SabreDAV/PHP). Keeps its tables in the `sabre` schema of the shared
+  # `calendars` DB (upstream default), connecting as the same CNPG `calendars` owner
+  # role. Authenticates to the backend with the three shared API keys (must match the
+  # backend byte-for-byte — same seed-derived Secret).
+  caldav:
+    imageTag: {{ .Values.imageVersions.calendarsCaldav | quote }}
+    env:
+      PGHOST: {{ $pgHost | quote }}
+      PGPORT: "5432"
+      PGDATABASE: calendars
+      PGUSER: calendars
+      CALDAV_DB_SCHEMA: sabre
+      CALDAV_BASE_URI: /caldav/
+      CALDAV_CALLBACK_BASE_URL: {{ $backendUrl | quote }}
+    secretEnv:
+      - name: PGPASSWORD
+        secretName: calendars-db
+        secretKey: password
+      - name: CALDAV_OUTBOUND_API_KEY
+        secretName: calendars-secrets
+        secretKey: CALDAV_OUTBOUND_API_KEY
+      - name: CALDAV_INBOUND_API_KEY
+        secretName: calendars-secrets
+        secretKey: CALDAV_INBOUND_API_KEY
+      - name: CALDAV_INTERNAL_API_KEY
+        secretName: calendars-secrets
+        secretKey: CALDAV_INTERNAL_API_KEY
+
+ingress:
+  enabled: true
+  className: traefik
+  host: {{ $host | quote }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.tls.issuer | quote }}
+  tls:
+    enabled: true
+    secretName: calendars-tls
