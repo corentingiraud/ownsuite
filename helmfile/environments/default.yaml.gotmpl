@@ -117,11 +117,13 @@ keycloak:
       # Only present when Calendars is enabled (ADR-043, off by default). A Django/
       # mozilla-django-oidc app like Docs; the shared client template emits redirectUris
       # https://calendars.{domain}/* and the profile+email scopes it maps to its user.
-      # `orgClaim` adds a hardcoded `organization` claim to userinfo so every user lands
+      # `orgClaim` adds a hardcoded `org` claim to userinfo so every user lands
       # in ONE org — Calendars reads it (OIDC_USERINFO_ORGANIZATION_CLAIM) to gate
       # same-org free/busy sharing (issue #106). Single-org OwnSuite: one constant value.
+      # NB: the claim MUST NOT be named `organization` — that shadows Calendars'
+      # User.organization FK and makes lasuite's OIDC backend 500 on login.
       orgClaim:
-        name: organization
+        name: org
         value: {{ env "OWNSUITE_DOMAIN" | default "ownsuite.localhost" | quote }}
       directAccessGrants: {{ env "OWNSUITE_KC_DIRECT_GRANTS" | default "false" }}
     {{- end }}
