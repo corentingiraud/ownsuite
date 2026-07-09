@@ -5,7 +5,8 @@
 numérique's shared-calendar app) is wired to the same shared foundation, with Keycloak SSO
 so a user provisioned once reaches it on first login (JIT — no per-app step). The whole
 point of packaging it here is **coupling with the rest of the suite**: a one-click
-[Meet](meet.md) link on an event, and colleagues seeing each other's availability.
+[Meet](meet.md) link on an event, colleagues seeing each other's availability, and — when
+[Messages](messages.md) is also on — a user's mailboxes offered as invitation-sender addresses.
 
 !!! note "Off by default"
     Calendars ships **disabled** (no `calendars:` entry under `apps:` by default). It's an
@@ -67,7 +68,7 @@ initialises its own `sabre` schema on start.
 
 All of it is in `helmfile/values/calendars.yaml.gotmpl`; nothing secret is committed.
 
-## The two coupling features
+## The coupling features
 
 ### One-click Meet link on an event
 
@@ -91,6 +92,19 @@ The one piece of genuinely new Keycloak config this needs: org membership comes 
 constant `organization` claim in userinfo (single-org OwnSuite: everyone in one org); the
 backend maps it (`OIDC_USERINFO_ORGANIZATION_CLAIM`) into its `Organization` model. Without
 that claim every user would be org-less and org sharing would do nothing.
+
+### Your mailboxes as invitation senders (only with Messages)
+
+When [Messages](messages.md) is also enabled, Calendars discovers the mailboxes you own and
+offers them as the "from" address on an invitation, instead of falling back to the system
+address. It reads them from Messages' provisioning API **service-to-service** — not with your
+login token: Calendars sends `X-Channel-Id` + `X-API-Key` headers that Messages validates
+against a global `api_key` **Channel** with the `mailboxes:read` scope. The channel id
+(a UUID) and the key both come from the shared `calendars-secrets` (seed-derived, ADR-012), so
+the two sides agree byte-for-byte. Messages has no command to create that channel, so a small
+**idempotent Job on the Messages release** upserts it on every `suite apply` (the same ORM-shell
+seam as its mail-domain seed). It only wires up when **both** apps are on; with Messages off the
+integration stays disabled and you simply see the system-address fallback.
 
 ## Run it
 

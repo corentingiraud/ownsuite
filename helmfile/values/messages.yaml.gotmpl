@@ -33,6 +33,14 @@ image:
 # Seed this mail domain (with oidc_autojoin) so a mailbox is created on first login.
 mailDomain: {{ $domain | quote }}
 
+{{- /* When Calendars is also on, run the provisioning Job that upserts the api_key
+       Channel Calendars uses to read mailboxes (issue #108). Its credentials live in the
+       Calendars secret, which platform-configuration renders whenever Calendars is on. */ -}}
+{{- if .Values.apps.calendars.enabled }}
+calendarsProvisioning:
+  enabled: true
+{{- end }}
+
 ingress:
   enabled: true
   className: traefik
