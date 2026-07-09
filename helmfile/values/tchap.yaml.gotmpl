@@ -20,6 +20,7 @@
 {{- $domain := .Values.domain -}}
 {{- $ns := .Values.workloadsNamespace -}}
 {{- $pgHost := printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName $ns -}}
+{{- $realm := .Values.keycloak.realm -}}
 
 # Base Matrix server name — user IDs are @user:{domain}, so this is the bare domain,
 # NOT the homeserver host (matrix.{domain}). well-known delegation (below) points
@@ -86,6 +87,54 @@ synapse:
     01-s3-media:
       configSecret: tchap-secrets
       configSecretKey: synapse-s3.yaml
+    # UX simplification for a single-organisation, SSO-gated deployment (no identity
+    # server, no ProConnect). Homeserver defaults:
+    #  - No E2EE by default on newly created rooms. "off" is QUOTED: bare off is YAML
+    #    boolean false, but Synapse wants the string "off" (vs "invite"/"all"). NOTE: the
+    #    Tchap web client sets m.room.encryption itself per room type (private=encrypted,
+    #    public/forum=clear) and ignores this default; so this only governs rooms Synapse
+    #    creates (the auto-join room below) and any non-Tchap client.
+    #  - Searchable user directory: stock Synapse only surfaces users you already share a
+    #    room with, so a fresh user finds nobody. search_all_users makes every homeserver
+    #    user discoverable (fine here — membership is already gated by Keycloak).
+    #  - Publishable room directory: Synapse's built-in default for room_list_publication_rules
+    #    is an EMPTY list, which means DENY. So a Tchap Forum — created with visibility: public
+    #    — has its directory publication silently refused ("Not allowed to publish room") and
+    #    never shows up under "Salons publics". One catch-all allow rule restores it, so a
+    #    top-level Forum auto-lists on creation (search itself, enable_room_list_search, is
+    #    already true by default).
+    02-ux:
+      config: |
+        encryption_enabled_by_default_for_room_type: "off"
+        user_directory:
+          enabled: true
+          search_all_users: true
+          prefer_local_users: true
+        # Catch-all allow (no user/room pattern) lets any local user publish a room to the
+        # directory; without it Synapse's empty-list default denies every publication.
+        room_list_publication_rules:
+          - action: allow
+        # Every new SSO user auto-joins a shared room on first login, so nobody lands on
+        # an empty home screen. Synapse auto-creates the room on the first registration
+        # (autocreate_auto_join_rooms defaults true) — unencrypted, per the setting above.
+        # The alias carries the server_name, which is the bare domain (interpolated here).
+        auto_join_rooms:
+          - "#general:{{ $domain }}"
+        # Closed / no federation: an EMPTY whitelist means federate with NOBODY. The chart
+        # exposes only the client API on matrix.{domain} (no 8448 federation listener or
+        # Ingress), so this makes the "internal only" stance explicit at the config layer too.
+        federation_domain_whitelist: []
+        # No guest access, pairing with the client's disable_guests. Synapse's default is
+        # already false; set it so the closed-membership intent lives in one place.
+        allow_guest_access: false
+        # Presence ON for the Slack-like online/away status. Set explicitly so it can't be
+        # silently disabled elsewhere and to pair with the client, which shows presence by
+        # default. (Registration stays delegated to MAS under MSC3861 — no enable_registration
+        # needed; local Synapse registration is already refused when auth is delegated.)
+        presence:
+          enabled: true
+        # No anonymous usage-stats phone-home (privacy).
+        report_stats: false
 
 # --- Matrix Authentication Service (MAS) --------------------------------------------
 # MAS owns login/registration and brokers SSO to Keycloak. It needs its own host: it
@@ -147,6 +196,96 @@ elementWeb:
   additional:
     sso-redirect: |
       {"sso_redirect_options": {"immediate": true}}
+    # App name used in the browser-tab title ("<brand> [n] | <room>") and a few UI
+    # strings. The chart leaves it at Element's default "Element"; brand it for this
+    # deployment. Derived from the domain's first label, same convention as the
+    # homeserver-list display label below (Fabrique).
+    brand: |
+      {"brand": "{{ splitList "." $domain | first | title }}"}
+    # Tchap's room-directory dropdown (NetworkDropdown -> TchapUtils.toFriendlyServerName)
+    # does an UNGUARDED `.find` on the top-level config key `homeserver_list`. The chart's
+    # generated config.json omits it, so opening "Salons publics" throws
+    # "Cannot read properties of undefined (reading 'find')" and the directory never loads.
+    # Supply the single entry Tchap expects: `base_url` MUST equal "https://matrix." +
+    # server_name (the lookup key the code builds) — i.e. our Synapse host. The entry's
+    # `server_name` is only the display label (Tchap convention: the org name, not the
+    # Matrix name), so we derive a tidy one from the domain's first label (Fabrique).
+    homeserver-list: |
+      {"homeserver_list": [{"server_name": "{{ splitList "." $domain | first | title }}", "base_url": "https://matrix.{{ $domain }}"}]}
+    # Force the legacy (stable) room list. Tchap ships feature_new_room_list ON by default,
+    # but its virtualized list (react-virtuoso 4.18) throws "Cannot read properties of
+    # undefined (reading 'align')" the moment a room is joined, leaving the left panel blank.
+    # It's a library bug in the new list, unreachable by config; the flag is the only lever
+    # we control. setting_defaults is prioritised over the device level for this flag, so
+    # this pins every client to the working list until Tchap's new one stabilises.
+    room-list-stable: |
+      {"setting_defaults": {"feature_new_room_list": false}}
+    # UI trim (setting_defaults) for a single-org, SSO-only, text-only deployment. These
+    # deep-merge into setting_defaults alongside feature_new_room_list above (nested objects
+    # merge, chart contract), so the working room list is preserved. Keys with dots
+    # ("UIFeature.voip") are LITERAL string keys — every one was verified to exist in the
+    # pinned tchap-web-v4 (develop_tchap) build before being set. Why each:
+    #  - UIFeature.voip: text-only (Meet covers video), hide call buttons.
+    #  - UIFeature.locationSharing: no maps -> also lets us skip map_style_url entirely.
+    #  - UIFeature.identityServer / thirdPartyId: we run no identity server, and auth is
+    #    SSO-only, so no identity-server lookups and no email/phone (3PID) binding.
+    #  - UIFeature.advancedEncryption: no E2EE friction (default encryption is off).
+    #  - UIFeature.feedback: remove the feedback prompts.
+    #  - UIFeature.widgets: no integration manager (Scalar) is configured.
+    #  - UIFeature.shareSocial / shareQrCode: trim the share dialog.
+    #  - Spaces.allRoomsInHome: flat room list in Home = Slack-like, no Spaces nesting.
+    #  - hideDisplaynameChanges / hideAvatarChanges: quieter timeline. These are the correct
+    #    (legacy inverted) config keys — SettingsStore reads them and inverts the show*
+    #    settings, so setting the show* form here would NOT take effect.
+    #  - urlPreviewsEnabled=false: no link previews. Paired with Synapse url_preview_enabled
+    #    left at its default (false) => zero outbound fetch, so no SSRF surface / IP blacklist.
+    #  - layout="bubble": message bubbles, matching Tchap (Element's own default is "group").
+    ui-trim: |
+      {"setting_defaults": {
+        "UIFeature.voip": false,
+        "UIFeature.locationSharing": false,
+        "UIFeature.identityServer": false,
+        "UIFeature.thirdPartyId": false,
+        "UIFeature.advancedEncryption": false,
+        "UIFeature.feedback": false,
+        "UIFeature.widgets": false,
+        "UIFeature.shareSocial": false,
+        "UIFeature.shareQrCode": false,
+        "Spaces.allRoomsInHome": true,
+        "hideDisplaynameChanges": true,
+        "hideAvatarChanges": true,
+        "urlPreviewsEnabled": false,
+        "layout": "bubble"
+      }}
+    # Top-level config.json deployment facts (not setting_defaults). Why each:
+    #  - disable_guests: SSO-only, no anonymous guest peek/registration.
+    #  - desktop_builds.available=false: web-only, kill the "Download Desktop app" nag.
+    #  - mobile_guide_toast=false: we ship no custom mobile app, so suppress the "get the
+    #    app" prompt. (The issue's mobile_guide_toggle no longer exists in this build;
+    #    mobile_guide_toast is the current equivalent that gates the mobile prompt.)
+    #  - permalink_prefix: internal share links stay on our own Element host, not matrix.to.
+    #  - default_theme=light: cosmetic default (users can still switch).
+    deployment-flags: |
+      {
+        "disable_guests": true,
+        "desktop_builds": {"available": false},
+        "mobile_guide_toast": false,
+        "permalink_prefix": "https://tchap.{{ $domain }}",
+        "default_theme": "light"
+      }
+    # Logout terminates the upstream Keycloak SSO session, not just the local Matrix one.
+    # Under MSC3861 (OIDC-native auth) Element still honors logout_redirect_url: on logout it
+    # revokes its tokens at MAS, then browser-redirects here. MAS itself cannot propagate
+    # logout to its upstream_oauth2 provider in the pinned version (matrix-stack 26.6.2 ships
+    # MAS 1.19.0; outbound RP-initiated upstream logout is unmerged — element-hq/matrix-
+    # authentication-service PR #4249), so this client-side redirect to Keycloak's
+    # RP-initiated-logout (end_session) endpoint is the only mechanism that ends the Keycloak
+    # session. LIMITATION: Element sends no id_token_hint, so Keycloak (18+) shows a "Do you
+    # want to log out?" confirmation page rather than logging out silently; the user confirms,
+    # then the Keycloak session ends. Revisit for a clean redirect once MAS gains upstream
+    # logout propagation.
+    logout-sso: |
+      {"logout_redirect_url": "https://auth.{{ $domain }}/realms/{{ $realm }}/protocol/openid-connect/logout"}
 
 # --- well-known delegation ----------------------------------------------------------
 # Serves /.well-known/matrix/{client,server} on the bare {domain} so clients discover
