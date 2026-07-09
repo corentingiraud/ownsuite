@@ -3,9 +3,11 @@
        time (NEXT_PUBLIC_API_ORIGIN), so it MUST be served same-origin as the backend:
        the SPA calls a relative /api on its own host. Traefik longest-prefix matches, so
        the Django prefixes (/api, /admin, /static) route to the backend and everything
-       else (/) to the frontend — one host, calendars.{domain}. CalDAV stays
-       cluster-internal in v1 (no external caldav host); standard CalDAV clients are a
-       later addition. cert-manager issues calendars-tls. */}}
+       else (/) to the frontend — one host, calendars.{domain}. /caldav also routes to
+       the backend: the SPA speaks CalDAV from the browser and Django's CalDAVProxyView
+       gates it (OIDC session + sharing) before proxying to SabreDAV internally. Standard
+       external CalDAV clients (/.well-known/caldav) are a later addition. cert-manager
+       issues calendars-tls. */}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

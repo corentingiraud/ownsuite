@@ -130,6 +130,14 @@ ingress:
     - path: /static
       service: calendars-backend
       port: 8000
+    # The SPA speaks CalDAV from the browser (same-origin /caldav/). Upstream routes
+    # it to Django, NOT to SabreDAV directly: CalDAVProxyView enforces the OIDC session
+    # + sharing, then re-proxies to the caldav service via CALDAV_URL. Without this the
+    # PROPFINDs fall to the / catch-all (Caddy SPA) and 405. External CalDAV client
+    # discovery (/.well-known/caldav) is a later addition.
+    - path: /caldav
+      service: calendars-backend
+      port: 8000
     - path: /
       service: calendars-frontend
       port: 8080
