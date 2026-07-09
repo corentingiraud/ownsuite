@@ -75,7 +75,10 @@ components:
     secretEnv: []
   frontend:
     imageSuffix: frontend
-    port: 8930
+    # The frontend-production image is a Caddy static server on :8080 (NOT the dev
+    # compose's 8930). Its Caddyfile serves the SPA only and leaves /api/* routing to
+    # the ingress — which is exactly the same-origin split below.
+    port: 8080
     probe:
       type: http
       path: /
@@ -88,7 +91,7 @@ components:
         memory: 256Mi
     service:
       type: ClusterIP
-      port: 8930
+      port: 8080
     env: {}
     secretEnv: []
   caldav:
@@ -129,7 +132,7 @@ ingress:
       port: 8000
     - path: /
       service: calendars-frontend
-      port: 8930
+      port: 8080
   tls:
     enabled: true
     secretName: calendars-tls
