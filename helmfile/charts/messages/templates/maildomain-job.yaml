@@ -45,7 +45,14 @@ spec:
               from core.models import MailDomain
               d, created = MailDomain.objects.get_or_create(name="{{ .Values.mailDomain }}")
               d.oidc_autojoin = True
-              d.save(update_fields=["oidc_autojoin"])
+              fields = ["oidc_autojoin"]
+              {{- if .Values.mailDomainOrg }}
+              # Calendars resolves a mailbox's organization from this attribute; its value
+              # must match the OIDC org claim (issue #106). Merge so other attrs survive.
+              d.custom_attributes = {**(d.custom_attributes or {}), "org": "{{ .Values.mailDomainOrg }}"}
+              fields.append("custom_attributes")
+              {{- end }}
+              d.save(update_fields=fields)
               print("maildomain {{ .Values.mailDomain }}:", "created" if created else "exists")
           env:
             {{- range $k, $v := $backend.env }}

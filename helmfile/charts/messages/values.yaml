@@ -16,6 +16,11 @@ image:
 # standalone `helm template`; Helmfile sets it to the base domain.
 mailDomain: ""
 
+# Org identifier to stamp as the mail domain's `org` custom attribute. Only set (by the
+# Helmfile gotmpl) when Calendars is enabled, to the value Calendars' OIDC org claim
+# carries; empty otherwise so the seed Job leaves custom_attributes untouched (issue #106).
+mailDomainOrg: ""
+
 # When Calendars is also enabled (issue #108), a post-install Job upserts the api_key
 # Channel that Calendars uses to read mailboxes over the provisioning API. Off here so
 # standalone `helm template` skips it; the Helmfile gotmpl turns it on and points at the

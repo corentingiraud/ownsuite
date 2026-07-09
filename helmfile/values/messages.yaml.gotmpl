@@ -35,10 +35,15 @@ mailDomain: {{ $domain | quote }}
 
 {{- /* When Calendars is also on, run the provisioning Job that upserts the api_key
        Channel Calendars uses to read mailboxes (issue #108). Its credentials live in the
-       Calendars secret, which platform-configuration renders whenever Calendars is on. */ -}}
+       Calendars secret, which platform-configuration renders whenever Calendars is on.
+       Also stamp the mail domain's `org` custom attribute: Calendars refuses a mailbox
+       whose maildomain lacks the org claim it reads (OIDC_USERINFO_ORGANIZATION_CLAIM,
+       "org"), and its value must equal the Keycloak org-claim value — which is
+       OWNSUITE_DOMAIN (= $domain), the single-org identifier (issue #106). */ -}}
 {{- if .Values.apps.calendars.enabled }}
 calendarsProvisioning:
   enabled: true
+mailDomainOrg: {{ $domain | quote }}
 {{- end }}
 
 ingress:
