@@ -39,9 +39,6 @@
 {{- $backendEnv := dict
     "DJANGO_SETTINGS_MODULE" "calendars.settings"
     "DJANGO_CONFIGURATION" "Production"
-    {{- /* CalDAV posts iMIP invitation callbacks to CALDAV_CALLBACK_BASE_URL, the
-           in-cluster backend service — so its host must pass Django's ALLOWED_HOSTS
-           too, not just the public ingress host (issue #109). */ -}}
     "DJANGO_ALLOWED_HOSTS" (printf "%s,calendars-backend.%s.svc.cluster.local" $host $ns)
     "DJANGO_CSRF_TRUSTED_ORIGINS" $siteUrl
     "DATA_DIR" "/data"
