@@ -73,8 +73,14 @@ def issue(env, issuer, enabled, *, verb="apply"):
     The issuer is stomped into the env so nothing ambient can downgrade it."""
     print(f"\n==> Applying the stack with TLS issuer '{issuer}' (helmfile {verb})")
     full = {**env, "OWNSUITE_TLS_ISSUER": issuer}
+    # On a fresh cluster the operators (cert-manager, CNPG) install their CRDs in the
+    # same pass that later releases' CRs (ClusterIssuer, Cluster) depend on. `apply`
+    # helm-diffs every release up front, which fails to map those not-yet-installed
+    # CRDs; --skip-diff-on-install skips the diff for new releases so `needs` ordering
+    # installs the CRDs first. Only valid for `apply` (not `sync`).
+    extra = ["--skip-diff-on-install"] if verb == "apply" else []
     try:
-        run(["helmfile", "-f", HELMFILE, verb], env=full, step=f"helmfile {verb}")
+        run(["helmfile", "-f", HELMFILE, verb, *extra], env=full, step=f"helmfile {verb}")
     except SuiteError:
         run(["kubectl", "get", "pods", "-A"], check=False)  # diagnostics on failure
         raise
