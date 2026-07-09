@@ -84,8 +84,9 @@ is off by default** — enabling one is a line in `suite.yaml` under `apps:` fol
 | **Mailbox** | Mail provider + webmail (suitenumerique/messages) | `messages: {}` |
 | **Meet** | Video conferencing on LiveKit (suitenumerique/meet) | `meet: {}` |
 | **Tchap** | Matrix/Element secure chat, text-only (ess-helm + tchapgouv) | `tchap: {}` |
+| **Calendars** | Shared calendars — org free/busy + one-click Meet link (suitenumerique/calendars) | `calendars: {}` |
 
-Some upstream La Suite apps (People, Calendars…) are deliberately not packaged — see
+Some upstream La Suite apps (People…) are deliberately not packaged — see
 [Not supported](https://corentingiraud.github.io/ownsuite/project/roadmap/#not-supported-and-why).
 See the [status board](https://corentingiraud.github.io/ownsuite/project/roadmap/) for the
 full feature list and what's planned.

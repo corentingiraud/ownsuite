@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Boot ONE app (grist | projects | messages | docs | drive | meet | tchap) on its OWN throwaway k3d
+# Boot ONE app (grist | projects | messages | docs | drive | meet | tchap | calendars) on its OWN throwaway k3d
 # cluster and assert its definition of done: it converges, its UI/API is reachable
 # over HTTPS with SSO wired, plus an app-appropriate read-back (messages: local mail
 # loopback; docs: SSO create + read-back; drive: JIT /users/me). One app per cluster
@@ -8,7 +8,7 @@
 # backup/restore only and no longer re-asserts any app.
 #
 # Runs in apps-e2e.yml (a matrix, one job per app) and locally via
-# `make test-app APP=<grist|projects|messages|docs|drive|meet|tchap>`.
+# `make test-app APP=<grist|projects|messages|docs|drive|meet|tchap|calendars>`.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."  # repo root
@@ -16,8 +16,8 @@ cd "$(dirname "$0")/../.."  # repo root
 
 APP="${1:-${OWNSUITE_E2E_APP:-}}"
 case "$APP" in
-  grist|projects|messages|docs|drive|meet|tchap) ;;
-  *) echo "usage: $0 <grist|projects|messages|docs|drive|meet|tchap>" >&2; exit 2 ;;
+  grist|projects|messages|docs|drive|meet|tchap|calendars) ;;
+  *) echo "usage: $0 <grist|projects|messages|docs|drive|meet|tchap|calendars>" >&2; exit 2 ;;
 esac
 
 CLUSTER="${OWNSUITE_E2E_CLUSTER:-ownsuite-app-$APP}"
@@ -35,7 +35,7 @@ export OWNSUITE_OBJECT_STORAGE_MODE="${OWNSUITE_OBJECT_STORAGE_MODE:-garage}"
 # Only the app under test: Docs/Drive off so one app owns the runner's RAM.
 export OWNSUITE_APP_DOCS=false OWNSUITE_APP_DRIVE=false
 export OWNSUITE_APP_GRIST=false OWNSUITE_APP_PROJECTS=false OWNSUITE_APP_MESSAGES=false
-export OWNSUITE_APP_MEET=false OWNSUITE_APP_TCHAP=false
+export OWNSUITE_APP_MEET=false OWNSUITE_APP_TCHAP=false OWNSUITE_APP_CALENDARS=false
 # Direct-access grant on this app's OIDC client so the test can mint a bearer token
 # for the API read-back (messages) without a browser — CI only, as in run-e2e.sh.
 export OWNSUITE_KC_DIRECT_GRANTS=true
@@ -49,6 +49,7 @@ CERTS=("$APP-tls")
 case "$APP" in
   grist) export OWNSUITE_APP_GRIST=true ;;
   projects) export OWNSUITE_APP_PROJECTS=true ;;
+  calendars) export OWNSUITE_APP_CALENDARS=true ;;
   tchap)
     # Brings up the ess-helm matrix-stack (Synapse + MAS + Element Web + well-known,
     # all gated on apps.tchap.enabled). The DoD is a boot smoke: both CNPG databases

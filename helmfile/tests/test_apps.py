@@ -546,3 +546,35 @@ def test_tchap_ui_reachable():
     """The Tchap web client (Element Web / tchap-web-v4) answers 200 over HTTPS through
     Traefik+TLS at tchap.{domain}."""
     _ui_reachable(app_host("tchap"))
+
+
+# --- Calendars (suitenumerique/calendars, ADR-043) --------------------------
+# Boot smoke: the single `calendars` DB is applied, the three serving components
+# (backend, frontend, caldav) reach Ready and the Dramatiq worker is Running, and the
+# web UI answers over HTTPS through Traefik. Sharing/free-busy enforcement lives in the
+# CalDAV layer and is covered upstream (e2e); it is out of scope for a per-app boot test.
+
+
+@only("calendars")
+def test_calendars_database_applied():
+    _db_applied("calendars")
+
+
+@only("calendars")
+def test_calendars_pods_ready():
+    """The three serving components reach Ready; the worker (no port/probe) is Running."""
+    for component in ("backend", "frontend", "caldav"):
+        _pod_ready("calendars", component=component)
+    phase = kubectl(
+        "-n", NAMESPACE, "get", "pods",
+        "-l", "app.kubernetes.io/name=calendars,app.kubernetes.io/component=worker",
+        "-o", "jsonpath={.items[*].status.phase}",
+    ).stdout
+    assert "Running" in phase, f"calendars worker not Running ({phase!r})"
+
+
+@only("calendars")
+def test_calendars_ui_reachable():
+    """Calendars answers 200 over HTTPS through Traefik+TLS (its SPA served same-origin
+    with the backend). Asserts reachability, not the SSO bounce target."""
+    _ui_reachable(app_host("calendars"))

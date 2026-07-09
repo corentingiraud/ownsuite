@@ -1,0 +1,15 @@
+apiVersion: v2
+name: calendars
+description: >-
+  Calendars (suitenumerique/calendars) for OwnSuite (ADR-043). La Suite's shared-calendar
+  app ships no official Helm chart, so this local chart runs its four components as
+  Deployments — a Django/DRF backend, a Dramatiq worker (backend image, worker.py), a
+  Next.js frontend, and a SabreDAV/PHP CalDAV service — with a Service each and a Traefik
+  Ingress at calendars.{domain}. State is external: two CNPG databases (backend + caldav)
+  and the shared Valkey (cache + Dramatiq broker/results). Login is Keycloak OIDC, with an
+  org-claim mapper so colleagues see each other's free/busy. Off by default; deployed only
+  when apps.calendars.enabled.
+type: application
+version: 0.1.0
+# No appVersion: the calendars image version is the single source of truth in
+# helmfile/versions/versions.yaml (imageVersions.calendars*), not duplicated here.

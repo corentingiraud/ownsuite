@@ -28,6 +28,7 @@ on:
       - "helmfile/charts/grist/**"
       - "helmfile/charts/projects/**"
       - "helmfile/charts/messages/**"
+      - "helmfile/charts/calendars/**"
       # Docs/Drive are upstream charts + a local *-ingress chart + a values file —
       # there is no charts/docs|drive directory, so the ingress chart is the local code.
       - "helmfile/charts/docs-ingress/**"
@@ -37,6 +38,7 @@ on:
       - "helmfile/values/messages.yaml.gotmpl"
       - "helmfile/values/docs.yaml.gotmpl"
       - "helmfile/values/drive.yaml.gotmpl"
+      - "helmfile/values/calendars.yaml.gotmpl"
       # Meet runs as a headless Tier-A boot smoke (no real media): a CI-only LiveKit
       # override (livekit-ci.yaml.gotmpl) drops hostNetwork + host media ports so it
       # converges and tears down cleanly on k3d. Its local code is the meet/livekit
@@ -89,7 +91,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          all='["grist","projects","messages","docs","drive","meet","tchap"]'
+          all='["grist","projects","messages","docs","drive","meet","tchap","calendars"]'
           if [ "$EVENT" != "pull_request" ]; then
             echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
           fi
@@ -101,7 +103,7 @@ jobs:
             echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
           fi
           picked=()
-          for app in grist projects messages docs drive meet tchap; do
+          for app in grist projects messages docs drive meet tchap calendars; do
             # Grist/Projects/messages own a charts/<app>/ dir; Docs/Drive have no such
             # dir — their only local chart is charts/<app>-ingress/ (upstream chart +
             # values file otherwise). Meet has no chart dir either — its local code is

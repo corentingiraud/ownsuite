@@ -1,0 +1,96 @@
+{{- /*
+One Deployment per component (ADR-043): backend, worker, frontend, caldav. The
+backend/worker/frontend share one image repository stem (calendars-<suffix>); the
+worker reuses the backend image with a different command (worker.py / Dramatiq). Each
+component pins its own tag (the three images version independently upstream). State is
+external (two CNPG databases + the shared Valkey), so no volumes — `strategy: Recreate`
+is harmless and matches the sibling charts. Credentials arrive by secretKeyRef
+(secretEnv); nothing secret is rendered here.
+*/}}
+{{- /* The probe action is identical across startup/readiness/liveness, so emit it once.
+       Arg: dict "probe" $c.probe "portName" <name>. */}}
+{{- define "calendars.probeAction" -}}
+{{- if eq .probe.type "http" }}
+httpGet:
+  path: {{ .probe.path }}
+  port: {{ .portName }}
+{{- else if eq .probe.type "tcp" }}
+tcpSocket:
+  port: {{ .portName }}
+{{- end }}
+{{- end }}
+{{- range $name, $c := .Values.components }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calendars-{{ $name }}
+  labels:
+    app.kubernetes.io/name: calendars
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  replicas: {{ $c.replicas | default $.Values.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: calendars
+      app.kubernetes.io/component: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: calendars
+        app.kubernetes.io/component: {{ $name }}
+    spec:
+      {{- with $.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.image.repository }}-{{ $c.imageSuffix }}:{{ $c.imageTag | default $.Values.image.tag }}"
+          {{- with $c.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if $c.port }}
+          ports:
+            - name: {{ $c.portName | default "http" }}
+              containerPort: {{ $c.port }}
+          {{- end }}
+          env:
+            {{- range $k, $v := $c.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- range $c.secretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+          {{- with $c.probe }}
+          {{- $action := dict "probe" . "portName" ($c.portName | default "http") }}
+          {{- $timeout := .timeoutSeconds | default 5 }}
+          {{- /* startupProbe absorbs the first-boot migration budget, so readiness/
+                 liveness need no initialDelay and can fail fast after. */}}
+          startupProbe:
+            {{- include "calendars.probeAction" $action | nindent 12 }}
+            periodSeconds: 10
+            timeoutSeconds: {{ $timeout }}
+            failureThreshold: {{ .startupFailureThreshold | default 30 }}
+          readinessProbe:
+            {{- include "calendars.probeAction" $action | nindent 12 }}
+            periodSeconds: {{ .periodSeconds | default 10 }}
+            timeoutSeconds: {{ $timeout }}
+            failureThreshold: 3
+          livenessProbe:
+            {{- include "calendars.probeAction" $action | nindent 12 }}
+            periodSeconds: 20
+            timeoutSeconds: {{ $timeout }}
+            failureThreshold: 3
+          {{- end }}
+          resources:
+            {{- toYaml ($c.resources | default $.Values.resources) | nindent 12 }}
+{{- end }}

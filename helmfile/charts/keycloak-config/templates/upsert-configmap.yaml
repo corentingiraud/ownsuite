@@ -102,6 +102,23 @@ data:
           "post.logout.redirect.uris" (printf "https://%s/*" $host)
           "user.info.response.signature.alg" "")
   }}
+  {{- /* Optional hardcoded org claim in userinfo (issue #106) — mirrors the realm-import
+         ConfigMap so the upsert Job converges on the same client. Only Calendars sets it.
+         kcadm applies protocolMappers from the client representation on create/update. */}}
+  {{- with .orgClaim }}
+    {{- $mapper := dict
+        "name" (printf "%s-organization" $rep.clientId)
+        "protocol" "openid-connect"
+        "protocolMapper" "oidc-hardcoded-claim-mapper"
+        "config" (dict
+            "claim.name" .name
+            "claim.value" .value
+            "jsonType.label" "String"
+            "userinfo.token.claim" "true"
+            "id.token.claim" "true"
+            "access.token.claim" "false") }}
+    {{- $_ := set $rep "protocolMappers" (list $mapper) }}
+  {{- end }}
   {{ .clientId }}.client.json: |
 {{ toPrettyJson $rep | indent 4 }}
 {{- end }}
