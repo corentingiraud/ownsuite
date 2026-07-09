@@ -1,7 +1,8 @@
 {{- if .Values.calendarsProvisioning.enabled }}
 {{- /*
 Provision the api_key Channel that Calendars uses to read a user's mailboxes over the
-provisioning API (issue #108). messages ships no create-channel command and its DRF API
+provisioning API (issue #108) and to submit invitation emails on their behalf (messages:send,
+issue #109). messages ships no create-channel command and its DRF API
 refuses to create global-scope channels, so — like the maildomain seed (ADR-026) — we do
 it with a one-line `manage.py shell` upsert against the Channel model. It is a true
 upsert (we set the id and hash the api_key ourselves, NOT Channel.rotate_secret() which
@@ -61,7 +62,7 @@ spec:
                       "scope_level": ChannelScopeLevel.GLOBAL,
                       "mailbox": None,
                       "maildomain": None,
-                      "settings": {"scopes": [ChannelApiKeyScope.MAILBOXES_READ.value]},
+                      "settings": {"scopes": [ChannelApiKeyScope.MAILBOXES_READ.value, ChannelApiKeyScope.MESSAGES_SEND.value]},
                       "encrypted_settings": {"api_key_hashes": [digest]},
                   },
               )
