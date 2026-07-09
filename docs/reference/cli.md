@@ -33,6 +33,7 @@ suite plan                         Preview what apply would change (read-only)
 suite apply                        Reconcile everything to suite.yaml -> print the URLs
 suite apps                         App catalog: available / enabled / installed / healthy / URL
 suite info                         URLs, admin credentials, DNS records
+suite tunnel                       Hold the K8s API tunnel open for ad-hoc kubectl/k9s
 suite logs <app>                   Show an app's pod logs
 suite user add|passwd|disable      Manage Keycloak users (one identity, all apps via JIT)
 suite status                       Read-only health summary (node, DB, certs, backup, apps)
@@ -145,6 +146,20 @@ your domain. Needs the seed exported to show credentials; prints URLs without it
 
 ```bash
 suite info
+```
+
+## `suite tunnel`
+
+Holds the managed SSH tunnel to the Kubernetes API open so you can run `kubectl`,
+`k9s`, or any cluster tool directly — for the cases `suite status`/`logs` don't cover.
+It reads the server SSH target from state (no `OWNSUITE_SERVER_SSH` to type), opens
+or reuses the tunnel, sets `KUBECONFIG` for its own process, and prints the `export`
+line to paste into the shell where you'll run `kubectl`. Ctrl-C closes it.
+
+```bash
+suite tunnel
+#   export KUBECONFIG=/…/ownsuite/ansible/kubeconfig   <- paste into another shell
+#   tunnel open — Ctrl-C to close.
 ```
 
 ## `suite logs`
