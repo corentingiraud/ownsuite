@@ -12,6 +12,14 @@ image:
   repository: ghcr.io/suitenumerique/calendars
   tag: ""
 
+# When Messages is also enabled (issue #109), a post-install Job upserts the one GLOBAL
+# caldav Channel whose channel_id+token is the shared CALDAV_DEFAULT_PASSWORD Messages
+# presents to the /caldav proxy. Off here so standalone `helm template` skips it; the
+# Helmfile gotmpl turns it on and points at the seed-derived calendars-secrets.
+caldavProvisioning:
+  enabled: false
+  secretName: calendars-secrets
+
 # Single instance per component (single node, no horizontal scale).
 replicas: 1
 

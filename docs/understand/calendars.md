@@ -106,6 +106,20 @@ the two sides agree byte-for-byte. Messages has no command to create that channe
 seam as its mail-domain seed). It only wires up when **both** apps are on; with Messages off the
 integration stays disabled and you simply see the system-address fallback.
 
+### Seeing invitations back in the mailbox (the return path)
+
+The reverse coupling (ADR-045): when an invitation lands in a mailbox, the Messages webmail shows
+**accept/decline** controls and an "open in calendar" link. Messages reaches Calendars over
+**CalDAV** — its client hits Calendars' Django `/caldav` proxy with HTTP Basic (username = your
+email, one shared password), not the SabreDAV pod directly. The password is the `channel_id ++
+token` of a single **`global`/`caldav` Channel** (a Calendars-side row) that authorises
+Messages-as-a-service to act for any user; both halves live in the same `calendars-secrets`, and an
+**idempotent Job on the Calendars release** upserts the channel — the exact mirror of the sender
+direction above. The CalDAV URL is the public `https://calendars.{domain}/caldav/`, not the
+in-cluster service: Calendars forces `SECURE_SSL_REDIRECT`, so a plain-http in-cluster call would be
+redirected to a plaintext-https port and hang (same reason Calendars calls Messages over its
+ingress). With Calendars off, Messages sets none of the `CALDAV_DEFAULT_*` and shows no calendar UI.
+
 ## Run it
 
 ```bash
