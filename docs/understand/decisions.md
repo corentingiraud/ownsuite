@@ -1656,6 +1656,18 @@ genuinely new piece of SSO config the org sharing needs.
 - **Meet coupling via config, not code.** `FRONTEND_MEET_BASE_URL` is set to `https://meet.{domain}`
   **only when Meet is enabled**, so the "create visio" button attaches a link to our own Meet and
   never dangles one otherwise. Deep Meet-SDK room provisioning (upstream #19) is **deferred**.
+- **Messages coupling — mailboxes as invitation senders (issue #108).** When Messages is also on,
+  Calendars reads a user's mailboxes from Messages' provisioning API so they appear as
+  invitation-sender addresses instead of the "system address" fallback. The call is
+  **service-to-service** (`X-Channel-Id` + `X-API-Key`, *not* the user's OIDC token) against a
+  Messages `Channel` of `type=api_key`, `scope_level=global`, scope `mailboxes:read`. Both sides
+  read the SAME seed-derived `calendars-secrets` keys (`MESSAGES_CHANNEL_ID` — a UUID — and
+  `MESSAGES_API_KEY`, whose sha256 is the stored hash), so they agree byte-for-byte (ADR-012).
+  Messages ships no create-channel command and its API refuses global-scope channels, so the
+  channel is upserted by an **idempotent post-install Job on the Messages release** (the maildomain
+  seed's ORM-shell seam, ADR-026 — id + hash set explicitly, no `rotate_secret()`). Gated on
+  **both** apps enabled: with Messages off the flag stays unset so `MessagesService.__init__` never
+  raises and Calendars falls back cleanly.
 - **CalDAV internal-only for v1.** No external `caldav.{domain}` host; the web UI works, standard
   desktop/mobile CalDAV clients are a later addition. HTTP-only, so no Terraform/Ansible firewall
   flag (unlike Meet). Off by default (ADR-035), one `App(...)` record in the manifest (ADR-042).

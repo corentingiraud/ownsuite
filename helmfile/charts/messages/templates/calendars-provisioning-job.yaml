@@ -1,0 +1,93 @@
+{{- if .Values.calendarsProvisioning.enabled }}
+{{- /*
+Provision the api_key Channel that Calendars uses to read a user's mailboxes over the
+provisioning API (issue #108). messages ships no create-channel command and its DRF API
+refuses to create global-scope channels, so — like the maildomain seed (ADR-026) — we do
+it with a one-line `manage.py shell` upsert against the Channel model. It is a true
+upsert (we set the id and hash the api_key ourselves, NOT Channel.rotate_secret() which
+randomises), so it is byte-for-byte idempotent across repeated `suite apply`.
+
+The channel id + api_key come from the SAME calendars-secrets that the Calendars backend
+reads (both seed-derived, ADR-012), so the two sides agree. This Job only renders when
+Calendars is also enabled (calendarsProvisioning.enabled, set by the Helmfile gotmpl);
+until then the secret's keys are unused. post-install/post-upgrade so it runs after the
+schema migrate hook; before-hook-creation lets it re-run every sync. Uses the backend
+image + the backend's DB env (+ SALT_KEY, needed to import core.models).
+*/}}
+{{- $backend := .Values.components.backend }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: messages-calendars-provisioning
+  labels:
+    app.kubernetes.io/name: messages
+    app.kubernetes.io/component: calendars-provisioning
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: messages
+        app.kubernetes.io/component: calendars-provisioning
+    spec:
+      restartPolicy: OnFailure
+      {{- with $.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: calendars-provisioning
+          image: "{{ $.Values.image.repository }}-{{ $backend.imageSuffix }}:{{ $.Values.image.tag }}"
+          command:
+            - python
+            - manage.py
+            - shell
+            - -c
+            - |
+              import hashlib, os
+              from core.models import Channel
+              from core.enums import ChannelTypes, ChannelScopeLevel, ChannelApiKeyScope
+              channel_id = os.environ["MESSAGES_CHANNEL_ID"]
+              digest = hashlib.sha256(os.environ["MESSAGES_API_KEY"].encode()).hexdigest()
+              _, created = Channel.objects.update_or_create(
+                  id=channel_id,
+                  defaults={
+                      "name": "calendars-provisioning",
+                      "type": ChannelTypes.API_KEY,
+                      "scope_level": ChannelScopeLevel.GLOBAL,
+                      "mailbox": None,
+                      "maildomain": None,
+                      "settings": {"scopes": [ChannelApiKeyScope.MAILBOXES_READ.value]},
+                      "encrypted_settings": {"api_key_hashes": [digest]},
+                  },
+              )
+              print("calendars provisioning channel:", "created" if created else "updated")
+          env:
+            {{- range $k, $v := $backend.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- range $backend.secretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+            - name: MESSAGES_CHANNEL_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.calendarsProvisioning.secretName }}
+                  key: MESSAGES_CHANNEL_ID
+            - name: MESSAGES_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.calendarsProvisioning.secretName }}
+                  key: MESSAGES_API_KEY
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+{{- end }}

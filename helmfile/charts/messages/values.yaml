@@ -16,6 +16,14 @@ image:
 # standalone `helm template`; Helmfile sets it to the base domain.
 mailDomain: ""
 
+# When Calendars is also enabled (issue #108), a post-install Job upserts the api_key
+# Channel that Calendars uses to read mailboxes over the provisioning API. Off here so
+# standalone `helm template` skips it; the Helmfile gotmpl turns it on and points at the
+# shared secret (calendars-secrets) that holds the matching channel id + api_key.
+calendarsProvisioning:
+  enabled: false
+  secretName: calendars-secrets
+
 # Single instance per component (single node, no horizontal scale).
 replicas: 1
 

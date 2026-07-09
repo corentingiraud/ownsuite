@@ -79,6 +79,21 @@
     (dict "name" "CALDAV_INBOUND_API_KEY" "secretName" "calendars-secrets" "secretKey" "CALDAV_INBOUND_API_KEY")
     (dict "name" "CALDAV_INTERNAL_API_KEY" "secretName" "calendars-secrets" "secretKey" "CALDAV_INTERNAL_API_KEY")
 }}
+{{/* Messages integration (issue #108): let Calendars discover a user's mailboxes so they
+     show up as invitation-sender addresses instead of the system-address fallback.
+     Calendars calls Messages' provisioning API service-to-service with X-Channel-Id +
+     X-API-Key (the two secretEnv below); the matching api_key Channel is upserted on the
+     Messages side by its provisioning Job, from the SAME calendars-secrets keys. Only
+     wire it when BOTH apps are on — MessagesService raises on missing creds if the flag
+     is set, so with Messages off we leave the flag unset and Calendars falls back
+     cleanly. MESSAGES_API_URL is the in-cluster backend (already in Messages'
+     DJANGO_ALLOWED_HOSTS), no /api suffix, no trailing slash. */}}
+{{- if .Values.apps.messages.enabled -}}
+{{- $_ := set $backendEnv "FEATURE_MESSAGES_INTEGRATION" "true" -}}
+{{- $_ := set $backendEnv "MESSAGES_API_URL" "http://messages-backend:8000" -}}
+{{- $backendSecretEnv = append $backendSecretEnv (dict "name" "MESSAGES_CHANNEL_ID" "secretName" "calendars-secrets" "secretKey" "MESSAGES_CHANNEL_ID") -}}
+{{- $backendSecretEnv = append $backendSecretEnv (dict "name" "MESSAGES_API_KEY" "secretName" "calendars-secrets" "secretKey" "MESSAGES_API_KEY") -}}
+{{- end }}
 
 image:
   repository: ghcr.io/suitenumerique/calendars
