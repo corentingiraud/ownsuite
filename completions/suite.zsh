@@ -15,6 +15,7 @@ _suite() {
         'apps:App catalog: available / enabled / healthy / URL'
         'logs:Show an app'\''s pod logs'
         'info:URLs, admin credentials, DNS records'
+        'tunnel:Hold the K8s API tunnel open for ad-hoc kubectl/k9s'
         'upgrade:Apply pending chart/image upgrades (backup-gated)'
         'backup:Take a backup now and wait for completion'
         'restore:Restore a CLEAN cluster from off-site backups'

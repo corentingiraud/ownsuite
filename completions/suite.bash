@@ -11,7 +11,7 @@ _suite() {
         prev="${COMP_WORDS[COMP_CWORD-1]}"
     }
 
-    local commands="init plan apply status apps logs info upgrade backup restore destroy user deps"
+    local commands="init plan apply status apps logs info tunnel upgrade backup restore destroy user deps"
     local apps="docs drive grist projects messages meet tchap"
 
     # Top-level command.

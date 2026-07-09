@@ -33,6 +33,26 @@ def maybe(ssh_target, *, no_tunnel=False):
     return tunnel(ssh_target)
 
 
+def run_tunnel(args):
+    """`suite tunnel` — hold the managed SSH tunnel open for ad-hoc kubectl/k9s/etc.
+    Reuses an existing tunnel, sets KUBECONFIG for this process, and prints the
+    export line to paste into the shell where you'll run kubectl. Ctrl-C to close."""
+    from . import process, spec
+
+    ctx = spec.load_context()
+    if not ctx.ssh:
+        raise SuiteError("no server SSH target — set `server.ssh` in suite.yaml.")
+    process.preflight(["ssh"], ssh=ctx.ssh)
+    with maybe(ctx.ssh):
+        print(f"\n  export KUBECONFIG={os.environ.get('KUBECONFIG', FETCHED_KUBECONFIG)}")
+        print("  tunnel open — Ctrl-C to close.\n")
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            print("  closing tunnel.")
+
+
 @contextlib.contextmanager
 def tunnel(ssh_target, *, port=6443):
     # Point kubectl/helmfile at the fetched kubeconfig unless the operator already
