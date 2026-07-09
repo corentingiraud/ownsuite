@@ -1,0 +1,101 @@
+{{- if .Values.caldavProvisioning.enabled }}
+{{- /*
+Provision the GLOBAL caldav Channel that Messages presents to Calendars' /caldav Django
+proxy so a mailbox can see/accept invitations over CalDAV (issue #109 — the return path of
+#108). Calendars ships no create-channel command and GLOBAL channels are admin/CLI-only, so
+— like the maildomain seed (ADR-026) and the #108 channel Job — we upsert with a one-line
+`manage.py shell`. A GLOBAL type=caldav channel takes the acting user from the Basic-auth
+email, so ONE channel serves every mailbox.
+
+The channel_id + token come from the SAME calendars-secrets the backend reads (both
+seed-derived, ADR-012): CALDAV_CHANNEL_ID (22 base64url chars) fixes the row's pk via
+urlsafe_to_uuid — the exact inverse the proxy applies to the password — so Messages'
+CALDAV_DEFAULT_PASSWORD (channel_id ++ token, assembled in the secret) authenticates
+byte-for-byte with no manual sync. Keying update_or_create on the pinned id makes it a true
+idempotent upsert across repeated `suite apply`.
+
+post-install/post-upgrade so it runs after the pre-upgrade migrate hook; before-hook-creation
+lets it re-run every sync. Uses the backend image + the backend's own env (DB + SALT_KEY,
+needed to import core.models and encrypt the token via EncryptedJSONField).
+*/}}
+{{- $backend := .Values.components.backend }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: calendars-messages-caldav-provisioning
+  labels:
+    app.kubernetes.io/name: calendars
+    app.kubernetes.io/component: messages-caldav-provisioning
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: calendars
+        app.kubernetes.io/component: messages-caldav-provisioning
+    spec:
+      restartPolicy: OnFailure
+      {{- with $.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: messages-caldav-provisioning
+          image: "{{ $.Values.image.repository }}-{{ $backend.imageSuffix }}:{{ $backend.imageTag | default $.Values.image.tag }}"
+          command:
+            - python
+            - manage.py
+            - shell
+            - -c
+            - |
+              import os
+              from core.models import Channel, urlsafe_to_uuid
+              channel_id = os.environ["CALDAV_CHANNEL_ID"]
+              token = os.environ["CALDAV_CHANNEL_TOKEN"]
+              _, created = Channel.objects.update_or_create(
+                  id=urlsafe_to_uuid(channel_id),
+                  defaults={
+                      "name": "messages-caldav",
+                      "type": "caldav",
+                      "scope_level": "global",
+                      "user": None,
+                      "organization": None,
+                      "is_active": True,
+                      # read to list invitations, write to accept/decline (RSVP over CalDAV);
+                      # calendars:write is only allowed on global channels (which this is).
+                      "settings": {"scopes": ["calendars:read", "calendars:write"]},
+                      # EncryptedJSONField; the /caldav proxy compares this with the token
+                      # half of the Basic-auth password via secrets.compare_digest.
+                      "encrypted_settings": {"token": token},
+                  },
+              )
+              print("messages caldav channel:", "created" if created else "updated")
+          env:
+            {{- range $k, $v := $backend.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- range $backend.secretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+            - name: CALDAV_CHANNEL_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.caldavProvisioning.secretName }}
+                  key: CALDAV_CHANNEL_ID
+            - name: CALDAV_CHANNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.caldavProvisioning.secretName }}
+                  key: CALDAV_CHANNEL_TOKEN
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+{{- end }}

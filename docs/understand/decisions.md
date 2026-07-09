@@ -1725,3 +1725,63 @@ it is Keycloak's account UI, not an in-app waffle in each frontend's header, so 
 rather than embedded. Embedding La Gaufre in-header is **deferred** until upstream exposes a
 runtime-configurable self-hosted app list uniformly across the frontends (Drive/Messages/Meet today
 cannot). Drive keeps `FRONTEND_HIDE_GAUFRE: true` so its hardcoded gouv.fr waffle stays hidden.
+
+## ADR-045 — Messages ↔ Calendars return path: mailboxes see invitations via a shared GLOBAL CalDAV channel
+
+**Context.** [ADR-043](#adr-043-calendars-integration-local-chart-four-components-valkey-reuse-keycloak-org-claim-mapper-off-by-default)'s
+Messages coupling (issue #108) wired only one direction — Calendars reads a user's mailboxes from
+Messages so they show as invitation *senders*. The return path (issue #109) is the reader side:
+when an invitation lands in a mailbox, the Messages webmail should show accept/decline controls and
+an "open in calendar" link. Messages supports this by config — no code — through three settings:
+`CALDAV_DEFAULT_URL` (a CalDAV server), `CALDAV_DEFAULT_PASSWORD` (the HTTP-Basic password it
+presents, username = the acting user's email), and `CALDAV_DEFAULT_WEB_URL` (the deep-link target).
+The issue's sketch was "set three env vars, reuse a CalDAV key as the password". Reading the
+upstream made the real contract clear, and it is more than three env vars:
+
+- Messages' CalDAV client speaks **plain HTTP Basic** (no `X-LS-*` headers), so it **cannot** hit
+  the SabreDAV pod (`calendars-caldav`, which only accepts `X-LS-Api-Key`). It must go through
+  Calendars' **Django `/caldav` proxy** (`CalDAVProxyView` on `calendars-backend`), which converts
+  Basic → `X-LS-*` and re-proxies.
+- That proxy reads the Basic password as `channel_id(22 base64url chars) ++ token` and verifies it
+  against a `Channel` row in the **Calendars** DB (a Calendars-native model mirroring the Messages
+  Channel of #108, not the same table). **None of the three `CALDAV_*_API_KEY`s fit** — they are
+  internal Django↔SabreDAV secrets, never a client password.
+- One shared password for all users works only via a **`scope_level=global`, `type=caldav`**
+  channel: for a global channel the proxy takes the acting user from the Basic-auth *email*, so a
+  single credential serves every mailbox. Global channels are **admin/CLI-only** (no create API).
+
+**Decision.** Mirror #108 in reverse — a **seed-derived, two-sided coupling on only when both apps
+are enabled**, with the provisioning Job on the side that owns the row (here Calendars).
+
+- **`platform-configuration/calendars-secrets`** derives the two halves (ADR-012):
+  `CALDAV_CHANNEL_ID` (22 chars — the sha256-hex from `getSecret` is valid base64url and
+  `urlsafe_to_uuid`-decodes to the 16-byte channel pk) and `CALDAV_CHANNEL_TOKEN`, plus the
+  pre-assembled `CALDAV_DEFAULT_PASSWORD = channel_id ++ token`. Both sides read this one Secret, so
+  they agree byte-for-byte with no manual sync. Always rendered when Calendars is on; unused until
+  Messages is too.
+- **Calendars release** runs an idempotent `manage.py shell` **post-install/post-upgrade Job**
+  (`calendars-messages-caldav-provisioning`, the ADR-026 ORM-shell seam) that upserts the one
+  `global`/`caldav` Channel, keyed on `id = urlsafe_to_uuid(CALDAV_CHANNEL_ID)` — the exact inverse
+  the proxy applies to the incoming password — with scopes `calendars:read` + `calendars:write`
+  (write is what RSVP needs, and is only allowed on global channels). Gated on
+  `apps.messages.enabled`.
+- **Messages release** sets the three `CALDAV_DEFAULT_*` on backend+worker, gated on
+  `apps.calendars.enabled`; unset otherwise so the invitation UI degrades to a plain no-controls
+  view. `CALDAV_DEFAULT_PASSWORD` is a `secretKeyRef` into `calendars-secrets`.
+- **URL is the public https ingress, not `http://calendars-backend:8000`.** Calendars, like
+  Messages ([#113](https://github.com/suitenumerique/messages)), hardcodes
+  `SECURE_SSL_REDIRECT=True` with `SECURE_PROXY_SSL_HEADER` trusting `X-Forwarded-Proto`. A
+  plain-http in-cluster call is 301'd to https on the plaintext gunicorn port and the client hangs;
+  routing through Traefik (`https://calendars.{domain}/caldav/`) sets the header so Django serves
+  it. Bonus: the Host is `calendars.{domain}`, already in Calendars' `ALLOWED_HOSTS` — no extra
+  host to allow.
+
+**Consequences.** With both apps on, `suite apply` provisions the shared channel and a mailbox
+shows working accept/decline plus "open in calendar"; repeated applies stay idempotent (the Job
+keys on a pinned, seed-derived id). With Calendars off, Messages sets none of the vars and shows no
+calendar UI. Like the outbound call in #113 the request **hairpins** in-cluster → public ingress →
+back via the node's NAT loopback — fine on this k3s single-node setup; a cluster that can't hairpin
+would just not surface the controls. The credential is one global service password: the trust
+property is Keycloak never letting one user assert another's verified `email` claim (same as the
+Messages side assumes). Deferred: per-mailbox CalDAV channels (only needed if a user wants a
+distinct calendar identity), external CalDAV clients.

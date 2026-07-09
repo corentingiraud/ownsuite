@@ -103,6 +103,23 @@ components:
       MTA_OUT_RELAY_HOST: messages-mta-out:587
       MTA_OUT_RELAY_USERNAME: messages
       MTA_OUT_SMTP_TLS_SECURITY_LEVEL: may
+      {{- if .Values.apps.calendars.enabled }}
+      {{- /* Calendars integration, return path (issue #109): let a mailbox see/accept
+             calendar invitations. Messages' CalDAV client hits Calendars' /caldav Django
+             proxy with HTTP-Basic (username = the user's email, password =
+             CALDAV_DEFAULT_PASSWORD in secretEnv), and "open in calendar" deep-links to the
+             web URL. Only wired when BOTH apps are on; unset otherwise so the invitation UI
+             degrades to a plain no-controls view.
+             The URL is the PUBLIC https ingress, NOT http://calendars-backend:8000:
+             Calendars (like Messages, #113) hardcodes SECURE_SSL_REDIRECT=True, so a
+             plain-http in-cluster call is 301'd to https on the plaintext gunicorn port and
+             the client hangs on the TLS handshake. Traefik sets X-Forwarded-Proto: https so
+             Django serves it. Host is calendars.{domain}, already in Calendars' ALLOWED_HOSTS. */}}
+      {{- /* ponytail: hairpins in-cluster -> public ingress -> back via the node's NAT
+             loopback (same as calendars' MESSAGES_API_URL, #113). Works on this k3s setup. */}}
+      CALDAV_DEFAULT_URL: {{ printf "https://calendars.%s/caldav/" $domain | quote }}
+      CALDAV_DEFAULT_WEB_URL: {{ printf "https://calendars.%s" $domain | quote }}
+      {{- end }}
     secretEnv: &backendSecretEnv
       - name: DJANGO_SECRET_KEY
         secretName: messages-secrets
@@ -139,6 +156,14 @@ components:
       - name: STORAGE_MESSAGE_BLOBS_SECRET_KEY
         secretName: s3-credentials
         secretKey: AWS_S3_SECRET_ACCESS_KEY
+      {{- if .Values.apps.calendars.enabled }}
+      # CalDAV Basic-auth password for Calendars' /caldav proxy (issue #109): channel_id ++
+      # token of the GLOBAL caldav Channel that Calendars' messages-caldav-provisioning Job
+      # upserts, both from the same seed-derived calendars-secrets — no manual sync.
+      - name: CALDAV_DEFAULT_PASSWORD
+        secretName: calendars-secrets
+        secretKey: CALDAV_DEFAULT_PASSWORD
+      {{- end }}
   worker:
     env: *backendEnv
     secretEnv: *backendSecretEnv

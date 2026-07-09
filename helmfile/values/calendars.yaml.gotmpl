@@ -102,6 +102,14 @@
 {{- $backendSecretEnv = append $backendSecretEnv (dict "name" "MESSAGES_API_KEY" "secretName" "calendars-secrets" "secretKey" "MESSAGES_API_KEY") -}}
 {{- end }}
 
+{{- /* Return path (issue #109): when Messages is also on, run the Job that upserts the
+       GLOBAL caldav Channel whose channel_id+token IS the CALDAV_DEFAULT_PASSWORD Messages
+       presents to the /caldav proxy. Both halves come from the same calendars-secrets. */ -}}
+{{- if .Values.apps.messages.enabled }}
+caldavProvisioning:
+  enabled: true
+{{- end }}
+
 image:
   repository: ghcr.io/suitenumerique/calendars
   tag: {{ .Values.imageVersions.calendarsBackend | quote }}
