@@ -86,11 +86,18 @@
      Messages side by its provisioning Job, from the SAME calendars-secrets keys. Only
      wire it when BOTH apps are on — MessagesService raises on missing creds if the flag
      is set, so with Messages off we leave the flag unset and Calendars falls back
-     cleanly. MESSAGES_API_URL is the in-cluster backend (already in Messages'
-     DJANGO_ALLOWED_HOSTS), no /api suffix, no trailing slash. */}}
+     cleanly. MESSAGES_API_URL points at the PUBLIC https ingress, not the in-cluster
+     messages-backend:8000: Messages hardcodes SECURE_SSL_REDIRECT=True, so a plain-http
+     in-cluster call is 301'd to https on the plaintext gunicorn port and the client
+     (requests, follow-redirects on) hangs until its read timeout. Going through Traefik
+     gives the request X-Forwarded-Proto: https (SECURE_PROXY_SSL_HEADER), so Django serves
+     it. No /api suffix, no trailing slash. */}}
 {{- if .Values.apps.messages.enabled -}}
 {{- $_ := set $backendEnv "FEATURE_MESSAGES_INTEGRATION" "true" -}}
-{{- $_ := set $backendEnv "MESSAGES_API_URL" "http://messages-backend:8000" -}}
+{{/* ponytail: hairpins in-cluster -> public ingress -> back; relies on the node's NAT
+     loopback. Works on this k3s setup; if a cluster can't hairpin, discovery just falls
+     back to the system address (handled). */}}
+{{- $_ := set $backendEnv "MESSAGES_API_URL" (printf "https://messages.%s" $domain) -}}
 {{- $backendSecretEnv = append $backendSecretEnv (dict "name" "MESSAGES_CHANNEL_ID" "secretName" "calendars-secrets" "secretKey" "MESSAGES_CHANNEL_ID") -}}
 {{- $backendSecretEnv = append $backendSecretEnv (dict "name" "MESSAGES_API_KEY" "secretName" "calendars-secrets" "secretKey" "MESSAGES_API_KEY") -}}
 {{- end }}
