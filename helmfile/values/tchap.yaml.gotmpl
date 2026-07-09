@@ -180,6 +180,12 @@ elementWeb:
   additional:
     sso-redirect: |
       {"sso_redirect_options": {"immediate": true}}
+    # App name used in the browser-tab title ("<brand> [n] | <room>") and a few UI
+    # strings. The chart leaves it at Element's default "Element"; brand it for this
+    # deployment. Derived from the domain's first label, same convention as the
+    # homeserver-list display label below (Fabrique).
+    brand: |
+      {"brand": "{{ splitList "." $domain | first | title }}"}
     # Tchap's room-directory dropdown (NetworkDropdown -> TchapUtils.toFriendlyServerName)
     # does an UNGUARDED `.find` on the top-level config key `homeserver_list`. The chart's
     # generated config.json omits it, so opening "Salons publics" throws
