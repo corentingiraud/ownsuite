@@ -264,14 +264,15 @@ elementWeb:
     #    app" prompt. (The issue's mobile_guide_toggle no longer exists in this build;
     #    mobile_guide_toast is the current equivalent that gates the mobile prompt.)
     #  - permalink_prefix: internal share links stay on our own Element host, not matrix.to.
-    #  - default_theme=light: cosmetic default (users can still switch).
+    # No default_theme: Element's use_system_theme defaults to true, so the client follows the
+    # OS light/dark preference. default_theme is only the fallback when no system preference is
+    # available, so pinning it to light fought the OS on most devices.
     deployment-flags: |
       {
         "disable_guests": true,
         "desktop_builds": {"available": false},
         "mobile_guide_toast": false,
-        "permalink_prefix": "https://tchap.{{ $domain }}",
-        "default_theme": "light"
+        "permalink_prefix": "https://tchap.{{ $domain }}"
       }
     # Logout terminates the upstream Keycloak SSO session, not just the local Matrix one.
     # Under MSC3861 (OIDC-native auth) Element still honors logout_redirect_url: on logout it
