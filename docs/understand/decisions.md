@@ -1679,3 +1679,49 @@ a future image baking a non-relative origin would break same-origin serving. The
 is the first per-client protocol mapper in the realm config; the `orgClaim` field is generic but
 only Calendars uses it. Deferred: external CalDAV host, deep Meet SDK, S3 attachments, anything
 cross-org (upstream hard-blocks it).
+
+## ADR-044 — App switcher via Keycloak's Account Console, not La Gaufre
+
+**Context.** The ask (issue #110) was a suite-wide app switcher so users can jump between Docs,
+Drive, Meet, Messages, Calendars, etc. from one menu — the cheapest, highest-visibility thing that
+makes the separate apps feel like one suite. The obvious candidate was **La Gaufre**, the shared
+"waffle" widget (`LaGaufreV2` from `@gouvfr-lasuite/ui-kit`) each La Suite frontend embeds. Auditing
+it against the **pinned** image versions killed that plan: the widget is configurable only where the
+frontend exposes it, and coverage is uneven and mostly build-time.
+
+- **Docs** v5.3.0 — configurable (inline static list via `THEME_CUSTOMIZATION_FILE_PATH`, no fetch).
+- **Calendars** v0.1.0, **Projects** v1.27.10 — configurable, but only by pointing an `apiUrl` at a
+  self-hosted `{"services":[…]}` endpoint served with CORS — i.e. a **new static-file service**, which
+  the issue explicitly hoped to avoid, and each browser still loads the widget JS from the gouv.fr CDN.
+- **Messages** v0.8.0 — only `NEXT_PUBLIC_LAGAUFRE_WIDGET_*`, **baked at build time**: uneditable
+  without rebuilding the image.
+- **Drive** v0.19.0 — only `FRONTEND_HIDE_GAUFRE` (list hardcoded to gouv.fr; already hidden here).
+- **Meet** v1.22.0 — the widget does not exist in this version at all.
+
+So La Gaufre could cover at most three of six apps, needed a new service and a gouv.fr CDN call, and
+still left dead ends — the opposite of "config-only, no new service, no dead links".
+
+**Decision.** Drop La Gaufre; use **Keycloak's Account Console "Applications" page** as the launcher.
+OwnSuite already mints one OIDC client per app (ADR-016/ADR-020), so the switcher is pure client
+config on infrastructure that is already there.
+
+- On each app's client, set `alwaysDisplayInConsole` (lists it on
+  `auth.{domain}/realms/<realm>/account/#/applications` for every user) plus `rootUrl` = the app's own
+  host `https://<clientId>.{domain}` and `baseUrl: /`. Verified against Keycloak 26 source: the page
+  unconditionally includes every client with the flag, links to `rootUrl`+`baseUrl`, needs only a
+  non-bearer client, and `account-api`/`account:v3` are on by default.
+- **Gated on the app being enabled**, not on client existence — the `docs`/`drive` clients are created
+  unconditionally, so `alwaysDisplayInConsole` is driven by `apps.<name>.enabled` (via `dig` on the
+  clientId, which maps 1:1 to the app key). A disabled app never appears, so no dead links.
+- **`rootUrl` uses `<clientId>.{domain}`, not `redirectHost`** — Tchap's UI is `tchap.{domain}` even
+  though its OIDC client (MAS) lives at `account.{domain}`; the dashboard must link to the UI.
+- Added to **both** the realm-import ConfigMap (fresh installs) and the kcadm upsert Job
+  (authoritative every `suite apply`) so they converge, exactly like the org-claim mapper (ADR-043).
+
+**Consequences.** The switcher appears for free at `https://auth.{domain}/realms/ownsuite/account/`,
+lists exactly the enabled apps with correct `https://<app>.{domain}` links, and is idempotent across
+`suite apply` — no new service, no CORS, no gouv.fr dependency, one SSO login for all. The trade-off:
+it is Keycloak's account UI, not an in-app waffle in each frontend's header, so it is one click away
+rather than embedded. Embedding La Gaufre in-header is **deferred** until upstream exposes a
+runtime-configurable self-hosted app list uniformly across the frontends (Drive/Messages/Meet today
+cannot). Drive keeps `FRONTEND_HIDE_GAUFRE: true` so its hardcoded gouv.fr waffle stays hidden.

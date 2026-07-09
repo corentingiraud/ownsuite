@@ -83,6 +83,11 @@ data:
          <clientId>.{domain} (e.g. Tchap's client is MAS at account.{domain}). Mirrors
          the realm-import ConfigMap so the upsert Job converges on the same client. */}}
   {{- $host := printf "%s.%s" (.redirectHost | default .clientId) $root.Values.domain }}
+  {{- /* App-switcher dashboard (issue #110, ADR-044) — mirrors the realm-import ConfigMap so
+         the upsert Job converges on the same client. alwaysDisplayInConsole lists the client on
+         Keycloak's Account Console "Applications" page; gated on the app being enabled (appEnabled,
+         passed per client from the environment). rootUrl is the app's own host <clientId>.{domain}. */}}
+  {{- $appUrl := printf "https://%s.%s" .clientId $root.Values.domain }}
   {{- $rep := dict
       "clientId" .clientId
       "name" .clientId
@@ -95,6 +100,9 @@ data:
       "directAccessGrantsEnabled" (.directAccessGrants | default false)
       "serviceAccountsEnabled" false
       "frontchannelLogout" true
+      "alwaysDisplayInConsole" (.appEnabled | default false)
+      "rootUrl" $appUrl
+      "baseUrl" "/"
       "redirectUris" (list (printf "https://%s/*" $host))
       "webOrigins" (list (printf "https://%s" $host))
       "defaultClientScopes" (list "web-origins" "acr" "roles" "profile" "email")

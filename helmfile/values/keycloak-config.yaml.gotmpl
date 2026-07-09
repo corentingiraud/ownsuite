@@ -27,6 +27,10 @@ clients:
            before `default` can run (only tchap sets redirectHost). */}}
     redirectHost: {{ dig "redirectHost" "" . | quote }}
     directAccessGrants: {{ .directAccessGrants | default false }}
+    {{- /* App-switcher dashboard (issue #110, ADR-044): whether the matching app is enabled,
+           so the upsert Job only lists deployed apps on the Account Console. clientId maps 1:1
+           to the app key; dig avoids missingkey=error for a clientId with no apps entry. */}}
+    appEnabled: {{ dig .clientId "enabled" false $.Values.apps }}
     {{- /* Optional hardcoded org-claim mapper (issue #106) — only Calendars sets it.
            dig for the same missingkey=error reason as redirectHost above. */}}
     {{- with dig "orgClaim" dict . }}

@@ -142,6 +142,13 @@ curl -s https://auth.assoc.example.org/realms/ownsuite/.well-known/openid-config
 - **Off-site backups, tested restore.** Point-in-time database backups + an off-site file copy,
   with a CI-proven restore (off by default; enable with `backup.enabled: true` in `suite.yaml`)
   — see [Backups & restore](../operate/backups.md).
+- **App switcher via Keycloak, not a per-app waffle.** Since everyone logs in through Keycloak and
+  each app already has its own OIDC client, the launcher is Keycloak's own Account Console
+  "Applications" page at `https://auth.{domain}/realms/ownsuite/account/` — it lists exactly the
+  enabled apps (a disabled app is hidden, so no dead links) and links to each `https://<app>.{domain}`.
+  No new service, no external dependency (ADR-044). La Gaufre, La Suite's in-header waffle, is not used:
+  at the pinned image versions it is unconfigurable or build-time on most frontends and would pull a
+  hardcoded gouv.fr app list.
 
 ## Tests
 

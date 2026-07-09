@@ -18,6 +18,14 @@ Phase 2 by appending to keycloak.clients).
          account.{domain}, not tchap.{domain}. `redirectHost` overrides just the host used
          for redirectUris/webOrigins/post-logout; the secret id stays <clientId>-oidc. */}}
   {{- $host := printf "%s.%s" (.redirectHost | default .clientId) $.Values.domain -}}
+  {{- /* App-switcher dashboard (issue #110, ADR-044). alwaysDisplayInConsole makes the
+         client appear on Keycloak's Account Console "Applications" page (auth.{domain}/
+         realms/<realm>/account/#/applications) for every user — the SSO-native launcher.
+         Gated on the app being enabled so the list is exactly the deployed apps (docs/drive
+         clients exist unconditionally, so the flag, not client presence, is authoritative).
+         rootUrl points at the app's own host <clientId>.{domain} (NOT redirectHost: Tchap's
+         UI is tchap.{domain} even though its OIDC client is MAS at account.{domain}). */}}
+  {{- $appUrl := printf "https://%s.%s" .clientId $.Values.domain -}}
   {{- $client := dict
       "clientId" .clientId
       "name" .clientId
@@ -31,6 +39,9 @@ Phase 2 by appending to keycloak.clients).
       "directAccessGrantsEnabled" (.directAccessGrants | default false)
       "serviceAccountsEnabled" false
       "frontchannelLogout" true
+      "alwaysDisplayInConsole" (dig .clientId "enabled" false $.Values.apps)
+      "rootUrl" $appUrl
+      "baseUrl" "/"
       "redirectUris" (list (printf "https://%s/*" $host))
       "webOrigins" (list (printf "https://%s" $host))
       "defaultClientScopes" (list "web-origins" "acr" "roles" "profile" "email")
