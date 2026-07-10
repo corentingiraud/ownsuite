@@ -82,6 +82,16 @@ def test_unknown_backup_key(tmp_path):
         _load(tmp_path, "domain: x.org\ntls: prod\nbackup: {buckets: b}\n")
 
 
+def test_calendars_sharing_level_choices(tmp_path):
+    with pytest.raises(SuiteError, match="apps.calendars.sharing_level"):
+        _load(tmp_path, "domain: x.org\ntls: prod\napps:\n  calendars: {sharing_level: public}\n")
+
+
+def test_calendars_sharing_level_valid(tmp_path):
+    sp = _load(tmp_path, "domain: x.org\ntls: prod\napps:\n  calendars: {sharing_level: read}\n")
+    assert sp.app_options("calendars")["sharing_level"] == "read"
+
+
 # --- env assembly ---------------------------------------------------------------
 
 def test_assemble_env_forces_app_toggles(monkeypatch):
