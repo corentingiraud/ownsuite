@@ -320,6 +320,10 @@ invisible — they implement this model rather than change it.
 
 ## ADR-015 — In-cluster object storage: Garage (single-node), deterministic key
 
+> **Superseded by [ADR-046](#adr-046-in-cluster-object-storage-rustfs-supersedes-adr-015).**
+> The backend is now RustFS (upstream Helm chart, no bootstrap ceremony, no RPC secret).
+> The single-seed-derived-key mapping below still holds; RustFS uses it as its root credential.
+
 **Context.** [ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3) made
 object storage pluggable — Garage (self-hosted) or external EU S3 — and the foundation only
 *derived* the S3 credentials; nothing was deployed. The Docs app needs a real
@@ -1791,3 +1795,66 @@ would just not surface the controls. The credential is one global service passwo
 property is Keycloak never letting one user assert another's verified `email` claim (same as the
 Messages side assumes). Deferred: per-mailbox CalDAV channels (only needed if a user wants a
 distinct calendar identity), external CalDAV clients.
+
+---
+
+## ADR-046 — In-cluster object storage: RustFS (supersedes ADR-015)
+
+**Context.** [ADR-015](#adr-015-in-cluster-object-storage-garage-single-node-deterministic-key)
+deployed **Garage** as the in-cluster S3 (`objectStorage.mode`). Garage is a *distributed*
+store forced into single-node use, and that mismatch leaked accidental complexity: a
+`kubectl exec` bootstrap Job (assign/apply layout → import key → create/allow bucket) with its
+own `pods/exec` RBAC and an `alpine/kubectl` image; an RPC secret + admin token that only mean
+anything between nodes; dual PVCs (`meta` + `data`) on an LMDB engine; and a custom `garage`
+SigV4 region pinned in ~10 places. [RustFS](https://github.com/rustfs/rustfs) is an
+Apache-2.0, single-binary, MinIO-style S3 store that maps cleanly onto one node: single data
+dir, **no layout/bootstrap step** (it serves as soon as it is pointed at a path), root
+credential via env, no RPC. **The project is pre-launch — no data migration; this is a clean
+backend swap.**
+
+**Decision.** Deploy the **first-party `rustfs/rustfs` Helm chart** (charts.rustfs.com) in
+**standalone** mode as a Helmfile dependency, replacing the local `charts/garage`. Release
+names/gate shape are kept (`rustfs` primary, `rustfs-backup` off-site), so `helmfile.yaml.gotmpl`
+wiring barely changes.
+
+- **Config surface renamed** `objectStorage.mode: garage` → **`in-cluster`** — neutral, decoupled
+  from the backend implementation (we are pre-launch, so the break to existing `suite.yaml` is
+  acceptable).
+- **Single root credential** — the key insight from ADR-015 carries over exactly: we already use
+  ONE seed-derived S3 key per instance. RustFS takes it as its root credential via
+  `secret.existingSecret`, so `s3-credentials` (primary) / `backup-s3-credentials` (off-site) gain
+  two aliased keys `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` and RustFS needs no multi-user IAM. The
+  keys are seed-derived and therefore **stable across applies** — RustFS persists its root creds
+  into its internal `.rustfs.sys` bucket at first boot, and stable creds mean restarts keep working.
+  The Garage-only `garage-credentials`/`garage-backup-credentials` (rpcSecret/adminToken) are gone.
+- **Region `us-east-1`** — RustFS's own default; adopting it (not the custom `garage`) removes the
+  hardcoded-region wart and lets clients and server agree with no override.
+- **Console disabled** (`:9001`), **ingress disabled**, **logs PVC disabled**
+  (`obs_log_directory: ""`) — single data PVC only. Non-root/UID-10001/read-only-rootfs hardening
+  and health probes come from the upstream chart.
+- **Bucket creation** is the one gap the chart leaves (no `defaultBuckets`). We keep a small
+  bootstrap Job — but it collapses to a plain S3 `mkdir`/`CreateBucket` loop (`rclone`, an image we
+  already pin) against `:9000`, injected via the chart's `extraManifests` as a
+  post-install/post-upgrade hook. No `pods/exec`, no RBAC, no CLI-in-pod. `helm --wait` still gates
+  the release (and dependents like Docs) on buckets existing — the ADR-015 ordering guarantee holds.
+
+**Maturity risk.** RustFS is `v1.0.0-beta.x`. We pin a fixed chart (0.8.0 / appVersion
+1.0.0-beta.8) that is past the two secret-logging advisories (GHSA-r54g-49rx-98cr fixed in
+alpha.82; GHSA-8cm2-h255-v749's credential-log fix in beta.2). Acceptable given pre-launch +
+single-node; revisit at GA. Distributed mode is itself "under testing" upstream, and a
+single-node on-disk layout **cannot be converted to erasure coding in place** — HA later means a
+re-provision (noted for [ADR-006](#adr-006-backups-and-tested-restore)).
+
+**Validation (beta — must be exercised on a live cluster before cutover).** In risk order:
+Postgres/Barman **checksum** headers (the `AWS_*_CHECKSUM_CALCULATION=when_required` workaround is
+**retained** pending confirmation it is still needed against RustFS); Drive **presigned** PUT/POST
+(RustFS beta had a reported presigned-POST `MalformedPOSTRequest`, upstream #608); **CORS** for the
+media-proxy/drive browser flows; **credential-at-first-boot** persistence across restart;
+**off-site** `rustfs-backup` + rclone mirror.
+
+**Consequences.** Almost all of `charts/garage/` is deleted (statefulset, configmap, service,
+bootstrap Job, bootstrap RBAC), along with the `alpine/kubectl` image and the RPC/admin secrets.
+The seam that ADR-003 defined is unchanged; `external` mode still deploys nothing. Touches
+[ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3),
+[ADR-006](#adr-006-backups-and-tested-restore), and
+[ADR-017](#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design).

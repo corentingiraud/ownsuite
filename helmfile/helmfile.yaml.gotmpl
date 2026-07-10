@@ -21,6 +21,9 @@ repositories:
     url: https://codecentric.github.io/helm-charts
   - name: groundhog2k
     url: https://groundhog2k.github.io/helm-charts
+  # RustFS in-cluster object store (ADR-046) — first-party chart, standalone mode.
+  - name: rustfs
+    url: https://charts.rustfs.com
   - name: suitenumerique
     url: https://suitenumerique.github.io/docs
   - name: suitenumerique-drive
@@ -106,7 +109,7 @@ releases:
       # recovery needs the off-site store reachable before the cluster bootstraps.
       - cnpg-system/barman-cloud-plugin
       {{- if eq .Values.backup.s3.target "in-cluster" }}
-      - {{ $ns }}/garage-backup
+      - {{ $ns }}/rustfs-backup
       {{- end }}
       {{- end }}
     values:
@@ -123,46 +126,51 @@ releases:
     values:
       - values/valkey.yaml.gotmpl
 
-  # --- Object storage: in-cluster Garage (ADR-003, ADR-015) ----------------
-  # Deployed only in `garage` mode; production defaults to an external S3.
-  - name: garage
+  # --- Object storage: in-cluster RustFS (ADR-003, ADR-046) ----------------
+  # Deployed only in `in-cluster` mode; production defaults to an external S3. The
+  # upstream chart runs the server; a bucket-creation Job (extraManifests hook, in
+  # values/rustfs.yaml.gotmpl) is the only piece we still own — `helm --wait` blocks
+  # the release (and dependents like Docs) until the buckets exist.
+  - name: rustfs
     namespace: {{ $ns }}
-    chart: ./charts/garage
-    condition: garage.enabled
+    chart: rustfs/rustfs
+    version: {{ .Values.chartVersions.rustfs | quote }}
+    condition: rustfs.enabled
     needs:
       - {{ $ns }}/platform-configuration
     values:
-      - values/garage.yaml.gotmpl
+      - values/rustfs.yaml.gotmpl
 
-  # --- Off-site backup store: second in-cluster Garage (ADR-006, ADR-017) ---
+  # --- Off-site backup store: second in-cluster RustFS (ADR-006, ADR-017) ---
   # Deployed only when backups target an in-cluster store (CI / hermetic). Distinct
-  # name/PVC/bucket from the primary Garage and kept across a primary destroy, so it
+  # name/PVC/bucket from the primary RustFS and kept across a primary destroy, so it
   # stands in for storage that survives the server. In prod the off-site is external and
   # this release is absent.
-  - name: garage-backup
+  - name: rustfs-backup
     namespace: {{ $ns }}
-    chart: ./charts/garage
-    condition: backup.garageBackup.enabled
+    chart: rustfs/rustfs
+    version: {{ .Values.chartVersions.rustfs | quote }}
+    condition: backup.rustfsBackup.enabled
     needs:
       - {{ $ns }}/platform-configuration
     values:
-      - values/garage-backup.yaml.gotmpl
+      - values/rustfs-backup.yaml.gotmpl
 
   # --- Off-site object copy: rclone (ADR-006, ADR-017) ---------------------
   # Encrypted S3->S3 copy of the media bucket to the off-site store, plus the
-  # restore Job (gated on restore mode). Runs in both garage and external modes.
+  # restore Job (gated on restore mode). Runs in both in-cluster and external modes.
   - name: object-backup
     namespace: {{ $ns }}
     chart: ./charts/object-backup
     condition: backup.enabled
     needs:
       - {{ $ns }}/platform-configuration
-      {{- if .Values.garage.enabled }}
+      {{- if .Values.rustfs.enabled }}
       # Primary store must exist (bucket bootstrapped) before the restore Job copies in.
-      - {{ $ns }}/garage
+      - {{ $ns }}/rustfs
       {{- end }}
-      {{- if .Values.backup.garageBackup.enabled }}
-      - {{ $ns }}/garage-backup
+      {{- if .Values.backup.rustfsBackup.enabled }}
+      - {{ $ns }}/rustfs-backup
       {{- end }}
     values:
       - values/object-backup.yaml.gotmpl
@@ -178,8 +186,8 @@ releases:
     condition: backup.pvcBackup.enabled
     needs:
       - {{ $ns }}/platform-configuration
-      {{- if .Values.backup.garageBackup.enabled }}
-      - {{ $ns }}/garage-backup
+      {{- if .Values.backup.rustfsBackup.enabled }}
+      - {{ $ns }}/rustfs-backup
       {{- end }}
       # The grist chart owns the grist-persist PVC; it must exist before the CronJob /
       # restore Job can mount it. On restore the Job repopulates /persist before a doc
@@ -239,23 +247,23 @@ releases:
       - {{ $ns }}/keycloak
       - {{ $ns }}/docs-ingress
       - cert-manager/issuers
-      {{- if .Values.garage.enabled }}
-      - {{ $ns }}/garage
+      {{- if .Values.rustfs.enabled }}
+      - {{ $ns }}/rustfs
       {{- end }}
     values:
       - values/docs.yaml.gotmpl
 
   # --- Docs media proxy: a tiny nginx that serves authenticated /media/ downloads on
   #     Traefik (findings #20/#21 — the upstream media-auth is nginx-coupled). Renders
-  #     only in garage mode (gated in-chart); Traefik routes /media/ here.
+  #     only in in-cluster mode (gated in-chart); Traefik routes /media/ here.
   - name: docs-media-proxy
     namespace: {{ $ns }}
     chart: ./charts/media-proxy
     condition: apps.docs.enabled
     needs:
       - {{ $ns }}/docs
-      {{- if .Values.garage.enabled }}
-      - {{ $ns }}/garage
+      {{- if .Values.rustfs.enabled }}
+      - {{ $ns }}/rustfs
       {{- end }}
     values:
       - values/docs-media-proxy.yaml.gotmpl
@@ -286,22 +294,22 @@ releases:
       - {{ $ns }}/keycloak
       - {{ $ns }}/drive-ingress
       - cert-manager/issuers
-      {{- if .Values.garage.enabled }}
-      - {{ $ns }}/garage
+      {{- if .Values.rustfs.enabled }}
+      - {{ $ns }}/rustfs
       {{- end }}
     values:
       - values/drive.yaml.gotmpl
 
   # --- Drive media proxy: nginx serving authenticated /media/ downloads on Traefik
-  #     (findings #20/#21). Renders only in garage mode (gated in-chart).
+  #     (findings #20/#21). Renders only in in-cluster mode (gated in-chart).
   - name: drive-media-proxy
     namespace: {{ $ns }}
     chart: ./charts/media-proxy
     condition: apps.drive.enabled
     needs:
       - {{ $ns }}/drive
-      {{- if .Values.garage.enabled }}
-      - {{ $ns }}/garage
+      {{- if .Values.rustfs.enabled }}
+      - {{ $ns }}/rustfs
       {{- end }}
     values:
       - values/drive-media-proxy.yaml.gotmpl
@@ -309,7 +317,7 @@ releases:
   # --- App: Grist (getgrist) — Phase 5 broadening (ADR-024) -------------------
   # A single-container app from a local chart, OFF by default (apps.grist.enabled).
   # Reuses CNPG (its own `grist` home database) + Keycloak SSO; its documents live on
-  # a PVC, so it needs neither Valkey nor S3 (no garage/valkey dependency, unlike the
+  # a PVC, so it needs neither Valkey nor S3 (no rustfs/valkey dependency, unlike the
   # impress apps). OIDC is single-issuer discovery against the public Keycloak host.
   - name: grist
     namespace: {{ $ns }}
@@ -326,7 +334,7 @@ releases:
   # --- App: Projects (suitenumerique/projects) — Phase 5 broadening (ADR-025, ADR-031) ---
   # A single-container Sails.js app from a local chart, OFF by default. Like Grist it
   # reuses CNPG (its own `projects` database) + Keycloak SSO; its uploads live on S3
-  # (its own bucket on the shared seam, ADR-031), so it needs Garage in garage mode but
+  # (its own bucket on the shared seam, ADR-031), so it needs RustFS in in-cluster mode but
   # no Valkey. OIDC is single-issuer discovery.
   - name: projects
     namespace: {{ $ns }}
@@ -337,8 +345,8 @@ releases:
       - {{ $ns }}/postgres
       - {{ $ns }}/keycloak
       - cert-manager/issuers
-      {{- if .Values.garage.enabled }}
-      - {{ $ns }}/garage
+      {{- if .Values.rustfs.enabled }}
+      - {{ $ns }}/rustfs
       {{- end }}
     values:
       - values/projects.yaml.gotmpl
@@ -358,8 +366,8 @@ releases:
       - {{ $ns }}/valkey
       - {{ $ns }}/keycloak
       - cert-manager/issuers
-      {{- if .Values.garage.enabled }}
-      - {{ $ns }}/garage
+      {{- if .Values.rustfs.enabled }}
+      - {{ $ns }}/rustfs
       {{- end }}
     values:
       - values/messages.yaml.gotmpl
@@ -395,8 +403,8 @@ releases:
     condition: apps.meet.enabled
     needs:
       - {{ $ns }}/meet
-      {{- if .Values.garage.enabled }}
-      - {{ $ns }}/garage
+      {{- if .Values.rustfs.enabled }}
+      - {{ $ns }}/rustfs
       {{- end }}
     values:
       - values/meet-media-proxy.yaml.gotmpl
@@ -436,8 +444,8 @@ releases:
       - {{ $ns }}/platform-configuration
       - {{ $ns }}/valkey
       - {{ $ns }}/livekit
-      {{- if .Values.garage.enabled }}
-      - {{ $ns }}/garage
+      {{- if .Values.rustfs.enabled }}
+      - {{ $ns }}/rustfs
       {{- end }}
     values:
       - values/livekit-egress.yaml.gotmpl

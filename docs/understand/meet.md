@@ -68,7 +68,7 @@ extended to UDP ([ADR-039](decisions.md#adr-039-meet-media-ports-single-udp-mux-
   support no `secretKeyRef`), re-derived from the same seed ids so the three always
   agree ([ADR-012](decisions.md#adr-012-secrets-derived-from-a-single-secretseed-via-helm-templating)).
 - **Recording to S3.** Egress writes room recordings to the **`meet-recordings`** bucket
-  (its own bucket on the shared S3 seam — Garage in garage mode, external S3 otherwise).
+  (its own bucket on the shared S3 seam — RustFS in in-cluster mode, external S3 otherwise).
   It shares LiveKit's Redis DB (Valkey DB 8) to receive recording jobs.
 - **Authenticated downloads via a media-proxy.** The upstream `/media/` download path uses
   an nginx `auth_request` contract Traefik can't satisfy, so a small `meet-media-proxy`
@@ -92,7 +92,7 @@ $EDITOR suite.yaml     # add `meet: {}` under apps:
 suite apply            # opens 7881/tcp + 7882/udp, deploys -> https://meet.<domain>/
 ```
 
-The `meet-recordings` bucket is created for you — in-cluster in `garage` mode, on your
+The `meet-recordings` bucket is created for you — on RustFS in `in-cluster` mode, on your
 S3 with a `provider`. Bringing your own external S3, pre-create it (and, if your
 provider needs it, a CORS rule for `https://*.{domain}`).
 

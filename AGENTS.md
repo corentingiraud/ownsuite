@@ -31,7 +31,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `suite.yaml.example` | Commented template for `suite.yaml` — the one human-owned config file (git-ignored, ADR-042). |
 | `Makefile` | CI/dev shorthand only (ADR-037): `install` (alias for `suite apply`), `tunnel`/`sync`/`diff`/`destroy`, `backup`/`restore`, `lint*`, `test`, `test-full`, `test-platform` (full DoD via `suite apply`), `test-pvc-backup` (isolated ADR-032 PVC backup/restore, ~3 min), `test-app` (one optional app per cluster). |
 | `ansible/` | Server bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles. |
-| `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, Garage, the apps — Docs, Drive, Grist, Projects, the Mailbox (messages), Meet, Tchap and Calendars, **all off by default** (local charts; Meet and Tchap consume upstream charts) — and the off-site backups (rclone object copy, `garage-backup`); local charts, values, versions, k3d e2e. |
+| `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, RustFS, the apps — Docs, Drive, Grist, Projects, the Mailbox (messages), Meet, Tchap and Calendars, **all off by default** (local charts; RustFS, Meet and Tchap consume upstream charts) — and the off-site backups (rclone object copy, `rustfs-backup`); local charts, values, versions, k3d e2e. |
 | `suite/` | The declarative CLI (ADR-042, plus 018/023/033/034/036/037): `spec.py` (`suite.yaml` load/validate + env assembly), `state.py` (`.suite-state.json` machine state), `manifest.py` (the single app manifest), `apply.py` (the reconcile pipeline), `backup.py`, `info.py`, and the other verb modules — `init`/`plan`/`apply`/`apps`/`info`/`logs`/`tunnel`/`user`/`status`/`upgrade`/`backup`/`restore`/`destroy`/`deps` (no `sync.py`, no `.env`: human input is `suite.yaml`, machine state is `.suite-state.json`). Every operator action is a CLI verb; `make` is CI/dev only. Minimal deps (`questionary`, `PyYAML` — requirements.txt); lint with `ruff` (`ruff.toml`). |
 | `tests/` | Unit tests for the `suite` CLI (pytest; mocked resolvers, no cluster). |
 | `molecule/` | `default` (fast, host-prep roles) and `full` (real K3s) test scenarios + Testinfra. |
@@ -49,7 +49,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
    may be discussed in French, but committed artifacts are English. This overrides any
    contrary instruction.
 2. **No Bitnami, no MinIO** — both are deprecated/archived. Use CloudNativePG, Valkey,
-   and Garage/external S3 (ADR-003, ADR-004).
+   and RustFS/external S3 (ADR-003, ADR-004).
 3. **Pin versions, to the latest.** Charts, images, K3s, CLIs — pin an *explicit*
    version (never the floating `latest` tag in production). When adding or bumping a
    dependency, use the **newest available release, verified from the upstream source**

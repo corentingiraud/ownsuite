@@ -29,9 +29,9 @@ IMAGE_ARGS=()
 export OWNSUITE_DOMAIN="${OWNSUITE_DOMAIN:-ownsuite.localhost}"
 export OWNSUITE_TLS_ISSUER="selfsigned"
 export OWNSUITE_SECRET_SEED="${OWNSUITE_SECRET_SEED:-$(openssl rand -hex 24)}"
-# Self-hosted Garage so the run is hermetic (messages needs its media bucket; the
+# Self-hosted RustFS so the run is hermetic (messages needs its media bucket; the
 # bootstrap creates only the enabled apps' buckets).
-export OWNSUITE_OBJECT_STORAGE_MODE="${OWNSUITE_OBJECT_STORAGE_MODE:-garage}"
+export OWNSUITE_OBJECT_STORAGE_MODE="${OWNSUITE_OBJECT_STORAGE_MODE:-in-cluster}"
 # Only the app under test: Docs/Drive off so one app owns the runner's RAM.
 export OWNSUITE_APP_DOCS=false OWNSUITE_APP_DRIVE=false
 export OWNSUITE_APP_GRIST=false OWNSUITE_APP_PROJECTS=false OWNSUITE_APP_MESSAGES=false

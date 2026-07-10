@@ -176,9 +176,9 @@ def test_tfvars_no_meet_no_ports():
     assert tf["enable_mailbox"] is False
 
 
-def test_tfvars_garage_mode_has_no_buckets():
+def test_tfvars_in_cluster_mode_has_no_buckets():
     sp = spec.Spec({"domain": "x.org", "tls": "prod",
-                    "object_storage": {"mode": "garage"},
+                    "object_storage": {"mode": "in-cluster"},
                     "apps": {"docs": {}}}, P)
     assert spec.tfvars_for(sp)["bucket_names"] == []
 
@@ -233,7 +233,7 @@ def test_render_roundtrips_through_the_validator(tmp_path):
 
 def test_render_byo_server(tmp_path):
     text = spec.render(domain="x.org", admin_email="a@x.org", provider=None,
-                       ssh="root@1.2.3.4", tls="selfsigned", storage="garage",
+                       ssh="root@1.2.3.4", tls="selfsigned", storage="in-cluster",
                        backups=False, apps=[])
     sp = _load(tmp_path, text)
     assert sp.provider is None

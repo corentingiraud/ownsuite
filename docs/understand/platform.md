@@ -13,8 +13,8 @@ it comes up in.
 | 4 | `platform-configuration` | Generates every password from your seed + the login config |
 | 5 | `postgres` | The database — one per app |
 | 6 | `valkey` | The shared cache |
-| 7 | `garage` | Self-hosted file storage (only if you're not using external S3) |
-| 8 | `garage-backup` | A separate off-site store for backups (test setups only) |
+| 7 | `rustfs` | Self-hosted file storage (only if you're not using external S3) |
+| 8 | `rustfs-backup` | A separate off-site store for backups (test setups only) |
 | 9 | `object-backup` | Copies files off-site on a schedule (when backups are on) |
 | 10 | `keycloak` | The single sign-on everyone logs in through |
 | 11 | `keycloak-config` | Keeps each app's login registration in sync |
@@ -46,7 +46,6 @@ helmfile/
     issuers/                  #   cert-manager ClusterIssuers
     postgres/                 #   CNPG Cluster + Database + backup ObjectStore/ScheduledBackup
     barman-cloud-plugin/      #   vendored CNPG backup/recovery plugin
-    garage/                   #   in-cluster object store (primary + off-site backup)
     object-backup/            #   rclone off-site media copy + restore
     pvc-backup/               #   rclone off-site volume copy + restore (reusable)
   tests/                      # end-to-end checks (platform, per-app, PVC backup/restore)
@@ -138,7 +137,7 @@ curl -s https://auth.assoc.example.org/realms/ownsuite/.well-known/openid-config
   adds its own.
 - **Pluggable object storage.** S3 credentials are always derived (the seam is ready), but
   no in-cluster storage is deployed by default — the production default is an external EU
-  S3 endpoint. Garage is wired but off until an app needs it.
+  S3 endpoint. RustFS is wired but off until an app needs it.
 - **Off-site backups, tested restore.** Point-in-time database backups + an off-site file copy,
   with a CI-proven restore (off by default; enable with `backup.enabled: true` in `suite.yaml`)
   — see [Backups & restore](../operate/backups.md).

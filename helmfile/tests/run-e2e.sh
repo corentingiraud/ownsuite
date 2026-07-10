@@ -3,7 +3,7 @@
 # cluster:
 #   create single-node K3s (Traefik kept) -> `suite apply` brings the stack up from
 #   a generated suite.yaml (self-signed issuer, backups ON to a second in-cluster
-#   Garage as the off-site store) -> assert the shared infra DoD + provision a user
+#   RustFS as the off-site store) -> assert the shared infra DoD + provision a user
 #   via the `suite user` CLI -> seed a media object -> back up (PostgreSQL base
 #   backup + off-site object copy) -> DESTROY the primary state -> `make restore`
 #   -> assert all THREE storage classes SURVIVED (ADR-006): the Keycloak user
@@ -12,7 +12,7 @@
 #
 # This asserts NO application: each app's boot DoD lives in apps-e2e.yml / test_apps.py.
 # Docs is the one app kept enabled here, SOLELY to provide a primary object bucket for
-# the object-copy survival check (Garage only creates buckets for enabled apps) — a
+# the object-copy survival check (RustFS only creates buckets for enabled apps) — a
 # restore fixture, not an app DoD.
 #
 # Provisioning goes through `suite apply` (ADR-042), so this ONE cluster proves the
@@ -42,12 +42,12 @@ fi
 export OWNSUITE_DOMAIN="${OWNSUITE_DOMAIN:-ownsuite.localhost}"
 export OWNSUITE_TLS_ISSUER="selfsigned"
 export OWNSUITE_SECRET_SEED="${OWNSUITE_SECRET_SEED:-$(openssl rand -hex 24)}"
-# Hermetic in-cluster Garage S3 for the object store. The direct-access grant lets the
+# Hermetic in-cluster RustFS S3 for the object store. The direct-access grant lets the
 # restore survival check mint a Keycloak admin token without a browser.
-export OWNSUITE_OBJECT_STORAGE_MODE="${OWNSUITE_OBJECT_STORAGE_MODE:-garage}"
+export OWNSUITE_OBJECT_STORAGE_MODE="${OWNSUITE_OBJECT_STORAGE_MODE:-in-cluster}"
 export OWNSUITE_KC_DIRECT_GRANTS="${OWNSUITE_KC_DIRECT_GRANTS:-true}"
 # Apps are OFF by default (ADR-035). This suite asserts no app — but it keeps DOCS
-# enabled SOLELY so Garage creates the primary `docs-media-storage` bucket the
+# enabled SOLELY so RustFS creates the primary `docs-media-storage` bucket the
 # object-copy backup/restore DoD seeds and reads back (a restore fixture, not an app
 # DoD; that lives in test_apps.py). The installer then issues + verifies the docs cert
 # alongside Keycloak. Drive et al. stay off so this stays lean.
@@ -58,7 +58,7 @@ export OWNSUITE_APP_DOCS=true
 # real CLI usage (the survival check looks the user up via the admin API, not a login).
 export OWNSUITE_E2E_USER="${OWNSUITE_E2E_USER:-restore-survivor@ownsuite.localhost}"
 export OWNSUITE_E2E_USER_PW="${OWNSUITE_E2E_USER_PW:-$(openssl rand -hex 16)}"
-# Phase 3: backups ON to a SECOND in-cluster Garage (`garage-backup`) standing in for
+# Phase 3: backups ON to a SECOND in-cluster RustFS (`rustfs-backup`) standing in for
 # the off-site store. WAL archiving is continuous; the e2e takes an on-demand base
 # backup and triggers the object-copy CronJob manually, so the default schedule
 # (kept so the CronJob/ScheduledBackup exist) never actually fires during the run.
@@ -74,7 +74,7 @@ export OWNSUITE_CONFIG="$(mktemp -d)/suite.yaml"
 cat > "$OWNSUITE_CONFIG" <<EOF
 domain: ${OWNSUITE_DOMAIN}
 tls: selfsigned
-object_storage: {mode: garage}
+object_storage: {mode: in-cluster}
 backup: {enabled: true, target: in-cluster}
 apps:
   docs: {}
@@ -93,7 +93,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Run an rclone one-shot Job against the PRIMARY media store (Garage). The actual
+# Run an rclone one-shot Job against the PRIMARY media store (RustFS). The actual
 # off-site copy/restore is exercised by the chart's CronJob / restore Job; this
 # helper only seeds and reads back objects from the primary bucket. $1 = job name,
 # $2 = shell snippet (has $BUCKET available).
@@ -120,8 +120,8 @@ $(printf '%s\n' "$snippet" | sed 's/^/              /')
           env:
             - {name: RCLONE_CONFIG_PRIMARY_TYPE, value: s3}
             - {name: RCLONE_CONFIG_PRIMARY_PROVIDER, value: Other}
-            - {name: RCLONE_CONFIG_PRIMARY_ENDPOINT, value: "http://garage.${NS}.svc.cluster.local:3900"}
-            - {name: RCLONE_CONFIG_PRIMARY_REGION, value: garage}
+            - {name: RCLONE_CONFIG_PRIMARY_ENDPOINT, value: "http://rustfs-svc.${NS}.svc.cluster.local:9000"}
+            - {name: RCLONE_CONFIG_PRIMARY_REGION, value: us-east-1}
             - {name: RCLONE_CONFIG_PRIMARY_FORCE_PATH_STYLE, value: "true"}
             - name: RCLONE_CONFIG_PRIMARY_ACCESS_KEY_ID
               valueFrom: {secretKeyRef: {name: s3-credentials, key: AWS_S3_ACCESS_KEY_ID}}
@@ -216,22 +216,22 @@ wait_job object-backup-e2e 180
 pvc_backup_roundtrip
 
 echo "==> DESTROYING the primary state (DB + primary object store + docs)"
-# Keep platform-configuration (secrets), garage-backup (the off-site backups!), the
+# Keep platform-configuration (secrets), rustfs-backup (the off-site backups!), the
 # barman plugin and the operators — they stand in for what survives the server.
 helmfile -f "$HELMFILE" \
   -l name=docs -l name=docs-ingress \
-  -l name=keycloak -l name=valkey -l name=postgres -l name=garage \
+  -l name=keycloak -l name=valkey -l name=postgres -l name=rustfs \
   destroy
 echo "    deleting leftover PVCs (StatefulSet/CNPG volumes are not removed by uninstall)"
 kubectl -n "$NS" delete pvc -l "cnpg.io/cluster=ownsuite-pg" --ignore-not-found
-kubectl -n "$NS" delete pvc meta-garage-0 data-garage-0 --ignore-not-found
+kubectl -n "$NS" delete pvc rustfs-data --ignore-not-found
 # Make sure the CNPG Cluster object is fully gone before recovery recreates it.
 kubectl -n "$NS" wait --for=delete cluster/ownsuite-pg --timeout=120s 2>/dev/null || true
-echo "    primary state destroyed; off-site garage-backup retained:"
+echo "    primary state destroyed; off-site rustfs-backup retained:"
 kubectl -n "$NS" get statefulset,cluster 2>/dev/null || true
 
 echo "==> RESTORING from off-site backups (make restore)"
-# Docs stays enabled through the restore so Garage recreates the primary bucket and the
+# Docs stays enabled through the restore so RustFS recreates the primary bucket and the
 # object-copy can land the media fixture back in it. Restore is a direct `helmfile sync`
 # (recovery bootstrap, the low-level path `suite restore` wraps) — only the initial
 # provisioning goes through `suite apply` (above).

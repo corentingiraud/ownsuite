@@ -4,7 +4,7 @@
 #
 # allowExternalNameServices lets Ingresses target ExternalName Services, which
 # OwnSuite uses to proxy authenticated /media/ requests to the object store
-# (Garage in-cluster, or an external S3 host). K3s Traefik refuses ExternalName
+# (RustFS in-cluster, or an external S3 host). K3s Traefik refuses ExternalName
 # by default, so without this every uploaded file/image 404s on /media/.
 #
 # Security note: ExternalName routing is a mild SSRF vector (an Ingress can point

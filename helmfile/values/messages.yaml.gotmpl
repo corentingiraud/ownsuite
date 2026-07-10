@@ -18,9 +18,9 @@
 {{- $kcInternal := printf "http://keycloak-keycloakx-http.%s.svc.cluster.local/realms/%s/protocol/openid-connect" $ns $realm -}}
 {{- $s3Endpoint := .Values.objectStorage.endpoint -}}
 {{- $s3Region := .Values.objectStorage.region -}}
-{{- if .Values.garage.enabled -}}
-{{-   $s3Endpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
-{{-   $s3Region = .Values.garage.region -}}
+{{- if .Values.rustfs.enabled -}}
+{{-   $s3Endpoint = printf "http://rustfs-svc.%s.svc.cluster.local:9000" $ns -}}
+{{-   $s3Region = .Values.rustfs.region -}}
 {{- end -}}
 {{- /* Postfix relayhost wants [host]:port (the brackets skip the MX lookup). */ -}}
 {{- $relayParts := splitList ":" .Values.apps.messages.relayHost -}}
@@ -92,7 +92,7 @@ components:
       # Create the Django user on first OIDC login; the maildomain's oidc_autojoin (set
       # by the seed Job) then provisions the mailbox — the JIT path the DoD relies on.
       OIDC_CREATE_USER: "True"
-      # --- Object storage (S3 / Garage) — message blobs/attachments ---
+      # --- Object storage (S3 / RustFS) — message blobs/attachments ---
       STORAGE_MESSAGE_BLOBS_ENDPOINT_URL: {{ $s3Endpoint | quote }}
       STORAGE_MESSAGE_BLOBS_BUCKET_NAME: {{ .Values.objectStorage.messagesBucket | quote }}
       STORAGE_MESSAGE_BLOBS_REGION_NAME: {{ $s3Region | quote }}

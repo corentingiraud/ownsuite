@@ -1,18 +1,18 @@
 {{- $ns := .Values.workloadsNamespace -}}
-{{- /* Primary store: in-cluster Garage in garage mode, else the external S3. */ -}}
+{{- /* Primary store: in-cluster RustFS in in-cluster mode, else the external S3. */ -}}
 {{- $primaryEndpoint := .Values.objectStorage.endpoint -}}
 {{- $primaryRegion := .Values.objectStorage.region -}}
-{{- if .Values.garage.enabled -}}
-{{-   $primaryEndpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
-{{-   $primaryRegion = .Values.garage.region -}}
+{{- if .Values.rustfs.enabled -}}
+{{-   $primaryEndpoint = printf "http://rustfs-svc.%s.svc.cluster.local:9000" $ns -}}
+{{-   $primaryRegion = .Values.rustfs.region -}}
 {{- end -}}
-{{- /* Off-site store: in-cluster garage-backup (CI), else the external backup S3.
-       For the in-cluster Garage the SigV4 region must be "garage". */ -}}
+{{- /* Off-site store: in-cluster rustfs-backup (CI), else the external backup S3.
+       For the in-cluster RustFS the SigV4 region must be "us-east-1". */ -}}
 {{- $offsiteEndpoint := .Values.backup.s3.endpoint -}}
 {{- $offsiteRegion := .Values.backup.s3.region -}}
 {{- if eq .Values.backup.s3.target "in-cluster" -}}
-{{-   $offsiteEndpoint = printf "http://garage-backup.%s.svc.cluster.local:3900" $ns -}}
-{{-   $offsiteRegion = "garage" -}}
+{{-   $offsiteEndpoint = printf "http://rustfs-backup-svc.%s.svc.cluster.local:9000" $ns -}}
+{{-   $offsiteRegion = "us-east-1" -}}
 {{- end -}}
 image:
   repository: rclone/rclone
@@ -27,7 +27,7 @@ primary:
   endpoint: {{ $primaryEndpoint | quote }}
   region: {{ $primaryRegion | quote }}
   # One bucket per enabled app that stores media on the primary store (ADR-030).
-  # Mirrors the garage `buckets:` list so backup coverage tracks what is deployed.
+  # Mirrors the enabled-apps bucket list so backup coverage tracks what is deployed.
   buckets:
     {{- if .Values.apps.docs.enabled }}
     - {{ .Values.objectStorage.bucket | quote }}

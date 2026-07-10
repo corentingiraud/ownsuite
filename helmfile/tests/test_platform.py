@@ -31,7 +31,7 @@ CLI_USER = os.environ.get("OWNSUITE_E2E_USER", "")
 CLI_USER_PW = os.environ.get("OWNSUITE_E2E_USER_PW", "")
 
 SECRET_SEED = os.environ.get("OWNSUITE_SECRET_SEED")
-GARAGE_MODE = os.environ.get("OWNSUITE_OBJECT_STORAGE_MODE", "external") == "garage"
+INCLUSTER_MODE = os.environ.get("OWNSUITE_OBJECT_STORAGE_MODE", "external") == "in-cluster"
 SEED_TEST_USER = os.environ.get("OWNSUITE_KC_SEED_TEST_USER", "false").lower() == "true"
 DOCS_BUCKET = os.environ.get("OWNSUITE_S3_BUCKET", "docs-media-storage")
 
@@ -228,17 +228,47 @@ def test_keycloak_reachable_over_https():
 # the backup -> restore cycle seeds, copies off-site, and reads back lands here.
 
 
-@pytest.mark.skipif(not GARAGE_MODE, reason="object storage is not in garage mode")
-def test_garage_running_and_bucket_ready():
-    """Garage is up and the bootstrap Job created the primary media bucket (ADR-015)."""
-    pods = json.loads(kubectl("-n", NAMESPACE, "get", "pods",
-                              "-l", "app.kubernetes.io/name=garage", "-o", "json").stdout)["items"]
-    assert any(p["status"]["phase"] == "Running" for p in pods), "no Running garage pod"
+def _rclone_image():
+    """The rclone image pin (versions.yaml) — reused for the ephemeral HeadBucket pod."""
+    import pathlib
+    import re
+    txt = pathlib.Path(__file__).resolve().parents[1].joinpath(
+        "versions/versions.yaml").read_text()
+    return "rclone/rclone:" + re.search(r'^\s*rclone:\s*"([^"]+)"', txt, re.M).group(1)
+
+
+@pytest.mark.skipif(not INCLUSTER_MODE, reason="object storage is not in in-cluster mode")
+def test_rustfs_running_and_bucket_ready():
+    """RustFS is up and the bucket-init Job created the primary media bucket (ADR-046).
+
+    The RustFS image ships no S3 CLI, so bucket existence is probed with a throwaway
+    rclone pod doing an S3 ListBuckets against the RustFS Service. Its root creds are
+    derived from the same seed (RUSTFS_ACCESS_KEY == s3-access), so no secret read-back.
+    """
+    pods = json.loads(kubectl(
+        "-n", NAMESPACE, "get", "pods",
+        "-l", "app.kubernetes.io/name=rustfs,app.kubernetes.io/instance=rustfs",
+        "-o", "json").stdout)["items"]
+    assert any(p["status"]["phase"] == "Running" for p in pods), "no Running rustfs pod"
+
+    endpoint = f"http://rustfs-svc.{NAMESPACE}.svc.cluster.local:9000"
 
     def bucket_exists():
-        res = kubectl("-n", NAMESPACE, "exec", "garage-0", "-c", "garage", "--",
-                      "/garage", "bucket", "info", DOCS_BUCKET, check=False)
-        assert res.returncode == 0, f"bucket {DOCS_BUCKET} missing: {res.stdout + res.stderr}"
+        kubectl("-n", NAMESPACE, "delete", "pod", "rustfs-headbucket",
+                "--ignore-not-found", "--now", check=False)
+        res = kubectl(
+            "-n", NAMESPACE, "run", "rustfs-headbucket", "-i", "--rm", "--restart=Never",
+            "--image", _rclone_image(),
+            "--env", "RCLONE_CONFIG_S3_TYPE=s3",
+            "--env", "RCLONE_CONFIG_S3_PROVIDER=Other",
+            "--env", f"RCLONE_CONFIG_S3_ENDPOINT={endpoint}",
+            "--env", "RCLONE_CONFIG_S3_REGION=us-east-1",
+            "--env", "RCLONE_CONFIG_S3_FORCE_PATH_STYLE=true",
+            "--env", f"RCLONE_CONFIG_S3_ACCESS_KEY_ID={derive_secret('s3-access', 20)}",
+            "--env", f"RCLONE_CONFIG_S3_SECRET_ACCESS_KEY={derive_secret('s3-secret', 40)}",
+            "--command", "--", "rclone", "lsd", "s3:", check=False)
+        out = res.stdout + res.stderr
+        assert DOCS_BUCKET in out, f"bucket {DOCS_BUCKET} missing: {out}"
 
     retry(bucket_exists)
 

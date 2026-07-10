@@ -88,7 +88,7 @@ variable "s3_key_expires_at" {
 }
 
 variable "cors_allowed_origins" {
-  description = "Browser origins allowed to make direct (presigned) requests to the buckets. Empty = no CORS rule. In external-S3 mode Drive/Docs/Projects/Messages upload+download straight from the browser, so on a CORS-capable provider (Scaleway RGW) set e.g. [\"https://*.example.org\"] — otherwise the upload preflight (OPTIONS) 403s. (Garage mode proxies same-origin and needs none.)"
+  description = "Browser origins allowed to make direct (presigned) requests to the buckets. Empty = no CORS rule. In external-S3 mode Drive/Docs/Projects/Messages upload+download straight from the browser, so on a CORS-capable provider (Scaleway RGW) set e.g. [\"https://*.example.org\"] — otherwise the upload preflight (OPTIONS) 403s. (in-cluster mode proxies same-origin and needs none.)"
   type        = list(string)
   default     = []
 }

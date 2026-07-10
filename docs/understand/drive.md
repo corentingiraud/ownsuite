@@ -20,7 +20,7 @@ It is gated on `apps.drive.enabled` and depends, via `needs:`, on the shared inf
 | `valkey` | Django cache (db **2**) and Celery broker (db **3**) — distinct from Docs (0/1) |
 | `keycloak` | SSO — the `drive` OIDC client |
 | `drive-ingress` | Traefik middlewares for authenticated media |
-| `garage` *(garage mode)* | The `drive-media-storage` S3 bucket |
+| `rustfs` *(in-cluster mode)* | The `drive-media-storage` S3 bucket |
 | `issuers` | The `drive-tls` certificate (cert-manager) |
 
 ## How it is wired
@@ -33,8 +33,8 @@ It is the Docs wiring with two pieces removed and a few names changed:
   derived Valkey password. The **separate broker db** keeps Drive's and Docs' Celery queues
   from cross-consuming each other's tasks.
 - **Object storage** — `AWS_*` come from `s3-credentials` (the same key Docs uses); the bucket
-  is Drive's own `drive-media-storage`. The Garage bootstrap creates one bucket per enabled
-  app; on external S3 you pre-create the Drive bucket alongside the Docs one.
+  is Drive's own `drive-media-storage`. The RustFS bucket-init Job creates one bucket per
+  enabled app; on external S3 you pre-create the Drive bucket alongside the Docs one.
 - **SSO** — the `drive` confidential OIDC client (secret derived from the same seed id the app
   reads). Browser → `https://auth.{domain}`; backend → Keycloak in-cluster.
 - **No real-time collaboration** — Drive is a file manager, so (unlike Docs) it ships no

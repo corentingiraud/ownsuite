@@ -22,7 +22,7 @@ spec you can buy against. Pick a profile by which apps you enable, then read RAM
   first-boot migrations, upgrades (old +
   new pod briefly overlap), and traffic spikes.
 - **Disk** assumes external EU S3 for object storage (the production default — files live off
-  the box). **Add ~20 GB** if you run the in-cluster **Garage** store instead, plus the same
+  the box). **Add ~20 GB** if you run the in-cluster **RustFS** store instead, plus the same
   again if you keep its off-site backup copy in-cluster.
 - These are steady-state figures for a small non-profit (a few dozen users). Heavy concurrent
   editing or large mailboxes scale RAM up first.
@@ -48,7 +48,7 @@ their chart defaults.
 | **Meet** (backend, Celery, frontend, LiveKit, Egress) | opt-in | 0.9 vCPU | 1.65 GB | 4.8 GB |
 | **Tchap** (Synapse, MAS, Element Web, HAProxy) | opt-in | 0.3 vCPU | 0.3 GB | 5.1 GB |
 | **Calendars** (backend, worker, frontend, CalDAV) | opt-in | 0.45 vCPU | 1.25 GB | 2.5 GB |
-| **Garage** object store (only if not using external S3) | no | 0.05 vCPU | 0.13 GB | 0.5 GB |
+| **RustFS** object store (only if not using external S3) | no | 0.05 vCPU | 0.13 GB | 0.5 GB |
 
 With Docs, Drive, Grist, Projects and the mailbox enabled, the declared requests total
 **~1.5 vCPU / 4.7 GB** and the memory limits total **~11 GB** — which is why 12 GB is the
@@ -67,7 +67,7 @@ deployment rarely approaches (its request is only ~0.3 GB).
 | OS + K3s + container images | ~20 GB |
 | PostgreSQL volume (`postgres.storage`, default 10 Gi) | 10 GB |
 | Grist documents PVC (`apps.grist.storage`, default 5 Gi) | 5 GB (if enabled) |
-| In-cluster Garage data (+ off-site copy if in-cluster) | +10 GB each (if used) |
+| In-cluster RustFS data (+ off-site copy if in-cluster) | +10 GB each (if used) |
 
 User files and mail blobs live in **object storage**, not on the disk, when you use external
 S3 — so the disk stays small and predictable.

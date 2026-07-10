@@ -18,9 +18,9 @@
 {{- $s3Secret := index $ov "s3-secret" | default (printf "%s:%s" .Values.secretSeed "s3-secret" | sha256sum | trunc 40) -}}
 {{- $s3Endpoint := .Values.objectStorage.endpoint -}}
 {{- $s3Region := .Values.objectStorage.region -}}
-{{- if .Values.garage.enabled -}}
-{{-   $s3Endpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
-{{-   $s3Region = .Values.garage.region -}}
+{{- if .Values.rustfs.enabled -}}
+{{-   $s3Endpoint = printf "http://rustfs-svc.%s.svc.cluster.local:9000" $ns -}}
+{{-   $s3Region = .Values.rustfs.region -}}
 {{- end -}}
 {{- $insecure := eq .Values.tls.issuer "selfsigned" }}
 

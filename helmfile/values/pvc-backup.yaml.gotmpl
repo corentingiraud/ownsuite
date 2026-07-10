@@ -1,12 +1,12 @@
 {{- $ns := .Values.workloadsNamespace -}}
-{{- /* Off-site store: in-cluster garage-backup (CI), else the external backup S3.
-       For the in-cluster Garage the SigV4 region must be "garage". Same computation
+{{- /* Off-site store: in-cluster rustfs-backup (CI), else the external backup S3.
+       For the in-cluster RustFS the SigV4 region must be "us-east-1". Same computation
        as values/object-backup.yaml.gotmpl — one off-site config for both copies. */ -}}
 {{- $offsiteEndpoint := .Values.backup.s3.endpoint -}}
 {{- $offsiteRegion := .Values.backup.s3.region -}}
 {{- if eq .Values.backup.s3.target "in-cluster" -}}
-{{-   $offsiteEndpoint = printf "http://garage-backup.%s.svc.cluster.local:3900" $ns -}}
-{{-   $offsiteRegion = "garage" -}}
+{{-   $offsiteEndpoint = printf "http://rustfs-backup-svc.%s.svc.cluster.local:9000" $ns -}}
+{{-   $offsiteRegion = "us-east-1" -}}
 {{- end -}}
 image:
   repository: rclone/rclone

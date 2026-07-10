@@ -14,11 +14,11 @@ schedule: "0 3 * * *"
 restore:
   enabled: false
 
-# Primary object store (source of the media). In garage mode this is the in-cluster
-# Garage; in external mode the managed S3.
+# Primary object store (source of the media). In in-cluster mode this is the in-cluster
+# RustFS; in external mode the managed S3.
 primary:
-  endpoint: "http://garage.ownsuite.svc.cluster.local:3900"
-  region: garage
+  endpoint: "http://rustfs-svc.ownsuite.svc.cluster.local:9000"
+  region: us-east-1
   # Buckets copied off-site, one per enabled app (docs/drive/messages/projects).
   # Helmfile fills this from the enabled apps' buckets (values/object-backup.yaml.gotmpl).
   buckets:
@@ -30,8 +30,8 @@ primary:
 
 # Off-site backup store (destination). NEVER the primary (ADR-006 #4).
 offsite:
-  endpoint: "http://garage-backup.ownsuite.svc.cluster.local:3900"
-  region: garage
+  endpoint: "http://rustfs-backup-svc.ownsuite.svc.cluster.local:9000"
+  region: us-east-1
   bucket: ownsuite-backups
   # Prefix within the off-site bucket where the encrypted media copy lives.
   mediaPrefix: media

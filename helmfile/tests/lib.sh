@@ -172,7 +172,7 @@ wait_job() {
 # /persist, holding a sentinel under /persist/docs. Shared by run-e2e.sh (full
 # suite) and run-pvc-backup-e2e.sh (isolated, fast). The caller sets $NS + KUBECONFIG
 # and ensures the off-site store + backup-s3-credentials secret exist; OFFSITE_* env
-# vars select the store (default: the in-cluster garage-backup).
+# vars select the store (default: the in-cluster rustfs-backup).
 GRIST_PVC="${GRIST_PVC:-grist-persist}"
 GRIST_DOC="${GRIST_DOC:-docs/e2e-grist-doc.txt}"
 GRIST_DOC_CONTENT="${GRIST_DOC_CONTENT:-ownsuite-e2e-grist-document-fixture}"
@@ -218,8 +218,8 @@ pvc_backup_apply() {
     --namespace "$NS" \
     --set image.tag="$(sed -nE 's/^[[:space:]]*rclone:[[:space:]]*"([^"]+)".*/\1/p' helmfile/versions/versions.yaml | head -1)" \
     --set restore.enabled="$([ "$mode" = restore ] && echo true || echo false)" \
-    --set offsite.endpoint="${OFFSITE_ENDPOINT:-http://garage-backup.${NS}.svc.cluster.local:3900}" \
-    --set offsite.region="${OFFSITE_REGION:-garage}" \
+    --set offsite.endpoint="${OFFSITE_ENDPOINT:-http://rustfs-backup-svc.${NS}.svc.cluster.local:9000}" \
+    --set offsite.region="${OFFSITE_REGION:-us-east-1}" \
     --set offsite.bucket="${OFFSITE_BUCKET:-ownsuite-backups}" \
     --set 'volumes[0].pvcName='"$GRIST_PVC" --set 'volumes[0].subPath=' \
     | kubectl -n "$NS" apply -f -

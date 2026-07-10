@@ -17,7 +17,7 @@ gated on `apps.docs.enabled` and depends, via `needs:`, on the shared infrastruc
 | `postgres` | The dedicated `docs` database (CNPG `Database` + owner role) |
 | `valkey` | Django cache (db 0) and Celery broker (db 1) |
 | `keycloak` | SSO — the `docs` OIDC client |
-| `garage` *(garage mode)* | The S3 bucket for media/attachments |
+| `rustfs` *(in-cluster mode)* | The S3 bucket for media/attachments |
 | `issuers` | The `docs-tls` certificate (cert-manager) |
 
 ## How it is wired
@@ -26,8 +26,8 @@ gated on `apps.docs.enabled` and depends, via `needs:`, on the shared infrastruc
   from the seed-derived `docs-db` Secret.
 - **Cache / broker** — `REDIS_URL` / `DJANGO_CELERY_BROKER_URL` embed the derived Valkey
   password and target the in-cluster Valkey service.
-- **Object storage** — `AWS_*` come from `s3-credentials`. In `garage` mode the endpoint is
-  the in-cluster Garage service; in `external` mode it is your configured S3 endpoint.
+- **Object storage** — `AWS_*` come from `s3-credentials`. In `in-cluster` mode the endpoint is
+  the in-cluster RustFS service; in `external` mode it is your configured S3 endpoint.
 - **SSO** — the `docs` confidential OIDC client (secret derived from the same seed id the app
   reads). The browser hits `https://auth.{domain}`; the backend reaches Keycloak in-cluster.
 - **Real-time collaboration** — the y-provider websocket server, exposed at
@@ -38,16 +38,16 @@ All of it is configured in `helmfile/values/docs.yaml.gotmpl`; nothing secret is
 ## Object storage modes
 
 ```yaml
-# suite.yaml — self-hosted, in-cluster (CI / sovereignty): deploys Garage + bucket.
-object_storage: {mode: garage}
+# suite.yaml — self-hosted, in-cluster (CI / sovereignty): deploys RustFS + bucket.
+object_storage: {mode: in-cluster}
 
 # External managed EU S3 (recommended production default): nothing deployed in-cluster.
 object_storage: {mode: external, endpoint: https://s3.example-eu.com}
 ```
 
-In `garage` mode a single-node Garage `StatefulSet` is deployed and a post-install Job
-bootstraps the cluster layout, **imports the seed-derived S3 key**, and creates the
-`docs-media-storage` bucket — so a fresh cluster is self-sufficient.
+In `in-cluster` mode a single-node RustFS store is deployed, taking the seed-derived
+S3 key as its root credential directly, and a small post-install `rclone mkdir` Job
+creates the `docs-media-storage` bucket — so a fresh cluster is self-sufficient.
 
 ## Run it
 

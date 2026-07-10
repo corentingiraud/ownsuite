@@ -8,8 +8,8 @@ backendService: drive-backend
 # Bucket the media path rewrites to (path-style S3).
 bucket: drive-media-storage
 
-# Same-origin presigned-upload proxy (finding #20). Enabled in garage mode: routes
-# https://<host>/<bucket>/ to the in-cluster Garage so browser presigned PUTs are
+# Same-origin presigned-upload proxy (finding #20). Enabled in in-cluster mode: routes
+# https://<host>/<bucket>/ to the in-cluster RustFS so browser presigned PUTs are
 # same-origin. See templates/upload-proxy-ingress.yaml.
 sameOriginUpload:
   enabled: false
@@ -17,6 +17,6 @@ sameOriginUpload:
 host: drive.example.org
 # TLS secret for that host (issued on the drive chart's main ingress, reused here).
 tlsSecret: drive-tls
-# In-cluster Garage S3 ClusterIP Service + port the upload proxy forwards to.
-s3Service: garage
-s3Port: 3900
+# In-cluster RustFS S3 ClusterIP Service + port the upload proxy forwards to.
+s3Service: rustfs-svc
+s3Port: 9000

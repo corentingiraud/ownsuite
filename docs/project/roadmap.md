@@ -29,7 +29,7 @@ This is a feature and status board — what is **shipped**, what is **optional**
 | SSO | **Keycloak**, 1 realm, 1 OIDC client per app |
 | Database | **CloudNativePG** (PostgreSQL + WAL/PITR to S3) |
 | Cache / broker | **Valkey** |
-| Object storage | **Pluggable: Garage (self-hosted) or external EU S3** |
+| Object storage | **Pluggable: RustFS (self-hosted) or external EU S3** |
 | Host provisioning | **Ansible** |
 | Upgrade model | **Semver releases + backup-gated `suite` CLI + Renovate** |
 
@@ -43,7 +43,7 @@ Production essentials, implemented and **proven in CI**:
   K3s cluster (firewall, fail2ban, swap, sysctl, SSH hardening). See
   [server bootstrap](../get-started/bootstrap.md).
 - **Shared foundation** — Traefik + cert-manager (HTTPS), CloudNativePG, Valkey, Keycloak SSO,
-  pluggable Garage / external EU S3. See [shared infrastructure](../understand/platform.md).
+  pluggable RustFS / external EU S3. See [shared infrastructure](../understand/platform.md).
 - **Shared SSO + JIT user provisioning** — one Keycloak identity, just-in-time into every app;
   `suite user add/passwd/disable`. See [Users](../operate/users.md).
 - **Suite-wide app switcher** — Keycloak's Account Console lists exactly the enabled apps with

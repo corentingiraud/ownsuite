@@ -105,7 +105,7 @@ Production essentials, implemented and **proven in CI**:
 
 ## Stack
 
-K3s · Helmfile · Traefik · cert-manager · CloudNativePG · Valkey · Keycloak · fail2ban · LiveKit (Meet) · Scaleway · external EU S3 / Garage · rclone
+K3s · Helmfile · Traefik · cert-manager · CloudNativePG · Valkey · Keycloak · fail2ban · LiveKit (Meet) · Scaleway · external EU S3 / RustFS · rclone
 
 ## Contributing
 

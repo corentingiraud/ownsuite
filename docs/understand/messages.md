@@ -24,7 +24,7 @@ existing seam rather than a foreign one. Upstream ships container images
 | `platform-configuration` | Derived secrets (`messages-secrets`, `messages-db`) + the `messages` OIDC client in the realm |
 | `postgres` | The dedicated `messages` database (mailboxes, threads, contacts) |
 | `valkey` | Cache + Celery broker (Redis DBs **4**/**5**, distinct from Docs 0/1 and Drive 2/3) |
-| `garage` | The per-app S3 bucket for mail blobs/attachments (pluggable seam) |
+| `rustfs` | The per-app S3 bucket for mail blobs/attachments (pluggable seam) |
 | `keycloak` | SSO — the `messages` OIDC client |
 | `issuers` | The `messages-tls` certificate (cert-manager) for the webmail |
 

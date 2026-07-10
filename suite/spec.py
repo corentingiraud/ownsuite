@@ -55,7 +55,7 @@ NON_ENV_KEYS = {"backup": {"provision"}}
 CHOICES = {
     ("tls",): TLS_MODES,
     ("provider",): PROVIDERS,
-    ("object_storage", "mode"): ("external", "garage"),
+    ("object_storage", "mode"): ("external", "in-cluster"),
     ("backup", "target"): ("external", "in-cluster"),
     # Per-app option: the CHOICES loop navigates `data` by path, so an
     # apps.<app>.<option> tuple validates only when the option is actually set.
@@ -244,7 +244,7 @@ def tfvars_for(spec: Spec) -> dict:
     or the Mailbox opens its ports without hand-editing tfvars. Provider params
     (project ids, ssh key) stay in terraform.tfvars."""
     apps = spec.enabled_apps()
-    external_storage = spec.section("object_storage").get("mode", "external") != "garage"
+    external_storage = spec.section("object_storage").get("mode", "external") != "in-cluster"
     buckets = []
     if external_storage:
         for name in apps:
@@ -308,7 +308,7 @@ def run_init(args):
         provider = None
         ssh = prompt.text("Server SSH target (user@host, blank to fill in later)")
     tls = prompt.select("TLS certificates", list(TLS_MODES), default="prod")
-    storage = prompt.select("Object storage", ["external", "garage"], default="external")
+    storage = prompt.select("Object storage", ["external", "in-cluster"], default="external")
     backups = prompt.confirm("Enable off-site backups?", default=True)
     labels = {a.label: a.name for a in manifest.APPS.values()}
     picked = prompt.checkbox("Enable apps (space to toggle, enter to confirm)",

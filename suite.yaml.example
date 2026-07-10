@@ -37,7 +37,7 @@ tls: prod
 # server: {ssh: root@203.0.113.10}
 
 # Object storage for app media (ADR-003): external (managed EU S3, config-only)
-# or garage (in-cluster single-node Garage — ADR-015).
+# or in-cluster (single-node RustFS — ADR-046).
 object_storage:
   mode: external
   # endpoint: https://s3.fr-par.scw.cloud   # external mode; filled by provisioning

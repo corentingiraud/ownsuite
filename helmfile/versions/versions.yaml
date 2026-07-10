@@ -14,6 +14,13 @@ chartVersions:
   keycloakx: "7.2.0"
   # renovate: datasource=helm registryUrl=https://groundhog2k.github.io/helm-charts depName=valkey
   valkey: "2.3.0"
+  # In-cluster object store: RustFS (ADR-046), first-party chart at charts.rustfs.com.
+  # The chart appVersion tracks the app (chart 0.N.0 -> app 1.0.0-beta.N). Pin PAST the
+  # secret-logging advisories (GHSA-r54g-49rx-98cr fixed in app 1.0.0-alpha.82;
+  # GHSA-8cm2-h255-v749 credential-log fix in 1.0.0-beta.2) — 0.8.0/beta.8 clears both.
+  # RustFS is pre-1.0 (beta); revisit the pin at GA.
+  # renovate: datasource=helm registryUrl=https://charts.rustfs.com depName=rustfs
+  rustfs: "0.8.0"
   # Docs (suitenumerique / impress) — official chart. The chart's appVersion is
   # "latest", so the impress image tags below are pinned independently.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/docs depName=docs
@@ -116,13 +123,8 @@ imageVersions:
   # on review. Bump `tchapWeb` (tag) and this together.
   # renovate: datasource=docker depName=ghcr.io/tchapgouv/tchap-web-v4
   tchapWebDigest: "sha256:5d1488092dc3e0921aea36f2444486792ccd5c1bc04efcb26bd122c710ddd292"
-  # Garage object store (ADR-015), deployed from the local ./charts/garage chart.
-  # renovate: datasource=docker depName=dxflrs/garage
-  garage: "v2.3.0"
-  # kubectl image used by the Garage bootstrap Job to exec the Garage CLI.
-  # renovate: datasource=docker depName=alpine/kubectl
-  kubectl: "1.36.2"
-  # rclone image for the off-site object copy CronJob / restore Job (ADR-006/ADR-017).
+  # rclone image for the off-site object copy CronJob / restore Job (ADR-006/ADR-017),
+  # and the RustFS bucket-creation bootstrap Job (ADR-046: `rclone mkdir` per bucket).
   # renovate: datasource=docker depName=rclone/rclone
   rclone: "1.74.3"
   # nginx for the media-proxy chart: the authenticated /media/ download path on Traefik

@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Fast, isolated ADR-032 PVC backup/restore round-trip (a single off-site garage +
+  # Fast, isolated ADR-032 PVC backup/restore round-trip (a single off-site rustfs +
   # the pvc-backup chart, ~3-5 min). This is the PR gate for backup changes: it proves
   # backup -> wipe -> restore on the real chart WITHOUT the heavy full suite, so a PR
   # gets a meaningful signal in minutes instead of waiting on (and flaking with) the
