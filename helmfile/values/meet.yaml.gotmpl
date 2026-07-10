@@ -1,6 +1,6 @@
 # Meet (suitenumerique / meet) — video conferencing powered by LiveKit.
 # Wired to the Phase 1 foundation like Docs: CNPG (`meet` DB), Valkey (cache + Celery
-# broker, DBs 6/7), S3 (Garage in-cluster or external — the meet-recordings bucket),
+# broker, DBs 6/7), S3 (RustFS in-cluster or external — the meet-recordings bucket),
 # and Keycloak SSO (client `meet`). Every credential comes from a seed-derived Secret
 # via secretKeyRef (ADR-012); nothing secret is rendered here. Image tags are pinned
 # in versions.yaml (the chart has no appVersion).
@@ -21,9 +21,9 @@
 {{- $kcInternal := printf "http://keycloak-keycloakx-http.%s.svc.cluster.local/realms/%s/protocol/openid-connect" $ns $realm -}}
 {{- $s3Endpoint := .Values.objectStorage.endpoint -}}
 {{- $s3Region := .Values.objectStorage.region -}}
-{{- if .Values.garage.enabled -}}
-{{-   $s3Endpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
-{{-   $s3Region = .Values.garage.region -}}
+{{- if .Values.rustfs.enabled -}}
+{{-   $s3Endpoint = printf "http://rustfs-svc.%s.svc.cluster.local:9000" $ns -}}
+{{-   $s3Region = .Values.rustfs.region -}}
 {{- end -}}
 {{- $verifySsl := ternary "False" "True" (eq .Values.tls.issuer "selfsigned") -}}
 {{- $emailParts := splitList ":" .Values.email.host }}
@@ -90,7 +90,7 @@ backend:
       secretKeyRef:
         name: meet-secrets
         key: CELERY_BROKER_URL
-    # --- Object storage (S3 / Garage) — recordings + uploads ---
+    # --- Object storage (S3 / RustFS) — recordings + uploads ---
     AWS_S3_ENDPOINT_URL: {{ $s3Endpoint | quote }}
     AWS_S3_ACCESS_KEY_ID:
       secretKeyRef:
@@ -103,7 +103,7 @@ backend:
     AWS_STORAGE_BUCKET_NAME: {{ .Values.objectStorage.meetBucket | quote }}
     AWS_S3_REGION_NAME: {{ $s3Region | quote }}
     AWS_S3_SIGNATURE_VERSION: s3v4
-    # Some S3-compatible stores (Ceph/Garage) reject boto3's default aws-chunked
+    # Some S3-compatible stores (Ceph/RustFS) reject boto3's default aws-chunked
     # streaming checksum ("NotImplemented" on PutObject); only add it when required.
     AWS_REQUEST_CHECKSUM_CALCULATION: "when_required"
     AWS_RESPONSE_CHECKSUM_VALIDATION: "when_required"

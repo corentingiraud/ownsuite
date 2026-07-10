@@ -7,7 +7,7 @@ description: >-
   $request_uri), an allowed Host, and the S3 endpoint as the upstream Host
   (upstream-vhost) so the backend-signed SigV4 validates. Traefik's forwardAuth
   cannot supply X-Original-URL, so this nginx honours that contract: auth_request to
-  the backend media-auth, then proxy the signed request to the in-cluster Garage.
-  Deployed once per app (drive, docs) in garage mode; Traefik routes /media/ here.
+  the backend media-auth, then proxy the signed request to the in-cluster RustFS.
+  Deployed once per app (drive, docs) in in-cluster mode; Traefik routes /media/ here.
 type: application
 version: 0.1.0

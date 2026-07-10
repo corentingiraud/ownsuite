@@ -6,7 +6,7 @@ wrapper is kept). Each location's auth subrequest sends X-Original-URL=$request_
 Host=$host (the public host, in DJANGO_ALLOWED_HOSTS) to the backend, which returns the
 SigV4 headers; the download location then forwards those to the object store with the
 endpoint as the upstream Host so the signature validates. Works for both the in-cluster
-Garage (http) and an external S3 (https) — the values set s3Scheme/s3Host/s3HostHeader.
+RustFS (http) and an external S3 (https) — the values set s3Scheme/s3Host/s3HostHeader.
 
 Most apps need a single /media/ path + one media-auth endpoint (docs, drive). Some
 (meet) serve several path prefixes, each guarded by its own backend media-auth route,

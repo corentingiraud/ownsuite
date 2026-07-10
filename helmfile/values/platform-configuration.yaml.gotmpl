@@ -40,14 +40,12 @@ objectStorage:
   # Tchap's Synapse media bucket — needed here because tchap-secrets renders the
   # synapse-s3-storage-provider fragment (bucket + endpoint + keys) into a Secret.
   tchapBucket: {{ .Values.objectStorage.tchapBucket | quote }}
-garage:
-  enabled: {{ .Values.garage.enabled }}
+rustfs:
+  enabled: {{ .Values.rustfs.enabled }}
+  region: {{ .Values.rustfs.region | quote }}
 backup:
   enabled: {{ .Values.backup.enabled }}
   secretName: backup-s3-credentials
-  # Whether the off-site store is the in-cluster `garage-backup` (CI). When true,
-  # its internal Garage RPC/admin credentials are derived here too.
-  inCluster: {{ eq .Values.backup.s3.target "in-cluster" }}
 valkey:
   secretName: valkey-credentials
   configSecretName: valkey-extra-config

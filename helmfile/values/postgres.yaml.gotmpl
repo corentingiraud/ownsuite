@@ -1,13 +1,13 @@
 {{- $ns := .Values.workloadsNamespace -}}
-{{- /* Off-site backup endpoint: the in-cluster `garage-backup` service in CI, or the
+{{- /* Off-site backup endpoint: the in-cluster `rustfs-backup` service in CI, or the
        external backup S3 endpoint in prod. NEVER the primary store (ADR-006 #4).
-       For the in-cluster Garage, the SigV4 region must match Garage's configured
-       region ("garage"), so override the region in that case. */ -}}
+       For the in-cluster RustFS, the SigV4 region must match RustFS's configured
+       region ("us-east-1"), so override the region in that case. */ -}}
 {{- $backupEndpoint := .Values.backup.s3.endpoint -}}
 {{- $backupRegion := .Values.backup.s3.region -}}
 {{- if eq .Values.backup.s3.target "in-cluster" -}}
-{{-   $backupEndpoint = printf "http://garage-backup.%s.svc.cluster.local:3900" $ns -}}
-{{-   $backupRegion = "garage" -}}
+{{-   $backupEndpoint = printf "http://rustfs-backup-svc.%s.svc.cluster.local:9000" $ns -}}
+{{-   $backupRegion = "us-east-1" -}}
 {{- end -}}
 cluster:
   name: {{ .Values.postgres.clusterName | quote }}

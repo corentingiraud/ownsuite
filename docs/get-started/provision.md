@@ -135,7 +135,7 @@ OwnSuite's object storage is pluggable
   needs the S3 endpoint to serve **CORS**. **Scaleway Object Storage supports CORS** (the
   module sets a bucket CORS rule for `https://*.<domain>`), so `external` works end-to-end.
   It also works on any CORS-capable RGW (AWS S3, OVH).
-- **`garage`** — an in-cluster single-node store. Media buckets live in the cluster,
+- **`in-cluster`** — a single-node RustFS store. Media buckets live in the cluster,
   downloads are proxied same-origin through the authenticated `/media/` path, and presigned
   uploads are proxied by Traefik — **no cross-origin request, so no CORS needed**. Use it
   anywhere you want full in-cluster sovereignty, or on an S3 endpoint that can't serve CORS

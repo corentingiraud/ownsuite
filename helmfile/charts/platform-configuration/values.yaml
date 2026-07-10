@@ -74,10 +74,12 @@ objectStorage:
   # Tchap Synapse media bucket (lint default; Helmfile feeds the real value).
   tchapBucket: tchap-media
 
-# In-cluster Garage object store (ADR-015). When enabled, its internal RPC secret
-# and admin token are derived here too, so all secret derivation stays in one place.
-garage:
+# In-cluster RustFS object store (ADR-046). `enabled`/`region` drive the Tchap
+# synapse-s3 fragment's endpoint switch; RustFS's root credential is the s3-credentials
+# Secret directly (no separate internal creds like Garage's).
+rustfs:
   enabled: false
+  region: us-east-1
 
 # Off-site backup credentials (ADR-006, ADR-017). Derived by default so CI and
 # self-controlled targets work with no manual sync; override the backup-s3-access /
@@ -86,9 +88,6 @@ garage:
 backup:
   enabled: false
   secretName: backup-s3-credentials
-  # When the off-site store is the in-cluster garage-backup (CI), derive its
-  # internal Garage RPC secret + admin token too.
-  inCluster: false
 
 valkey:
   secretName: valkey-credentials

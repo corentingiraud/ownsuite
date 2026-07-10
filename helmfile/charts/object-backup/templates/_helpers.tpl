@@ -1,7 +1,7 @@
 {{/*
 rclone remote configuration as env vars (RCLONE_CONFIG_<REMOTE>_<KEY>), shared by the
 backup CronJob and the restore Job. Three remotes:
-  - primary       : the live media store (S3-compatible: Garage or external S3)
+  - primary       : the live media store (S3-compatible: RustFS or external S3)
   - offsite       : the off-site backup store (S3-compatible)
   - offsitecrypt  : a crypt overlay on offsite:<bucket>/<mediaPrefix> for client-side
                     encryption (ADR-017). Its password is obscured at runtime from

@@ -1,0 +1,105 @@
+{{- $ns := .Values.workloadsNamespace -}}
+{{- /*
+Off-site backup object store (ADR-006, ADR-017): a SECOND in-cluster RustFS used only
+when backup.s3.target == in-cluster (CI / hermetic). It holds the CNPG base backups +
+WAL archive and the rclone object/PVC copies, and is deliberately KEPT when the primary
+workloads are destroyed — standing in for storage that survives the server. In prod the
+backup destination is an external account (target == external) and this release is absent.
+
+Distinct release name (rustfs-backup -> Service rustfs-backup-svc) and its own PVC/bucket
+so it coexists with the primary in one namespace. Its root credential is the seed-derived
+backup-s3-credentials Secret (RUSTFS_ACCESS_KEY/RUSTFS_SECRET_KEY, added by
+platform-configuration), so barman + rclone authenticate with no manual sync.
+*/ -}}
+mode:
+  standalone:
+    enabled: true
+    # Recreate, not RollingUpdate: the data PVC is ReadWriteOnce (see values/rustfs.yaml.gotmpl).
+    strategy:
+      type: Recreate
+  distributed:
+    enabled: false
+
+secret:
+  existingSecret: "backup-s3-credentials"
+
+storageclass:
+  dataStorageSize: {{ .Values.backup.rustfs.dataStorage | quote }}
+config:
+  rustfs:
+    region: {{ .Values.rustfs.region | quote }}
+    console_enable: "false"
+    obs_log_directory: ""
+
+service:
+  type: ClusterIP
+
+ingress:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+# Single bucket (the off-site backup bucket). Same idempotent rclone-mkdir hook Job as
+# the primary, pointed at this release's own Service (rustfs-backup-svc).
+extraManifests:
+  - apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: rustfs-backup-bucket-init
+      labels:
+        app.kubernetes.io/name: rustfs-backup
+      annotations:
+        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook-weight: "5"
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    spec:
+      backoffLimit: 6
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: rustfs-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: bucket-init
+              image: "rclone/rclone:{{ .Values.imageVersions.rclone }}"
+              command: ["/bin/sh", "-ceu"]
+              args:
+                - |
+                  i=0
+                  until rclone lsd rustfs: >/dev/null 2>&1; do
+                    i=$((i + 1))
+                    if [ "$i" -gt 60 ]; then echo "RustFS not ready in time" >&2; exit 1; fi
+                    echo "Waiting for RustFS S3 API..."; sleep 3
+                  done
+                  echo "Creating bucket $BUCKET (idempotent)..."
+                  rclone mkdir "rustfs:$BUCKET"
+                  echo "RustFS backup bucket bootstrap complete."
+              env:
+                - name: BUCKET
+                  value: {{ .Values.backup.s3.bucket | quote }}
+                - name: RCLONE_CONFIG_RUSTFS_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_RUSTFS_PROVIDER
+                  value: Other
+                - name: RCLONE_CONFIG_RUSTFS_ENDPOINT
+                  value: {{ printf "http://rustfs-backup-svc.%s.svc.cluster.local:9000" $ns | quote }}
+                - name: RCLONE_CONFIG_RUSTFS_REGION
+                  value: {{ .Values.rustfs.region | quote }}
+                - name: RCLONE_CONFIG_RUSTFS_FORCE_PATH_STYLE
+                  value: "true"
+                - name: RCLONE_CONFIG_RUSTFS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: "backup-s3-credentials"
+                      key: ACCESS_KEY_ID
+                - name: RCLONE_CONFIG_RUSTFS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: "backup-s3-credentials"
+                      key: ACCESS_SECRET_KEY

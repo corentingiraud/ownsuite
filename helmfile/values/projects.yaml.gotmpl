@@ -16,12 +16,12 @@
 {{- $realm := .Values.keycloak.realm -}}
 {{- $ns := .Values.workloadsNamespace -}}
 {{- $issuer := printf "https://auth.%s/realms/%s" $domain $realm -}}
-{{- /* S3 endpoint/region: in-cluster Garage in garage mode, else the external S3. */ -}}
+{{- /* S3 endpoint/region: in-cluster RustFS in in-cluster mode, else the external S3. */ -}}
 {{- $s3Endpoint := .Values.objectStorage.endpoint -}}
 {{- $s3Region := .Values.objectStorage.region -}}
-{{- if .Values.garage.enabled -}}
-{{-   $s3Endpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
-{{-   $s3Region = .Values.garage.region -}}
+{{- if .Values.rustfs.enabled -}}
+{{-   $s3Endpoint = printf "http://rustfs-svc.%s.svc.cluster.local:9000" $ns -}}
+{{-   $s3Region = .Values.rustfs.region -}}
 {{- end }}
 
 image:
@@ -65,12 +65,12 @@ env:
   OIDC_IGNORE_USERNAME: "true"
   OIDC_IGNORE_ROLES: "true"
   OIDC_POST_LOGOUT_REDIRECT_URI: {{ printf "https://%s/" $host | quote }}
-  # --- Object storage (S3 / Garage) — uploads (ADR-031). Setting S3_ENDPOINT/S3_REGION
+  # --- Object storage (S3 / RustFS) — uploads (ADR-031). Setting S3_ENDPOINT/S3_REGION
   #     switches Projects' file-manager from local disk to its S3FileManager. ---
   S3_ENDPOINT: {{ $s3Endpoint | quote }}
   S3_REGION: {{ $s3Region | quote }}
   S3_BUCKET: {{ .Values.objectStorage.projectsBucket | quote }}
-  # S3-compatible Garage/EU S3 need path-style addressing.
+  # S3-compatible RustFS/EU S3 need path-style addressing.
   S3_FORCE_PATH_STYLE: "true"
   # S3-compatible stores reject the aws-chunked streaming checksum recent AWS SDKs
   # send by default ("NotImplemented" on PutObject); only checksum when required.

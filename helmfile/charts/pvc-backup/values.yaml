@@ -25,8 +25,8 @@ volumes:
 # Off-site backup store (destination). NEVER the primary (ADR-006 #4). Same off-site
 # config the object copy uses; the crypt overlay lands under offsite:<bucket>/<prefix>.
 offsite:
-  endpoint: "http://garage-backup.ownsuite.svc.cluster.local:3900"
-  region: garage
+  endpoint: "http://rustfs-backup-svc.ownsuite.svc.cluster.local:9000"
+  region: us-east-1
   bucket: ownsuite-backups
   # Prefix within the off-site bucket where the encrypted PVC copies live (one
   # sub-folder per pvcName underneath, so they never collide with the media copy).

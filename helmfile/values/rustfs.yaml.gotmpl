@@ -1,0 +1,124 @@
+{{- $ns := .Values.workloadsNamespace -}}
+{{- /*
+In-cluster RustFS object store (ADR-046), the first-party upstream chart in standalone
+mode. Deployed only in `in-cluster` mode; production defaults to an external EU S3
+(ADR-003). Its root S3 credential IS the seed-derived s3-credentials Secret (keys
+RUSTFS_ACCESS_KEY/RUSTFS_SECRET_KEY added by platform-configuration) — apps and the
+store share creds with no manual sync. The seed is stable, so the root creds RustFS
+persists into its internal .rustfs.sys bucket at first boot survive restarts.
+*/ -}}
+{{- $buckets := list -}}
+{{- if .Values.apps.docs.enabled }}{{ $buckets = append $buckets .Values.objectStorage.bucket }}{{ end -}}
+{{- if .Values.apps.drive.enabled }}{{ $buckets = append $buckets .Values.objectStorage.driveBucket }}{{ end -}}
+{{- if .Values.apps.messages.enabled }}{{ $buckets = append $buckets .Values.objectStorage.messagesBucket }}{{ end -}}
+{{- if .Values.apps.projects.enabled }}{{ $buckets = append $buckets .Values.objectStorage.projectsBucket }}{{ end -}}
+{{- if .Values.apps.meet.enabled }}{{ $buckets = append $buckets .Values.objectStorage.meetBucket }}{{ end -}}
+{{- if .Values.apps.tchap.enabled }}{{ $buckets = append $buckets .Values.objectStorage.tchapBucket }}{{ end -}}
+
+# Single node: standalone, not distributed. The image tag is left empty so it tracks
+# the chart's pinned appVersion (chartVersions.rustfs -> app version, ADR-046).
+mode:
+  standalone:
+    enabled: true
+    # Recreate, not RollingUpdate: the data PVC is ReadWriteOnce, so on `helm upgrade`
+    # a new pod cannot mount the volume the old pod still holds — a rolling update would
+    # deadlock. Recreate stops the old pod first (brief downtime, fine for one node).
+    strategy:
+      type: Recreate
+  distributed:
+    enabled: false
+
+# Root credential: the seed-derived s3-credentials Secret, loaded verbatim (the chart
+# does `envFrom: secretRef`). Must carry RUSTFS_ACCESS_KEY / RUSTFS_SECRET_KEY.
+secret:
+  existingSecret: "s3-credentials"
+
+# Single data PVC (default local-path SC on K3s). Logs PVC + console + ingress all off.
+storageclass:
+  dataStorageSize: {{ .Values.rustfs.dataStorage | quote }}
+config:
+  rustfs:
+    region: {{ .Values.rustfs.region | quote }}
+    console_enable: "false"
+    obs_log_directory: ""
+
+service:
+  type: ClusterIP
+
+ingress:
+  enabled: false
+
+# Lightweight (Rust), matching the old Garage footprint; bump if media throughput grows.
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+# Bucket creation — the one gap the upstream chart leaves (no defaultBuckets). A small
+# post-install/post-upgrade hook Job runs `rclone mkdir` (idempotent for S3) per app
+# bucket against the RustFS S3 API. No pods/exec, no RBAC, no CLI-in-pod. `helm --wait`
+# blocks the release (and dependents like Docs) on the Job completing, so buckets exist
+# before any app runs. rclone is the image we already pin for the off-site copy.
+# Injected via the chart's extraManifests (rendered through `tpl`); the manifest is
+# brace-free so it passes through untouched.
+extraManifests:
+  - apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: rustfs-bucket-init
+      labels:
+        app.kubernetes.io/name: rustfs
+      annotations:
+        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook-weight: "5"
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    spec:
+      backoffLimit: 6
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: rustfs
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: bucket-init
+              image: "rclone/rclone:{{ .Values.imageVersions.rclone }}"
+              command: ["/bin/sh", "-ceu"]
+              args:
+                - |
+                  i=0
+                  until rclone lsd rustfs: >/dev/null 2>&1; do
+                    i=$((i + 1))
+                    if [ "$i" -gt 60 ]; then echo "RustFS not ready in time" >&2; exit 1; fi
+                    echo "Waiting for RustFS S3 API..."; sleep 3
+                  done
+                  for b in $BUCKETS; do
+                    echo "Creating bucket $b (idempotent)..."
+                    rclone mkdir "rustfs:$b"
+                  done
+                  echo "RustFS bucket bootstrap complete."
+              env:
+                - name: BUCKETS
+                  value: {{ $buckets | join " " | quote }}
+                - name: RCLONE_CONFIG_RUSTFS_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_RUSTFS_PROVIDER
+                  value: Other
+                - name: RCLONE_CONFIG_RUSTFS_ENDPOINT
+                  value: {{ printf "http://rustfs-svc.%s.svc.cluster.local:9000" $ns | quote }}
+                - name: RCLONE_CONFIG_RUSTFS_REGION
+                  value: {{ .Values.rustfs.region | quote }}
+                - name: RCLONE_CONFIG_RUSTFS_FORCE_PATH_STYLE
+                  value: "true"
+                - name: RCLONE_CONFIG_RUSTFS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: "s3-credentials"
+                      key: AWS_S3_ACCESS_KEY_ID
+                - name: RCLONE_CONFIG_RUSTFS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: "s3-credentials"
+                      key: AWS_S3_SECRET_ACCESS_KEY

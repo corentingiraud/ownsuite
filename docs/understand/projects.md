@@ -42,7 +42,7 @@ It mirrors the Grist choices, with two Projects-specific details:
   into the `projects-secrets` Secret — the password never lands in the rendered values.
 - **Uploads on S3.** Avatars, project backgrounds and attachments are written to Projects' own
   bucket via its built-in S3 file manager (`S3_ENDPOINT`/`S3_REGION`/`S3_BUCKET` +
-  `S3_FORCE_PATH_STYLE`, pointed at the in-cluster Garage or the external S3 like Docs/Drive). The
+  `S3_FORCE_PATH_STYLE`, pointed at the in-cluster RustFS or the external S3 like Docs/Drive). The
   S3 key/secret are the shared seed-derived pair; `SECRET_KEY` and the OIDC client secret are
   seed-derived too. Keeping uploads on S3 means the off-site object copy backs them up — no PVC.
 
@@ -57,8 +57,8 @@ suite apply            # -> https://projects.<domain>/
 
 When it finishes, Projects answers at `https://projects.{domain}`; log in with a Keycloak user
 (e.g. one created by `suite user add`). Uploads land in the `projects-media-storage` bucket
-(tunable with `apps.projects.s3_bucket`), created for you by apply — in-cluster in Garage
-mode, on your S3 with a provider.
+(tunable with `apps.projects.s3_bucket`), created for you by apply — in-cluster in
+`in-cluster` mode, on your S3 with a provider.
 
 ## Tests
 

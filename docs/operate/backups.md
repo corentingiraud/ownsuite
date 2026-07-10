@@ -19,7 +19,7 @@ Set `backup.target` in `suite.yaml`:
 - **`external`** (production) — a managed S3 in a **different account/provider** than your
   primary storage. Set `backup.endpoint` / `backup.region` / `backup.bucket`. If it is not
   a different account, it is not off-site.
-- **`in-cluster`** (CI / hermetic) — a **second in-cluster Garage** (`garage-backup`) with its
+- **`in-cluster`** (CI / hermetic) — a **second in-cluster RustFS** (`rustfs-backup`) with its
   own volume and bucket, deployed automatically. Used by the e2e; not for production DR.
 
 ### Who owns the bucket: `backup.provision`

@@ -1,7 +1,7 @@
 # Tchap (tchapgouv) — secure instant messaging on Matrix, deployed from Element's
 # ess-helm `matrix-stack` chart. A monolithic Synapse homeserver + MAS (Matrix
 # Authentication Service) + a Tchap-branded Element Web, wired to the Phase 1
-# foundation like the other apps: CNPG (`synapse` and `mas` DBs), S3 (Garage
+# foundation like the other apps: CNPG (`synapse` and `mas` DBs), S3 (RustFS
 # in-cluster or external — the Tchap media bucket) and Keycloak SSO (realm
 # `ownsuite`, client `tchap` / secret id `tchap-oidc`, brokered through MAS's
 # upstream_oauth2).
@@ -65,7 +65,7 @@ synapse:
     host: {{ printf "matrix.%s" $domain | quote }}
     tlsSecret: synapse-tls
   # S3-capable Synapse image: dotwee/matrix-synapse-s3 bundles synapse-s3-storage-provider
-  # so media can live on S3/Garage. Tag pinned in versions.yaml (actual: v1.155.0).
+  # so media can live on S3/RustFS. Tag pinned in versions.yaml (actual: v1.155.0).
   image:
     registry: ghcr.io
     repository: dotwee/matrix-synapse-s3

@@ -37,7 +37,7 @@ flowchart TB
         KC --> INFRA
     end
 
-    S3[("Object storage<br/>external EU S3 or in-cluster Garage")]
+    S3[("Object storage<br/>external EU S3 or in-cluster RustFS")]
     OFF[("Off-site backups<br/>separate account · tested restore")]
 
     CFG --> P1
@@ -56,7 +56,7 @@ flowchart TB
 | **Keycloak** | The single sign-on everyone logs in through |
 | **CloudNativePG** | The PostgreSQL database, with point-in-time backups |
 | **Valkey** | A small cache the apps rely on |
-| **Garage** *or* **external S3** | Where files and media live — self-hosted or a European cloud provider |
+| **RustFS** *or* **external S3** | Where files and media live — self-hosted or a European cloud provider |
 | **Backups** | Encrypted copies kept off-site, with a restore that's regularly tested |
 | **Ansible** | Sets the server up in the first place |
 

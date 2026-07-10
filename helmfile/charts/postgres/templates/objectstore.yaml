@@ -6,8 +6,10 @@ by the Cluster's WAL-archiver plugin and by recovery. `serverName` must stay emp
 here (kept only for in-tree API compatibility); the cluster name is used as the
 barman serverName via the plugin. Credentials come from the seed-derived (or
 overridden) backup-s3-credentials Secret. The instance sidecar carries the
-S3-compatible checksum workaround so non-AWS stores (Garage) work, plus a region
-hint for AWS. CRD shipped by the barman-cloud-plugin release.
+S3-compatible checksum workaround so non-AWS stores (RustFS) work, plus a region
+hint for AWS. CRD shipped by the barman-cloud-plugin release. The checksum workaround
+is RETAINED across the RustFS migration (ADR-046) pending live confirmation it is still
+needed — the highest-risk beta validation item.
 */}}
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
@@ -38,7 +40,7 @@ spec:
     resources:
       {{- toYaml .Values.backup.sidecarResources | nindent 6 }}
     env:
-      # S3 Data Integrity Protections break some S3-compatible stores (Garage,
+      # S3 Data Integrity Protections break some S3-compatible stores (RustFS,
       # MinIO); only compute/verify checksums when required.
       - name: AWS_REQUEST_CHECKSUM_CALCULATION
         value: when_required

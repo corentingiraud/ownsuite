@@ -2,18 +2,18 @@
 {{- /* Drive authenticated media-download proxy (findings #20/#21). The Drive backend's
        media-auth contract is nginx-coupled (X-Original-URL + a signed upstream Host),
        which Traefik forwardAuth alone cannot satisfy — so an nginx hop serves /media/
-       (downloads AND /media/preview/ thumbnails, same media-auth endpoint). In garage
-       mode it targets the in-cluster Garage (http, host:port in the signed Host). In
+       (downloads AND /media/preview/ thumbnails, same media-auth endpoint). In in-cluster
+       mode it targets the in-cluster RustFS (http, host:port in the signed Host). In
        external mode it targets the external S3 over TLS: the backend signs against
        objectStorage.endpoint (path-style), so the proxy forwards there with a matching
        bare-host Host header. The latter closes the external-S3 /media/ gap (mirrors
        docs-media-proxy). s3Host:s3Port MUST equal the backend's AWS_S3_ENDPOINT_URL
        host or SigV4 fails. */}}
 {{- $scheme := "http" -}}
-{{- $s3Host := printf "garage.%s.svc.cluster.local" $ns -}}
-{{- $s3Port := 3900 -}}
-{{- $hostHeader := printf "garage.%s.svc.cluster.local:3900" $ns -}}
-{{- if not .Values.garage.enabled -}}
+{{- $s3Host := printf "rustfs-svc.%s.svc.cluster.local" $ns -}}
+{{- $s3Port := 9000 -}}
+{{- $hostHeader := printf "rustfs-svc.%s.svc.cluster.local:9000" $ns -}}
+{{- if not .Values.rustfs.enabled -}}
 {{-   $scheme = "https" -}}
 {{-   $s3Host = trimPrefix "https://" (trimPrefix "http://" .Values.objectStorage.endpoint) -}}
 {{-   $s3Port = 443 -}}

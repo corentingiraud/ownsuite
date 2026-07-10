@@ -1,6 +1,6 @@
 # Docs (suitenumerique / impress) — the Phase 2 vertical slice (ADR-016).
 # Wired to the Phase 1 foundation: CNPG (`docs` DB), Valkey (cache + Celery
-# broker), S3 (Garage in-cluster or external), and Keycloak SSO (client `docs`).
+# broker), S3 (RustFS in-cluster or external), and Keycloak SSO (client `docs`).
 # Every credential comes from a seed-derived Secret via secretKeyRef (ADR-012);
 # nothing secret is rendered here. Image tags are pinned in versions.yaml.
 #
@@ -17,9 +17,9 @@
 {{- $kcInternal := printf "http://keycloak-keycloakx-http.%s.svc.cluster.local/realms/%s/protocol/openid-connect" $ns $realm -}}
 {{- $s3Endpoint := .Values.objectStorage.endpoint -}}
 {{- $s3Region := .Values.objectStorage.region -}}
-{{- if .Values.garage.enabled -}}
-{{-   $s3Endpoint = printf "http://garage.%s.svc.cluster.local:3900" $ns -}}
-{{-   $s3Region = .Values.garage.region -}}
+{{- if .Values.rustfs.enabled -}}
+{{-   $s3Endpoint = printf "http://rustfs-svc.%s.svc.cluster.local:9000" $ns -}}
+{{-   $s3Region = .Values.rustfs.region -}}
 {{- end -}}
 {{- $verifySsl := ternary "False" "True" (eq .Values.tls.issuer "selfsigned") -}}
 {{- $mediaMiddlewares := printf "%s-docs-media-auth@kubernetescrd,%s-docs-media-rewrite@kubernetescrd" $ns $ns -}}
@@ -92,7 +92,7 @@ backend:
       secretKeyRef:
         name: docs-secrets
         key: DJANGO_CELERY_BROKER_URL
-    # --- Object storage (S3 / Garage) ---
+    # --- Object storage (S3 / RustFS) ---
     AWS_S3_ENDPOINT_URL: {{ $s3Endpoint | quote }}
     AWS_S3_ACCESS_KEY_ID:
       secretKeyRef:
@@ -256,7 +256,7 @@ ingressAdmin:
 
 # Authenticated media serving: handled in BOTH modes by the docs-media-proxy release
 # (a tiny nginx that does the media-auth subrequest + SigV4 + rewrite to the store —
-# Garage over http in garage mode, the external S3 over TLS in external mode). The
+# RustFS over http in in-cluster mode, the external S3 over TLS in external mode). The
 # docs chart's own media Ingress here targets a portless ExternalName Service that
 # Traefik cannot route, so it is always disabled in favour of the proxy.
 ingressMedia:
@@ -271,5 +271,5 @@ ingressMedia:
     secretName: docs-tls
 
 serviceMedia:
-  host: {{ printf "garage.%s.svc.cluster.local" $ns | quote }}
-  port: 3900
+  host: {{ printf "rustfs-svc.%s.svc.cluster.local" $ns | quote }}
+  port: 9000

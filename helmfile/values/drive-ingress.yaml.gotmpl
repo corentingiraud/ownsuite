@@ -3,13 +3,13 @@
 backendService: drive-backend
 bucket: {{ .Values.objectStorage.driveBucket | quote }}
 
-# Same-origin presigned-upload proxy (finding #20), only in garage mode: the browser
-# PUTs uploads to https://drive.{domain}/<bucket>/... which Traefik forwards to Garage.
+# Same-origin presigned-upload proxy (finding #20), only in in-cluster mode: the browser
+# PUTs uploads to https://drive.{domain}/<bucket>/... which Traefik forwards to RustFS.
 sameOriginUpload:
-  enabled: {{ .Values.garage.enabled }}
+  enabled: {{ .Values.rustfs.enabled }}
 host: {{ printf "drive.%s" .Values.domain | quote }}
 tlsSecret: drive-tls
-# Target the Garage ClusterIP Service directly (garage mode); the chart's ExternalName
+# Target the RustFS ClusterIP Service directly (in-cluster mode); the chart's ExternalName
 # media Service declares no port and is unroutable by Traefik.
-s3Service: garage
-s3Port: 3900
+s3Service: rustfs-svc
+s3Port: 9000
