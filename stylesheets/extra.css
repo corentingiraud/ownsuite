@@ -1,0 +1,25 @@
+/* La Suite numérique / DSFR brand palette.
+ * Verified against the Système de design de l'État (systeme-de-design.gouv.fr,
+ * vue-ds.fr/couleurs, GouvernementFR/dsfr): "bleu France" #000091 primary,
+ * "rouge Marianne" #e1000f accent. Wired via palette.primary/accent: custom. */
+
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: #000091; /* bleu France */
+  --md-primary-fg-color--light: #1212ff; /* bleu France hover */
+  --md-primary-fg-color--dark: #00006e;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+}
+
+[data-md-color-accent="custom"] {
+  --md-accent-fg-color: #e1000f; /* rouge Marianne */
+  --md-accent-fg-color--transparent: #e1000f1a;
+  --md-accent-bg-color: #ffffff;
+  --md-accent-bg-color--light: #ffffffb3;
+}
+
+/* Dark scheme: #000091 is too dark for body links on a dark background, so use the
+ * lighter DSFR token (blue-france-main-525 #6a6af4). The header keeps bleu France. */
+[data-md-color-scheme="slate"] {
+  --md-typeset-a-color: #6a6af4;
+}

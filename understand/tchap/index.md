@@ -1,0 +1,72 @@
+# Tchap application
+
+**Tchap** ([tchapgouv](https://github.com/tchapgouv) — the French State's Matrix-based secure messenger) brings chat to OwnSuite. It is a Matrix homeserver + web client with Keycloak SSO, so a user provisioned once reaches it on first login (JIT — no per-app step).
+
+Off by default
+
+Tchap ships **disabled** (no `tchap:` entry under `apps:` by default). It's an optional extra, not part of the tested core. It's fully wired and ready; enabling it is **one line in `suite.yaml` + one `suite apply`** (below).
+
+Unlike the `suitenumerique` apps, Tchap is not a single container: it is Element's **[`ess-helm` `matrix-stack`](https://github.com/element-hq/ess-helm)** chart (Element Server Suite, Community Edition, AGPL-3.0), which bundles four components in one release:
+
+| Component                 | Image                                                      | Role                                                                                                        |
+| ------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Synapse**               | `dotwee/matrix-synapse-s3`                                 | The Matrix homeserver (rooms, events, media). We run the S3-capable build so media lands in object storage. |
+| **MAS**                   | `element-hq/matrix-authentication-service` (chart default) | Matrix Authentication Service — owns login and brokers SSO to Keycloak.                                     |
+| **Element Web**           | `tchapgouv/tchap-web-v4`                                   | The Tchap-branded web client.                                                                               |
+| **well-known delegation** | (chart)                                                    | Serves `/.well-known/matrix/{client,server}` on the base domain.                                            |
+
+It is gated on `apps.tchap.enabled` and depends, via `needs:`, on a subset of the shared infrastructure:
+
+| Needs                    | For                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `platform-configuration` | Derived secrets (`tchap-secrets`, `synapse-db`, `mas-db`) + the `tchap` OIDC client in the realm |
+| `postgres`               | Two dedicated CNPG databases — `synapse` (homeserver) and `mas` (auth)                           |
+| `keycloak`               | SSO — the `tchap` OIDC client, brokered through MAS                                              |
+| `issuers`                | The per-host TLS certificates (cert-manager)                                                     |
+
+It needs **no Valkey/Redis**: on a single node Synapse runs **monolithic** (all workers off), and the chart only deploys Redis to fan out worker traffic — so with no workers, no Redis pod. Media goes to **S3**, not a PVC.
+
+## Hosts
+
+Three subdomains (all covered by the wildcard DNS, no extra records):
+
+- `tchap.{domain}` — the web client (Element Web / tchap-web-v4).
+- `matrix.{domain}` — the Synapse homeserver.
+- `account.{domain}` — MAS (login / account management).
+
+`server_name` is the **bare `{domain}`** (so Matrix IDs are `@user:{domain}`), with `.well-known` delegation pointing clients at the hosts above. The server name is baked into every user and room ID — it is **irreversible**, hence fixed to the base domain up front (ADR-041).
+
+## How it is wired
+
+- **Auth chain: `tchap-web → MAS → Keycloak`.** Matrix 2.0 native auth: Synapse delegates all auth to MAS, and MAS federates *upstream* to OwnSuite's Keycloak realm via its `upstream_oauth2` provider (client `tchap`, secret seed-derived from id `tchap-oidc` — the same id the realm client uses, so they match with no manual sync). On first SSO login MAS JIT-provisions the Matrix user (`claims_imports.localpart` with `action: force`). Because MAS is the OIDC client (not the web app), its Keycloak `redirectUris` point at `account.{domain}`, set via the client template's `redirectHost` override.
+- **Two databases, external Postgres.** The chart's bundled Postgres is disabled; Synapse and MAS each point at their own CNPG database (`synapse` / `mas`) with a per-app derived password (`synapse-db` / `mas-db`).
+- **Media on S3.** The stock ess-helm Synapse image stores media on a PVC; we swap in `dotwee/matrix-synapse-s3` (upstream Synapse + the `synapse-s3-storage-provider` module) and load the provider config from `tchap-secrets` (`synapse-s3.yaml`), writing to the `tchap-media` bucket. Unlike Meet's recordings, this bucket **is** copied off-site — chat media is not regenerable.
+- **Chart-managed secrets.** Everything else (Synapse signing key, macaroon/registration secrets, MAS encryption + OAuth keys) is auto-generated by the chart's `initSecrets`; we inject only the Postgres passwords and the two config fragments (S3 + upstream OIDC) via `tchap-secrets`.
+- **Slack-like client defaults.** The Element Web config is trimmed for a single-org, text-only, SSO-only instance: no guest access, call/location/widget/feedback/share-QR UI hidden, a flat room list (all rooms in Home, no Spaces), bubble message layout, link previews off, and quieter timelines (avatar/display-name changes hidden). Presence (online/away) stays **on**. Every key is verified against the pinned `tchap-web-v4` build before it is set.
+
+All of it is in `helmfile/values/tchap.yaml.gotmpl` and the `tchap-secrets` template; nothing secret is committed (everything derives from the seed — ADR-012).
+
+## Run it
+
+```
+$EDITOR suite.yaml     # add `tchap: {}` under apps:
+suite apply            # -> https://tchap.<domain>/
+```
+
+That's the whole procedure: apply shows the diff (the four components joining the stack), snapshots, deploys, and health-checks the result. When it finishes, the web client answers at `https://tchap.{domain}`; log in with a Keycloak user (e.g. one created by `suite user add`). Tune the media bucket with `apps.tchap.s3_bucket` — e.g. `tchap: {s3_bucket: tchap-media}`. Remove the line and re-apply to uninstall; the chat history and media are kept.
+
+## Tests
+
+Tchap's deployment is checked by the static suite (`make lint-helm`) and booted nightly on its own throwaway cluster: the nightly check brings the stack up, confirms both databases are provisioned, that Synapse answers `/_matrix/client/versions`, and that the web client is reachable over HTTPS. It runs on a cluster of its own so the memory-constrained shared runner never holds every app at once. Run it yourself with `make test-app APP=tchap`.
+
+## Limits (v1)
+
+v1 is deliberately **a Tchap-flavoured Matrix chat**, not the full French-government Tchap:
+
+- **Text-only.** No voice/video calls — Element Call / LiveKit is disabled (Meet already covers video). Revisit later with a *dedicated* SFU, not Meet's LiveKit.
+- **Closed / no federation.** No `8448` federation port and no server `.well-known` — chat is internal to this deployment. A future opt-in `enable_tchap_federation` flag would open it.
+- **No email-domain allowlist.** Tchap's government deployment layers a sydent-lineage identity-server allowlist on top of OIDC; here membership is already gated by Keycloak (only realm users can authenticate through MAS), so the allowlist is redundant for a single organisation.
+- **No ProConnect.** The upstream IdP is OwnSuite's Keycloak, not the French ProConnect. This is also why we use **upstream** MAS, not the Tchap MAS fork (whose value is ProConnect + the allowlist).
+- **Logout ends the Keycloak session, but shows a prompt.** On logout Element clears its session and then redirects to Keycloak's end-session endpoint so the SSO session is also terminated (not just the local app). Because MAS (1.19.0, shipped by the pinned chart) cannot yet propagate logout to its upstream provider, this is done client-side with no `id_token_hint`, so Keycloak shows a "Do you want to log out?" confirmation page before ending the session. Revisit for a silent redirect once MAS gains upstream-logout propagation (element-hq/matrix-authentication-service PR #4249).
+
+> **AGPL-3.0.** The whole stack (Synapse, MAS, Element Web, ess-helm) is AGPL-3.0. Offering it as a network service triggers the network-copyleft source-availability obligation (ADR-041).

@@ -1,0 +1,91 @@
+# Mailbox application
+
+A mailbox (off by default). **[suitenumerique/messages](https://github.com/suitenumerique/messages)** is La Suite's own mail app — a full provider with its own Postfix MTA, a Django MDA that stores and indexes mail, and an **integrated webmail**. It is federated to the same Keycloak, so a user provisioned once reaches it on first login (JIT — no per-app step). **There is no IMAP/POP3 by design**: users read mail in the messages web UI, not Thunderbird/Apple Mail.
+
+Off by default — the hardest part to run
+
+The mailbox ships **disabled** (no `messages:` entry under `apps:` by default). Mail is the hardest thing to run reliably on a server, so it is kept isolated and affects nothing else when off. It also needs an **external SMTP relay account** and **DNS + rDNS** you control — don't enable it unless you're ready for that.
+
+Unlike Grist/Projects, messages **is** a `suitenumerique` Django sibling of Docs, so it reuses the existing seam rather than a foreign one. Upstream ships container images (`ghcr.io/suitenumerique/messages-{backend,frontend,mta-in,mta-out}`, pinned in `versions.yaml`) but **no** Helm chart, so OwnSuite ships a thin local chart (`helmfile/charts/messages`). It is gated on `apps.messages.enabled` and depends, via `needs:`, on:
+
+| Needs                    | For                                                                                           |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `platform-configuration` | Derived secrets (`messages-secrets`, `messages-db`) + the `messages` OIDC client in the realm |
+| `postgres`               | The dedicated `messages` database (mailboxes, threads, contacts)                              |
+| `valkey`                 | Cache + Celery broker (Redis DBs **4**/**5**, distinct from Docs 0/1 and Drive 2/3)           |
+| `rustfs`                 | The per-app S3 bucket for mail blobs/attachments (pluggable seam)                             |
+| `keycloak`               | SSO — the `messages` OIDC client                                                              |
+| `issuers`                | The `messages-tls` certificate (cert-manager) for the webmail                                 |
+
+## How it is wired
+
+- **OIDC by the external/internal split, like Docs.** messages is `mozilla-django-oidc`, so it takes per-endpoint `OIDC_OP_{AUTHORIZATION,TOKEN,USER,JWKS}_ENDPOINT` + `OIDC_RP_CLIENT_{ID,SECRET}` (not Grist/Projects single-issuer discovery): browser-facing endpoints at the public `auth.{domain}`, token/userinfo/jwks hairpinned to the in-cluster Keycloak service. The `messages` OIDC client is one more `keycloak.clients` entry; the realm-import + upsert Job need no template change.
+- **Inbound on port 25, outbound relayed.** The Postfix **MTA-in** receives mail from the internet on **port 25**, exposed by a `LoadBalancer` Service that K3s' ServiceLB binds to the host port. The **MTA-out** **never** sends directly from the VPS IP: `MTA_OUT_MODE=relay`, `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure` to a reputable relay — Scaleway TEM by default (see [Outbound](#outbound-scaleway-tem-or-an-external-relay)). `THROTTLE_*_OUTBOUND_EXTERNAL_RECIPIENTS` are set below the relay's cap so it fails gracefully in-app.
+- **Reuse, per-app instances.** A dedicated CNPG `messages` database; the shared Valkey on DBs 4/5; a per-app S3 bucket for mail blobs. The Django `SECRET_KEY`, OIDC client secret and the internal `MDA_API_SECRET` (MTA↔MDA) are seed-derived; the **relay credentials and the DKIM private key are external input** — provisioned by apply into the machine state (Scaleway TEM, and the DKIM key it generates) or exported — and never committed.
+- **OpenSearch deferred.** Full-text mail search (its heaviest dependency, ~1–2 GB RAM) is optional upstream and omitted in v1 to protect the single-VPS budget; mail still delivers and reads. It returns behind its own flag later.
+
+## Outbound: Scaleway TEM or an external relay
+
+The MTA-out relays through an authenticated SMTP relay; you own the easy half (receiving) and rent the hard half (deliverability). The relay options live under `apps.messages` in `suite.yaml`. On the recommended Scaleway host, that relay is **Transactional Email (TEM)**, provisioned by `suite apply` when the mailbox is enabled — the relay account lands in the machine state:
+
+| Setting                     | Value                                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `apps.messages.relay_host`  | `smtp.tem.scaleway.com:2587`                                                                                |
+| relay username              | your Scaleway **Project ID** — provisioned into `.suite-state.json`                                         |
+| relay password              | the workload IAM key secret, carrying `TransactionalEmailFullAccess` — provisioned into `.suite-state.json` |
+| `apps.messages.spf_include` | `_spf.tem.scaleway.com`                                                                                     |
+
+Use port 2587, not 587
+
+**Scaleway Instances block outbound SMTP (25/465/587) by default** as an anti-spam measure. TEM exposes alternate ports **2587 (STARTTLS)** and **2465 (TLS)** for exactly this — the standard ports will time out from the server. TEM also needs **its own DNS records published** (SPF, DKIM, DMARC — printed by apply after provisioning) before Scaleway validates the domain and outbound works, on top of OwnSuite's own DKIM below.
+
+Any reputable authenticated EU SMTP relay works as an alternative (override `relay_host` / `spf_include` for the messages app) — set the account with `export OWNSUITE_MTA_RELAY_USERNAME=... OWNSUITE_MTA_RELAY_PASSWORD=...`. See [Configuration → Mailbox](https://corentingiraud.github.io/ownsuite/reference/configuration/#per-app-options).
+
+## Provisioning
+
+A maildomain with `oidc_autojoin=True` auto-creates a user's mailbox on **first OIDC login** — the same JIT model the `suite` CLI already relies on, so **`suite user add` needs no mailbox-specific step**. The one new piece is a one-time **maildomain seed Job** (mirrors `keycloak-config`) that creates the domain, enables autojoin, and registers the supplied DKIM key.
+
+### Calendars integration (only with Calendars enabled)
+
+When [Calendars](https://corentingiraud.github.io/ownsuite/understand/calendars/index.md) is also on, Messages becomes both an invitation *sender* and an invitation *reader* — configured, no code. Two extra pieces provision on `suite apply`:
+
+- A **`calendars-provisioning` Job** on the Messages release upserts the global `api_key` Channel that Calendars reads over service-to-service HTTP (scopes `mailboxes:read` + `messages:send`), and the maildomain seed stamps an **`org` custom attribute** so Calendars can resolve which org a mailbox belongs to.
+- The Messages backend/worker get `CALDAV_DEFAULT_*` pointing at Calendars' `/caldav` proxy, so the webmail shows accept/decline controls and an "open in calendar" link on invitations.
+
+Full wiring (channels, scopes, the shared `calendars-secrets`) is documented on the [Calendars](https://corentingiraud.github.io/ownsuite/understand/calendars/#seeing-invitations-back-in-the-mailbox-the-return-path) side.
+
+## DNS (a manual step, like the rest of the DNS flow)
+
+With the mailbox enabled, `suite apply` prints the mail records to add at your registrar, on top of the existing A/AAAA/CNAME/CAA:
+
+- **`mail.{domain}` A/AAAA** → the server. The MX target needs its own address record because an MX must not point at a CNAME (RFC 2181), so it can't ride the wildcard CNAME.
+- **MX** → `mail.{domain}`, so mail for `@{domain}` is delivered to your MTA-in.
+- **SPF** (TXT) — must `include:` the relay (`apps.messages.spf_include`) so relayed mail is authorized.
+- **DKIM** (TXT) — the public half of the signing key `suite apply` generates and keeps in the machine state (selector: `apps.messages.dkim_selector`).
+- **DMARC** (TXT) — alignment policy (report mailbox: `apps.messages.dmarc_rua`).
+- **rDNS / PTR** — set at the **provider/host** level (it cannot be set in-cluster); documented as a manual step. Confirm your provider also permits **inbound** port 25.
+
+## Run it
+
+```
+$EDITOR suite.yaml     # under apps:, add:
+                       #   messages:
+                       #     relay_host: smtp.tem.scaleway.com:2587
+                       #     spf_include: _spf.tem.scaleway.com
+suite apply            # -> https://messages.<domain>/
+```
+
+`suite apply` does the rest: it opens inbound port 25 (firewall from the app set), generates the **DKIM key** and keeps it in the machine state, provisions the **TEM relay account** into the state on Scaleway (bringing another relay, export `OWNSUITE_MTA_RELAY_USERNAME`/`OWNSUITE_MTA_RELAY_PASSWORD` instead), prints the MX/SPF/DKIM/DMARC records plus the rDNS/port-25 manual steps, then waits for propagation before issuing certificates. Without a relay account (state or environment), mta-out comes up **without** an external relay (the hermetic path — local delivery only); set one to send to the internet. When it finishes, the webmail answers at `https://messages.{domain}`; log in with a Keycloak user (e.g. one created by `suite user add`), then send a test message to an external inbox.
+
+## Tests
+
+messages is **template/lint-validated** (`make lint-helm`: `helm lint` the chart standalone + kubeconform the rendered manifests, in both relay states), and the CLI's DNS/DKIM logic is unit-tested (`tests/test_dns.py`, `tests/test_mail.py`). On top of that, the **hermetic mail loopback runs nightly** on its own throwaway cluster — kept separate from Docs and Drive because five pods would push the shared runner over its memory ceiling. Run it yourself with `make test-app APP=messages`.
+
+- **Hermetic loopback** (nightly): the five components converge, the webmail answers, and a message delivered to a local mailbox reads back via the API. The test injects a message over SMTP to the inbound MTA and confirms it lands in the recipient's mailbox — the real inbound path (MTA → delivery agent → mailbox), with no relay account, so nothing leaves the cluster.
+- **Real external deliverability** (a human, on a real domain + relay account): publish the records, `suite user add`, send to an external inbox, and confirm it lands **not in spam** with SPF/DKIM/DMARC aligned. The `dns_check` management command verifies record alignment. This is the one check a CI cluster cannot stand in for — it needs a real domain, a real relay, and a real external inbox.
+
+## Limits
+
+- **No IMAP/POP3** — the web UI is the only client.
+- **No full-text search** until OpenSearch is re-enabled.
+- **No bulk/newsletter sending** — the relay is rate-capped; that is a separate product.
