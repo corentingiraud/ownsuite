@@ -46,6 +46,8 @@ their chart defaults.
 | **Projects** | opt-in | 0.1 vCPU | 0.25 GB | 0.75 GB |
 | **Mailbox** (backend, worker, frontend, 2× MTA) | opt-in | 0.45 vCPU | 1.15 GB | 2.3 GB |
 | **Meet** (backend, Celery, frontend, LiveKit, Egress) | opt-in | 0.9 vCPU | 1.65 GB | 4.8 GB |
+| **Tchap** (Synapse, MAS, Element Web, HAProxy) | opt-in | 0.3 vCPU | 0.3 GB | 5.1 GB |
+| **Calendars** (backend, worker, frontend, CalDAV) | opt-in | 0.45 vCPU | 1.25 GB | 2.5 GB |
 | **Garage** object store (only if not using external S3) | no | 0.05 vCPU | 0.13 GB | 0.5 GB |
 
 With Docs, Drive, Grist, Projects and the mailbox enabled, the declared requests total
@@ -54,7 +56,9 @@ recommended figure there. **Meet** is the heavy outlier: real-time media (LiveKi
 recording, the headless-Chrome **Egress** are CPU- and RAM-hungry and also consume real network
 **bandwidth** that scales with concurrent participants. Its memory *limit* is high (~4.8 GB) but
 mostly headroom for Egress; treat Meet as its own step-up and size for **modest concurrency** —
-add capacity (and bandwidth) before hosting large meetings.
+add capacity (and bandwidth) before hosting large meetings. **Tchap**'s ~5.1 GB limit is similar
+headroom, not steady-state: it is Synapse's generous chart-default 4 GB ceiling, which a small
+deployment rarely approaches (its request is only ~0.3 GB).
 
 ### Disk
 

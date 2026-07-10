@@ -26,9 +26,8 @@ flowchart TB
     subgraph SERVER["The result — one server, single-node K3s"]
         T["Traefik + cert-manager<br/>ingress · Let's Encrypt HTTPS"]
         KC["Keycloak<br/>single sign-on (OIDC)"]
-        subgraph APPS2["Applications"]
-            AD["Docs · Drive"]
-            OPT["Grist · Projects · Mailbox · Meet · Tchap<br/>(off by default)"]
+        subgraph APPS2["Applications (all off by default — you enable them)"]
+            OPT["Docs · Drive · Grist · Projects<br/>Mailbox · Meet · Tchap · Calendars"]
         end
         INFRA["CloudNativePG (PostgreSQL + PITR)<br/>Valkey cache"]
         T --> APPS2

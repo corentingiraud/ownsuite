@@ -46,6 +46,9 @@ Production essentials, implemented and **proven in CI**:
   pluggable Garage / external EU S3. See [shared infrastructure](../understand/platform.md).
 - **Shared SSO + JIT user provisioning** — one Keycloak identity, just-in-time into every app;
   `suite user add/passwd/disable`. See [Users](../operate/users.md).
+- **Suite-wide app switcher** — Keycloak's Account Console lists exactly the enabled apps with
+  correct links, no in-app waffle or extra service
+  ([ADR-044](../understand/decisions.md#adr-044-app-switcher-via-keycloaks-account-console-not-la-gaufre)).
 - **Declarative install** — `suite init` writes `suite.yaml`; `suite apply` reconciles
   everything to it: provisions, generates the DNS records, gates on propagation, issues
   Let's Encrypt certificates (staging → production), and brings the whole stack up. See
@@ -58,7 +61,8 @@ Production essentials, implemented and **proven in CI**:
 - **Per-app boot checks in CI** — each app boots on its own fresh cluster nightly,
   including the mailbox local-delivery loopback.
 - **Backup-gated upgrades + health surfacing** — `suite upgrade` (snapshot → diff → apply →
-  health check → rollback on failure) and `suite status`. See [Upgrade](../operate/upgrade.md)
+  health check → rollback on failure), `suite status`, and `suite tunnel` for ad-hoc
+  `kubectl`/`k9s` access over the managed SSH tunnel. See [Upgrade](../operate/upgrade.md)
   and [Status](../operate/status.md).
 - **Real external mail deliverability** — proven end-to-end on a real domain + relay: mail from
   the Mailbox app lands in an external inbox **not in spam**, with SPF/DKIM/DMARC aligned.
@@ -92,10 +96,13 @@ JIT seam and are boot-checked in CI. Enable any combination.
   (`tchap: {}`). Media lands in its own S3 bucket and is copied off-site. See
   [Tchap application](../understand/tchap.md).
 - **Calendars** — shared calendars, `suitenumerique/calendars` (`calendars: {}`). Maximum
-  coupling with the suite: a one-click [Meet](../understand/meet.md) link on an event and
-  org free/busy so colleagues see each other's availability (via a Keycloak org-claim
-  mapper). Early upstream (v0.1.0) — the Meet link is shallow (URL only), org sharing is
-  real. See [Calendars application](../understand/calendars.md).
+  coupling with the suite: a one-click [Meet](../understand/meet.md) link on an event, org
+  free/busy so colleagues see each other's availability (via a Keycloak org-claim mapper), and
+  — when the **Mailbox** is also on — a two-way CalDAV bridge so your mailboxes appear as
+  invitation senders and invitations show accept/decline back in the webmail
+  ([ADR-045](../understand/decisions.md#adr-045-messages-calendars-return-path-mailboxes-see-invitations-via-a-shared-global-caldav-channel)).
+  Early upstream (v0.1.0) — the Meet link is shallow (URL only), org sharing is real. See
+  [Calendars application](../understand/calendars.md).
 
 ## Not supported (and why)
 

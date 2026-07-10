@@ -84,6 +84,21 @@ same JIT model the `suite` CLI already relies on, so **`suite user add` needs no
 step**. The one new piece is a one-time **maildomain seed Job** (mirrors `keycloak-config`) that
 creates the domain, enables autojoin, and registers the supplied DKIM key.
 
+### Calendars integration (only with Calendars enabled)
+
+When [Calendars](calendars.md) is also on, Messages becomes both an invitation *sender* and an
+invitation *reader* — configured, no code. Two extra pieces provision on `suite apply`:
+
+- A **`calendars-provisioning` Job** on the Messages release upserts the global `api_key`
+  Channel that Calendars reads over service-to-service HTTP (scopes `mailboxes:read` +
+  `messages:send`), and the maildomain seed stamps an **`org` custom attribute** so Calendars
+  can resolve which org a mailbox belongs to.
+- The Messages backend/worker get `CALDAV_DEFAULT_*` pointing at Calendars' `/caldav` proxy, so
+  the webmail shows accept/decline controls and an "open in calendar" link on invitations.
+
+Full wiring (channels, scopes, the shared `calendars-secrets`) is documented on the
+[Calendars](calendars.md#seeing-invitations-back-in-the-mailbox-the-return-path) side.
+
 ## DNS (a manual step, like the rest of the DNS flow)
 
 With the mailbox enabled, `suite apply` prints the mail records to add at your registrar, on top

@@ -30,7 +30,7 @@ production needs: **backups, tested restore, controlled upgrades**.
     The platform is built and tested in CI: server setup, shared single sign-on, off-site
     backups with a restore that's actually tested, and the declarative `suite apply` flow.
     **Every app is off by default — you choose which to deploy.** Docs, Drive, Grist,
-    Projects, a Mailbox, Meet and Tchap are all available. See
+    Projects, a Mailbox, Meet, Tchap and Calendars are all available. See
     [Choosing which apps to deploy](reference/configuration.md#choosing-which-apps-to-deploy)
     and the [feature list](project/roadmap.md).
 
@@ -48,8 +48,9 @@ off by default** — an app is enabled by its line under `apps:` in `suite.yaml`
 | **[Mailbox](understand/messages.md)** | Mail provider + webmail | `messages: {}` |
 | **[Meet](understand/meet.md)** | Video conferencing (LiveKit) | `meet: {}` |
 | **[Tchap](understand/tchap.md)** | Matrix/Element secure chat, text-only | `tchap: {}` |
+| **[Calendars](understand/calendars.md)** | Shared calendars with org free/busy | `calendars: {}` |
 
-Some upstream La Suite apps (People, Calendars…) are deliberately not packaged — see
+Some upstream La Suite apps (e.g. People) are deliberately not packaged — see
 [Not supported](project/roadmap.md#not-supported-and-why).
 
 ## Where to start

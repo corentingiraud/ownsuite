@@ -21,8 +21,8 @@ Facts an agent must not get wrong (details: [CLI reference](../reference/cli.md)
    without `source .env`.
 2. **`suite apply` reconciles everything** — Terraform, Ansible bootstrap, DNS, apps —
    touching only what changed. Every operator action is a `suite` verb: `init`, `plan`,
-   `apply`, `status`, `apps`, `logs`, `info`, `upgrade`, `backup`, `restore`, `destroy`,
-   `user add|passwd|disable`, `deps`. `make` is CI/dev shorthand only.
+   `apply`, `status`, `apps`, `logs`, `tunnel`, `info`, `upgrade`, `backup`, `restore`,
+   `destroy`, `user add|passwd|disable`, `deps`. `make` is CI/dev shorthand only.
 3. **Apps are enabled by presence** under `apps:` in `suite.yaml`; removing a line
    uninstalls the app but keeps its data. Firewall ports follow the app set.
 4. **The CLI lives in `suite/`**: `spec.py` (suite.yaml load/validate), `state.py`

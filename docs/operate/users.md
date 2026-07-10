@@ -26,6 +26,8 @@ a tunnel is already open (or you have a working `KUBECONFIG`), add `--no-tunnel`
 
 - `--password` — set an explicit password instead of a generated one (`add`, `passwd`).
 - `--permanent` — don't force a password change at next login (default is temporary).
+- `--first-name` / `--last-name` — set the user's name on `add` (else derived from the username).
+- `--local-port` — local port for the managed tunnel (`add`, `passwd`, `disable`; default `8081`).
 - `--no-tunnel` — skip the managed tunnel (one is already open, or `KUBECONFIG` works).
 
 Generated passwords are shown **once** — hand them over securely. Disabling a user is the kill

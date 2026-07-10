@@ -59,6 +59,7 @@ stack (argparse, no extra tooling), and always works from the checkout. For the 
 | `apps` | App catalog: available / enabled / installed / healthy / URL. |
 | `info` | URLs, admin credentials, DNS records. |
 | `logs <app>` | Tail an app's pods over the managed tunnel. |
+| `tunnel` | Hold the managed SSH tunnel to the Kubernetes API open for ad-hoc `kubectl`/`k9s`. |
 | `user add\|passwd\|disable` | Manage Keycloak users — one identity reaches every enabled app (JIT). |
 | `status` | Health summary — node, database, certs, backup, apps. |
 | `upgrade` | Backup-gated upgrade: snapshot → diff → apply → health-check → rollback on failure. |

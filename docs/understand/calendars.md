@@ -46,8 +46,10 @@ Unlike the single-container Grist, Calendars is four Deployments from one chart:
 | **frontend** | `calendars-frontend` | The web UI (SPA) |
 | **caldav** | `calendars-caldav` | SabreDAV/PHP/Apache — **where sharing & free-busy are enforced**, and what makes standard CalDAV clients work |
 
-The backend runs its `manage.py migrate` as a pre-upgrade Helm hook; the CalDAV service
-initialises its own `sabre` schema on start.
+The backend runs its `manage.py migrate` as a pre-upgrade Helm hook; the CalDAV `sabre`
+schema is created by a separate **pre-install/pre-upgrade hook Job** that runs the image's
+idempotent `init-database.sh` (the published caldav image entrypoint only starts Apache and
+never provisions the tables, so the schema needs its own hook).
 
 ## How it is wired
 
@@ -89,8 +91,10 @@ hard-blocked upstream; there is no internet-public calendar.**
 
 The one piece of genuinely new Keycloak config this needs: org membership comes from an
 **OIDC claim**. OwnSuite adds a hardcoded-claim mapper to the `calendars` client that emits a
-constant `organization` claim in userinfo (single-org OwnSuite: everyone in one org); the
-backend maps it (`OIDC_USERINFO_ORGANIZATION_CLAIM`) into its `Organization` model. Without
+constant `org` claim in userinfo (single-org OwnSuite: everyone in one org); the
+backend maps it (`OIDC_USERINFO_ORGANIZATION_CLAIM: org`) into its `Organization` model. The
+claim is deliberately named `org`, not `organization`, because `organization` shadows the
+backend's `User.organization` FK and 500s login. Without
 that claim every user would be org-less and org sharing would do nothing.
 
 ### Your mailboxes as invitation senders (only with Messages)
@@ -99,7 +103,8 @@ When [Messages](messages.md) is also enabled, Calendars discovers the mailboxes 
 offers them as the "from" address on an invitation, instead of falling back to the system
 address. It reads them from Messages' provisioning API **service-to-service** — not with your
 login token: Calendars sends `X-Channel-Id` + `X-API-Key` headers that Messages validates
-against a global `api_key` **Channel** with the `mailboxes:read` scope. The channel id
+against a global `api_key` **Channel** with the `mailboxes:read` and `messages:send` scopes
+(`messages:send` lets the channel actually mail the invitations out). The channel id
 (a UUID) and the key both come from the shared `calendars-secrets` (seed-derived, ADR-012), so
 the two sides agree byte-for-byte. Messages has no command to create that channel, so a small
 **idempotent Job on the Messages release** upserts it on every `suite apply` (the same ORM-shell
@@ -115,7 +120,8 @@ email, one shared password), not the SabreDAV pod directly. The password is the 
 token` of a single **`global`/`caldav` Channel** (a Calendars-side row) that authorises
 Messages-as-a-service to act for any user; both halves live in the same `calendars-secrets`, and an
 **idempotent Job on the Calendars release** upserts the channel — the exact mirror of the sender
-direction above. The CalDAV URL is the public `https://calendars.{domain}/caldav/`, not the
+direction above — with scopes `calendars:read`, `events:read`, `events:write` (the `events:*`
+scopes are what RSVP writes need; `calendars:*` only covers calendar-collection lifecycle). The CalDAV URL is the public `https://calendars.{domain}/caldav/`, not the
 in-cluster service: Calendars forces `SECURE_SSL_REDIRECT`, so a plain-http in-cluster call would be
 redirected to a plaintext-https port and hang (same reason Calendars calls Messages over its
 ingress). With Calendars off, Messages sets none of the `CALDAV_DEFAULT_*` and shows no calendar UI.
