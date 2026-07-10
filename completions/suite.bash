@@ -12,7 +12,7 @@ _suite() {
     }
 
     local commands="init plan apply status apps logs info tunnel upgrade backup restore destroy user deps"
-    local apps="docs drive grist projects messages meet tchap"
+    local apps="docs drive grist projects messages meet tchap calendars"
 
     # Top-level command.
     if [[ $COMP_CWORD -eq 1 ]]; then

@@ -109,7 +109,7 @@ plugins:
           - understand/calendars.md: Calendars — shared calendars with org free/busy and a one-click Meet link; optional, off by default.
           - understand/decisions.md: Design decisions and their rationale.
         Reference:
-          - reference/cli.md: The `suite` CLI — every command and flag (init, plan, apply, user, status, upgrade, backup, restore).
+          - reference/cli.md: The `suite` CLI — every command and flag (init, plan, apply, apps, info, logs, tunnel, user, status, upgrade, backup, restore, destroy, deps).
           - reference/configuration.md: The suite.yaml schema — every key, with defaults, and how to choose which apps to deploy.
         Project:
           - project/roadmap.md: Status board (Shipped / Optional / Planned) and the product vision.

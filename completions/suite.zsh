@@ -12,7 +12,7 @@ _suite() {
         'plan:Preview what apply would change (read-only)'
         'apply:Reconcile everything to suite.yaml'
         'status:Show a health summary'
-        'apps:App catalog: available / enabled / healthy / URL'
+        'apps:App catalog: available / enabled / installed / healthy / URL'
         'logs:Show an app'\''s pod logs'
         'info:URLs, admin credentials, DNS records'
         'tunnel:Hold the K8s API tunnel open for ad-hoc kubectl/k9s'
@@ -23,7 +23,7 @@ _suite() {
         'user:Manage Keycloak users (one identity, all apps)'
         'deps:Install Python tooling + Ansible collections'
     )
-    apps=(docs drive grist projects messages meet tchap)
+    apps=(docs drive grist projects messages meet tchap calendars)
 
     if (( CURRENT == 2 )); then
         _describe 'suite command' commands

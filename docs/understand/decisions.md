@@ -1633,7 +1633,9 @@ genuinely new piece of SSO config the org sharing needs.
 - **Local chart, four Deployments** (`helmfile/charts/calendars`, template: the messages chart's
   generic `components` map). Backend + worker share one image (`worker.py`); frontend and CalDAV
   are their own images, each tag pinned independently in `versions.yaml`. The backend migrates via
-  a pre-upgrade hook; CalDAV initialises its own schema on start.
+  a pre-upgrade hook; the CalDAV `sabre` schema is provisioned by its own pre-install/pre-upgrade
+  hook Job running the image's idempotent `init-database.sh` (the caldav image entrypoint only
+  starts Apache, so the schema cannot self-initialise on start).
 - **One database, not two.** Upstream's own topology keeps the SabreDAV tables in a `sabre`
   **schema** of the app database, so OwnSuite provisions a single CNPG `calendars` database and the
   CalDAV service connects as the same owner role — fewer moving parts than two databases for no
@@ -1649,8 +1651,10 @@ genuinely new piece of SSO config the org sharing needs.
   backend and everything else to the frontend, rather than giving the frontend its own host.
 - **Keycloak org-claim mapper — the new piece.** Org membership comes from an OIDC claim
   (`OIDC_USERINFO_ORGANIZATION_CLAIM`). A hardcoded-claim protocol mapper on the `calendars` client
-  emits a constant `organization` claim in userinfo (single-org OwnSuite: everyone in one org),
-  added to *both* the realm-import ConfigMap and the kcadm upsert Job so they converge. Without it
+  emits a constant `org` claim in userinfo (single-org OwnSuite: everyone in one org),
+  added to *both* the realm-import ConfigMap and the kcadm upsert Job so they converge. The claim
+  is named `org`, not `organization`: the latter shadows the backend's `User.organization` FK and
+  500s login. Without it
   every user is org-less and org sharing does nothing. `ORG_DEFAULT_SHARING_LEVEL` defaults to
   `freebusy`, so same-org "find a time" works out of the box; cross-org is hard-blocked upstream.
 - **Meet coupling via config, not code.** `FRONTEND_MEET_BASE_URL` is set to `https://meet.{domain}`
@@ -1660,7 +1664,8 @@ genuinely new piece of SSO config the org sharing needs.
   Calendars reads a user's mailboxes from Messages' provisioning API so they appear as
   invitation-sender addresses instead of the "system address" fallback. The call is
   **service-to-service** (`X-Channel-Id` + `X-API-Key`, *not* the user's OIDC token) against a
-  Messages `Channel` of `type=api_key`, `scope_level=global`, scope `mailboxes:read`. Both sides
+  Messages `Channel` of `type=api_key`, `scope_level=global`, scopes `mailboxes:read` +
+  `messages:send` (the latter lets the channel mail the invitations out). Both sides
   read the SAME seed-derived `calendars-secrets` keys (`MESSAGES_CHANNEL_ID` — a UUID — and
   `MESSAGES_API_KEY`, whose sha256 is the stored hash), so they agree byte-for-byte (ADR-012).
   Messages ships no create-channel command and its API refuses global-scope channels, so the
@@ -1762,8 +1767,9 @@ are enabled**, with the provisioning Job on the side that owns the row (here Cal
 - **Calendars release** runs an idempotent `manage.py shell` **post-install/post-upgrade Job**
   (`calendars-messages-caldav-provisioning`, the ADR-026 ORM-shell seam) that upserts the one
   `global`/`caldav` Channel, keyed on `id = urlsafe_to_uuid(CALDAV_CHANNEL_ID)` — the exact inverse
-  the proxy applies to the incoming password — with scopes `calendars:read` + `calendars:write`
-  (write is what RSVP needs, and is only allowed on global channels). Gated on
+  the proxy applies to the incoming password — with scopes `calendars:read` + `events:read` +
+  `events:write` (the `events:*` scopes are what RSVP writes need; `calendars:*` only covers
+  calendar-collection lifecycle like MKCALENDAR/PROPPATCH). Gated on
   `apps.messages.enabled`.
 - **Messages release** sets the three `CALDAV_DEFAULT_*` on backend+worker, gated on
   `apps.calendars.enabled`; unset otherwise so the invitation UI degrades to a plain no-controls

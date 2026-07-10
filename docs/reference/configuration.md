@@ -124,6 +124,7 @@ Options go under the app's key; every one is optional.
 | [Meet](../understand/meet.md) | `s3_bucket` | `meet-recordings` | Room-recordings bucket. |
 | | `turn` | `false` | TURN on `5349/tcp` for clients behind strict firewalls. |
 | [Tchap](../understand/tchap.md) | `s3_bucket` | `tchap-media` | Synapse media bucket (copied off-site, unlike Meet recordings). |
+| [Calendars](../understand/calendars.md) | `sharing_level` | `freebusy` | Org-wide default calendar sharing level — one of `none`, `freebusy`, `read`, `write`; enforced in the CalDAV layer. |
 
 **Firewall ports follow the app set automatically.** Enabling Meet opens its LiveKit
 media ports (`7881/tcp` + `7882/udp`, plus `5349/tcp` with `turn: true` — ADR-039);

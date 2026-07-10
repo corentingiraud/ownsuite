@@ -57,6 +57,9 @@ CHOICES = {
     ("provider",): PROVIDERS,
     ("object_storage", "mode"): ("external", "garage"),
     ("backup", "target"): ("external", "in-cluster"),
+    # Per-app option: the CHOICES loop navigates `data` by path, so an
+    # apps.<app>.<option> tuple validates only when the option is actually set.
+    ("apps", "calendars", "sharing_level"): ("none", "freebusy", "read", "write"),
 }
 
 
