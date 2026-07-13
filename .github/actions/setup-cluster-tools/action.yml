@@ -30,7 +30,7 @@ runs:
       working-directory: ${{ runner.temp }}
       env:
         # Pinned CLI tools (tracked by Renovate via the workflow customManager).
-        HELM_VERSION: "v4.2.2" # renovate: datasource=github-releases depName=helm/helm
+        HELM_VERSION: "v4.2.3" # renovate: datasource=github-releases depName=helm/helm
         HELMFILE_VERSION: "v1.6.0" # renovate: datasource=github-releases depName=helmfile/helmfile
         HELMDIFF_VERSION: "v3.15.10" # renovate: datasource=github-releases depName=databus23/helm-diff
         KUBECONFORM_VERSION: "v0.8.0" # renovate: datasource=github-releases depName=yannh/kubeconform
