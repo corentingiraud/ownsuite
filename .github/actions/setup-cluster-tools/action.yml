@@ -35,7 +35,7 @@ runs:
         HELMDIFF_VERSION: "v3.15.10" # renovate: datasource=github-releases depName=databus23/helm-diff
         KUBECONFORM_VERSION: "v0.8.0" # renovate: datasource=github-releases depName=yannh/kubeconform
         K3D_VERSION: "v5.9.0" # renovate: datasource=github-releases depName=k3d-io/k3d
-        KUBECTL_VERSION: "v1.36.2" # renovate: datasource=github-releases depName=kubernetes/kubernetes
+        KUBECTL_VERSION: "v1.37.1" # renovate: datasource=github-releases depName=kubernetes/kubernetes
       run: |
         set -euo pipefail
         bin="${RUNNER_TEMP}/cluster-tools-bin"
