@@ -32,7 +32,6 @@ from test_platform import (
     SEED_TEST_USER,
     curl,
     derive_secret,
-    docs_user_token,
     kubectl,
     password_token,
     retry,
@@ -433,36 +432,40 @@ def test_docs_sso_user_creates_and_reads_document():
     """The Docs definition of done: a Keycloak user logs in via SSO (OIDC) and creates
     a persistent document, then reads it back.
 
-    Headless equivalent of the browser flow: obtain an access token from Keycloak with
-    the seeded user (direct-access grant), create a document through the Docs API as
-    that user and read it back — proving SSO client wiring + DB persistence. Docs
-    validates the bearer token against Keycloak's userinfo endpoint and just-in-time
-    provisions the user (ADR-005, ADR-016).
+    Headless equivalent of the browser flow: log the seeded Keycloak user in through the
+    full OIDC authorization-code flow (Docs' API is session-only since 5.7: bearer access
+    tokens are rejected), create a document as that user and read it back, proving SSO
+    client wiring + DB persistence. Docs just-in-time provisions the user (ADR-005,
+    ADR-016).
     """
     host = app_host("docs")
-    token = retry(docs_user_token)
-    auth_header = f"Authorization: Bearer {token}"
+    seed_pw = derive_secret("kc-test-user")
     docs_api = f"https://{host}/api/v1.0/documents/"
 
-    def create():
-        out = curl(
-            host, docs_api,
-            "-X", "POST", "-H", auth_header,
-            "-H", "Content-Type: application/json",
-            "--data", json.dumps({"title": DOC_TITLE}),
-        )
-        doc = json.loads(out)
-        assert doc.get("id"), f"no document id returned: {doc}"
-        return doc["id"]
+    def create_and_read_back():
+        with tempfile.NamedTemporaryFile(suffix=".cookiejar") as jar_file:
+            csrf = _session_login(host, "docs-tester", seed_pw, jar_file.name)
 
-    doc_id = retry(create)
+            def session_curl(url, *args):
+                return subprocess.run(
+                    ["curl", "-fksS", "--resolve", f"{host}:443:127.0.0.1",
+                     "-b", jar_file.name, *args, url],
+                    capture_output=True, text=True, check=True,
+                ).stdout
 
-    def read_back():
-        out = curl(host, f"{docs_api}{doc_id}/", "-H", auth_header)
-        doc = json.loads(out)
-        assert doc["title"] == DOC_TITLE, doc
+            doc = json.loads(session_curl(
+                docs_api,
+                "-X", "POST",
+                "-H", f"X-CSRFToken: {csrf}",
+                "-H", f"Origin: https://{host}",
+                "-H", "Content-Type: application/json",
+                "--data", json.dumps({"title": DOC_TITLE}),
+            ))
+            assert doc.get("id"), f"no document id returned: {doc}"
+            back = json.loads(session_curl(f"{docs_api}{doc['id']}/"))
+            assert back["title"] == DOC_TITLE, back
 
-    retry(read_back)
+    retry(create_and_read_back)
 
 
 # --- Drive (suitenumerique/drive, ADR-022) ----------------------------------
@@ -567,11 +570,11 @@ def test_meet_livekit_signaling_reachable():
     retry(fetch, attempts=40, delay=3)
 
 
-def _meet_session_login(host, username, password, jar):
-    """Headless OIDC authorization-code login against meet — the browser flow in curl.
+def _session_login(host, username, password, jar):
+    """Headless OIDC authorization-code login against a La Suite app — the browser flow in curl.
 
-    Meet >= v1.22.0 only accepts Django session auth on its core API (user access
-    tokens are rejected), so the DoD authenticates the way the SPA does:
+    Meet >= v1.22.0 and Docs >= 5.7 only accept Django session auth on their core API
+    (user access tokens are rejected), so the DoD authenticates the way the SPA does:
     /api/v1.0/authenticate/ -> Keycloak login form -> /api/v1.0/callback/. The state
     and nonce live in the session cookie set by /authenticate/, so one cookie jar
     must carry the whole dance. Returns the csrftoken the callback set (Django
@@ -584,12 +587,12 @@ def _meet_session_login(host, username, password, jar):
             capture_output=True, text=True, check=True,
         ).stdout
 
-    # Login initiation: meet stores state+nonce in a fresh session and bounces to
+    # Login initiation: the app stores state+nonce in a fresh session and bounces to
     # Keycloak's authorization endpoint (don't follow — cross-host cookie handling).
     kc_auth_url = curl_jar(
         f"https://{host}/api/v1.0/authenticate/", "-o", "/dev/null", "-w", "%{redirect_url}"
     )
-    assert kc_auth_url, "meet /authenticate/ did not redirect to Keycloak"
+    assert kc_auth_url, "/authenticate/ did not redirect to Keycloak"
 
     # Keycloak login page (follow Keycloak-internal redirects); the credentials POST
     # goes to the form's action URL, which carries the auth-session parameters.
@@ -604,7 +607,7 @@ def _meet_session_login(host, username, password, jar):
         "-o", "/dev/null", "-w", "%{redirect_url}",
     )
     assert f"https://{host}/api/v1.0/callback/" in callback_url, (
-        f"Keycloak login did not redirect to the meet callback: {callback_url!r}"
+        f"Keycloak login did not redirect to the app callback: {callback_url!r}"
     )
 
     # The callback logs the session in and sets the rotated sessionid + csrftoken.
@@ -636,7 +639,7 @@ def test_meet_backend_mints_livekit_token():
 
     def create_room_and_get_token():
         with tempfile.NamedTemporaryFile(suffix=".cookiejar") as jar_file:
-            csrf = _meet_session_login(host, "docs-tester", seed_pw, jar_file.name)
+            csrf = _session_login(host, "docs-tester", seed_pw, jar_file.name)
             out = subprocess.run(
                 ["curl", "-fksS", "--resolve", f"{host}:443:127.0.0.1",
                  "-b", jar_file.name,
