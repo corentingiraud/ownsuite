@@ -425,25 +425,35 @@ def test_docs_reachable_over_https():
 
 @only("docs")
 def test_docs_collaboration_websocket_routed():
-    """The yhub WebSocket path is routed: an upgrade request is answered by yhub (101,
-    or 401/403 without a valid token), never by Traefik's 404."""
+    """The yhub WebSocket path a client uses is routed: an upgrade request is answered by
+    yhub (101, or 401/403/404 with its own body), never by Traefik's `404 page not found`.
+
+    The frontend appends the document id to COLLABORATION_WS_URL
+    (`/collaboration/ws/v1/docs/<uuid>`); the bare prefix is not a yhub route."""
     host = app_host("docs")
+    doc_id = "00000000-0000-4000-8000-000000000000"
 
     def probe():
         res = subprocess.run(
-            ["curl", "-ksS", "-o", "/dev/null", "-w", "%{http_code}",
+            ["curl", "-ksS", "-w", "\n%{http_code}",
              "--max-time", "10", "--resolve", f"{host}:443:127.0.0.1",
              "-H", "Connection: Upgrade", "-H", "Upgrade: websocket",
              "-H", "Sec-WebSocket-Version: 13",
              "-H", "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
              "-H", f"Origin: https://{host}",
-             f"https://{host}/collaboration/ws/v1/docs"],
+             f"https://{host}/collaboration/ws/v1/docs/{doc_id}"],
             capture_output=True, text=True,
         )
         # curl exits 28 when an accepted upgrade keeps the socket open: the code is
-        # still written first.
-        code = res.stdout.strip()
-        assert code in ("101", "401", "403"), f"WS upgrade answered {code!r}"
+        # still written last.
+        body, _, code = res.stdout.rpartition("\n")
+        code = code.strip()
+        if code == "404":
+            # An unknown document may legitimately be a yhub 404; Traefik's own
+            # no-route answer is the failure this test guards against.
+            assert "404 page not found" not in body, "WS path not routed (Traefik 404)"
+        else:
+            assert code in ("101", "401", "403"), f"WS upgrade answered {code!r}"
 
     retry(probe, attempts=20, delay=3)
 
