@@ -412,7 +412,7 @@ credentials, the depth of Keycloak backup, and how to prove the cycle hermetical
 
 **Decision.**
 
-- **PostgreSQL → CNPG Barman Cloud Plugin** ([v0.13.0](https://github.com/cloudnative-pg/plugin-barman-cloud),
+- **PostgreSQL → CNPG Barman Cloud Plugin** ([v0.15.1](https://github.com/cloudnative-pg/plugin-barman-cloud),
   the CNPG-I plugin), not the in-tree `.spec.backup.barmanObjectStore` (deprecated since CNPG
   1.26). The plugin is installed from its **pinned, vendored** release manifest
   (`charts/barman-cloud-plugin`) into `cnpg-system`, reusing cert-manager for its TLS. A

@@ -7,13 +7,13 @@
 
 chartVersions:
   # renovate: datasource=helm registryUrl=https://charts.jetstack.io depName=cert-manager
-  certManager: "v1.20.3"
+  certManager: "v1.21.2"
   # renovate: datasource=helm registryUrl=https://cloudnative-pg.github.io/charts depName=cloudnative-pg
-  cnpgOperator: "0.29.0"
+  cnpgOperator: "0.29.1"
   # renovate: datasource=helm registryUrl=https://codecentric.github.io/helm-charts depName=keycloakx
-  keycloakx: "7.2.0"
+  keycloakx: "7.4.0"
   # renovate: datasource=helm registryUrl=https://groundhog2k.github.io/helm-charts depName=valkey
-  valkey: "2.3.0"
+  valkey: "2.3.4"
   # In-cluster object store: RustFS (ADR-046), first-party chart at charts.rustfs.com.
   # The chart appVersion tracks the app (chart 0.N.0 -> app 1.0.0-beta.N). Pin PAST the
   # secret-logging advisories (GHSA-r54g-49rx-98cr fixed in app 1.0.0-alpha.82;
@@ -55,7 +55,7 @@ chartVersions:
 
 imageVersions:
   # renovate: datasource=docker depName=quay.io/keycloak/keycloak
-  keycloak: "26.6.4"
+  keycloak: "26.8.1"
   # Docs images — keep these three in lockstep with the chart appVersion.
   # renovate: datasource=docker depName=lasuite/impress-backend
   docsBackend: "v5.3.0"
@@ -129,7 +129,7 @@ imageVersions:
   # rclone image for the off-site object copy CronJob / restore Job (ADR-006/ADR-017),
   # and the RustFS bucket-creation bootstrap Job (ADR-046: `rclone mkdir` per bucket).
   # renovate: datasource=docker depName=rclone/rclone
-  rclone: "1.74.3"
+  rclone: "1.75.2"
   # nginx for the media-proxy chart: the authenticated /media/ download path on Traefik
   # (ADR-016). The upstream apps' media-auth is nginx-coupled (auth_request + X-Original-URL
   # + upstream-vhost) which Traefik forwardAuth cannot satisfy, so a tiny in-cluster nginx
@@ -150,4 +150,4 @@ manifestVersions:
   # that file with the new release's manifest.yaml (the operator + sidecar images are
   # pinned inside it).
   # renovate: datasource=github-releases depName=cloudnative-pg/plugin-barman-cloud
-  barmanCloudPlugin: "v0.13.0"
+  barmanCloudPlugin: "v0.15.1"
