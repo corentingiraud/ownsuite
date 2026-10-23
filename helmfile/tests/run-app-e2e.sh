@@ -117,19 +117,15 @@ cleanup() {
 trap cleanup EXIT
 
 echo "==> Creating k3d cluster '$CLUSTER' for app '$APP' (${OWNSUITE_K3S_IMAGE:-k3d default})"
-k3d cluster create "$CLUSTER" \
+create_cluster_with_retry "$CLUSTER" \
   "${IMAGE_ARGS[@]}" \
   --port "80:80@loadbalancer" \
-  --port "443:443@loadbalancer" \
-  --wait --timeout 180s
-
-KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
-export KUBECONFIG
+  --port "443:443@loadbalancer"
 
 # Plain `helmfile sync` (not `suite install`, which verifies Docs over HTTPS — Docs is
 # off here). pytest resolves each host per-request with `curl --resolve`, so no
 # /etc/hosts entry is needed.
-provision_with_watchdog "app=$APP, issuer=$OWNSUITE_TLS_ISSUER" \
+OWNSUITE_E2E_RECREATE=1 provision_with_watchdog "app=$APP, issuer=$OWNSUITE_TLS_ISSUER" \
   helmfile -f "$HELMFILE" sync
 wait_for_certs "${CERTS[@]}"
 

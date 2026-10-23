@@ -6,38 +6,204 @@
     ":semanticCommits",
     "schedule:weekly"
   ],
-  "labels": ["dependencies"],
-  "prConcurrentLimit": 5,
+  "labels": [
+    "dependencies"
+  ],
+  "prConcurrentLimit": 10,
   "packageRules": [
     {
       "description": "Group non-major Python dev/docs tooling bumps into one PR.",
-      "matchManagers": ["pip_requirements"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchManagers": [
+        "pip_requirements"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "groupName": "python tooling (non-major)"
     },
     {
       "description": "Group GitHub Actions bumps.",
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "github actions"
     },
     {
       "description": "Group Ansible collection bumps.",
-      "matchManagers": ["ansible-galaxy"],
+      "matchManagers": [
+        "ansible-galaxy"
+      ],
       "groupName": "ansible collections"
     },
     {
-      "description": "Group Helmfile chart + image bumps into one PR. All pins live in versions.yaml (single source of truth); the local charts' values.yaml carry no versions, so there is nothing to duplicate.",
-      "matchFileNames": ["helmfile/versions/versions.yaml"],
-      "groupName": "helmfile stack"
+      "description": "Group non-major infra bumps (cert-manager, CNPG, Keycloak, Valkey, RustFS, rclone, nginx, postgres, barman plugin...) into one PR. Apps have their own groups below. Majors are never grouped, so each opens its own PR. All pins live in versions.yaml.",
+      "matchFileNames": [
+        "helmfile/versions/versions.yaml"
+      ],
+      "groupName": "helmfile stack",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ]
+    },
+    {
+      "description": "Group non-major docs app bumps (chart + images) in their own PR, so one breaking app does not block the others. Majors stay separate PRs.",
+      "matchFileNames": [
+        "helmfile/versions/versions.yaml"
+      ],
+      "matchPackageNames": [
+        "docs",
+        "lasuite/impress-backend",
+        "lasuite/impress-frontend",
+        "lasuite/impress-y-provider"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "docs app"
+    },
+    {
+      "description": "Group non-major drive app bumps (chart + images) in their own PR, so one breaking app does not block the others. Majors stay separate PRs.",
+      "matchFileNames": [
+        "helmfile/versions/versions.yaml"
+      ],
+      "matchPackageNames": [
+        "drive",
+        "lasuite/drive-backend",
+        "lasuite/drive-frontend"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "drive app"
+    },
+    {
+      "description": "Group non-major meet app bumps (chart + images) in their own PR, so one breaking app does not block the others. Majors stay separate PRs.",
+      "matchFileNames": [
+        "helmfile/versions/versions.yaml"
+      ],
+      "matchPackageNames": [
+        "meet",
+        "lasuite/meet-backend",
+        "lasuite/meet-frontend",
+        "livekit-server",
+        "egress",
+        "livekit/livekit-server"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "meet app"
+    },
+    {
+      "description": "Group non-major messages app bumps (chart + images) in their own PR, so one breaking app does not block the others. Majors stay separate PRs.",
+      "matchFileNames": [
+        "helmfile/versions/versions.yaml"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/suitenumerique/messages-backend"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "messages app"
+    },
+    {
+      "description": "Group non-major projects app bumps (chart + images) in their own PR, so one breaking app does not block the others. Majors stay separate PRs.",
+      "matchFileNames": [
+        "helmfile/versions/versions.yaml"
+      ],
+      "matchPackageNames": [
+        "lasuite/projects"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "projects app"
+    },
+    {
+      "description": "Group non-major grist app bumps (chart + images) in their own PR, so one breaking app does not block the others. Majors stay separate PRs.",
+      "matchFileNames": [
+        "helmfile/versions/versions.yaml"
+      ],
+      "matchPackageNames": [
+        "gristlabs/grist"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "grist app"
+    },
+    {
+      "description": "Group non-major calendars app bumps (chart + images) in their own PR, so one breaking app does not block the others. Majors stay separate PRs.",
+      "matchFileNames": [
+        "helmfile/versions/versions.yaml"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/suitenumerique/calendars-backend",
+        "ghcr.io/suitenumerique/calendars-frontend",
+        "ghcr.io/suitenumerique/calendars-caldav"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "calendars app"
+    },
+    {
+      "description": "Group non-major tchap app bumps (chart + images) in their own PR, so one breaking app does not block the others. Majors stay separate PRs.",
+      "matchFileNames": [
+        "helmfile/versions/versions.yaml"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/element-hq/ess-helm/matrix-stack",
+        "ghcr.io/dotwee/matrix-synapse-s3",
+        "ghcr.io/tchapgouv/tchap-web-v4"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "tchap app"
     },
     {
       "description": "Group Terraform provider/runtime bumps (the Scaleway provider lives in terraform/**/versions.tf; the built-in terraform manager detects it).",
-      "matchManagers": ["terraform"],
+      "matchManagers": [
+        "terraform"
+      ],
       "groupName": "terraform providers"
     },
     {
       "description": "Group the CI Terraform/tflint binary versions (env vars caught by the CLI-tools custom manager) with the provider bumps.",
-      "matchPackageNames": ["hashicorp/terraform", "terraform-linters/tflint"],
+      "matchPackageNames": [
+        "hashicorp/terraform",
+        "terraform-linters/tflint"
+      ],
       "groupName": "terraform providers"
     }
   ],
@@ -45,8 +211,12 @@
     {
       "description": "Track the pinned K3s release in the k3s role default (single source of truth).",
       "customType": "regex",
-      "managerFilePatterns": ["/^ansible/roles/k3s/defaults/main\\.yml$/"],
-      "matchStrings": ["k3s_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^ansible/roles/k3s/defaults/main\\.yml$/"
+      ],
+      "matchStrings": [
+        "k3s_version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "k3s-io/k3s",
       "datasourceTemplate": "github-releases",
       "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
@@ -54,7 +224,9 @@
     {
       "description": "Track pinned Helm chart versions in the Helmfile stack.",
       "customType": "regex",
-      "managerFilePatterns": ["/^helmfile/versions/versions\\.yaml$/"],
+      "managerFilePatterns": [
+        "/^helmfile/versions/versions\\.yaml$/"
+      ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) registryUrl=(?<registryUrl>\\S+) depName=(?<depName>\\S+)\\s+\\w+:\\s*\"(?<currentValue>[^\"]+)\""
       ],
@@ -63,7 +235,9 @@
     {
       "description": "Track pinned image tags in the Helmfile stack.",
       "customType": "regex",
-      "managerFilePatterns": ["/^helmfile/versions/versions\\.yaml$/"],
+      "managerFilePatterns": [
+        "/^helmfile/versions/versions\\.yaml$/"
+      ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+\\w+:\\s*\"(?<currentValue>[^\"]+)\""
       ],
@@ -83,7 +257,9 @@
     {
       "description": "Track pinned CLI tool versions (helm/helmfile/kubeconform/k3d/kubectl) in CI workflows and composite actions.",
       "customType": "regex",
-      "managerFilePatterns": ["/^\\.github/(workflows|actions)/.+\\.ya?ml$/"],
+      "managerFilePatterns": [
+        "/^\\.github/(workflows|actions)/.+\\.ya?ml$/"
+      ],
       "matchStrings": [
         "[A-Z_]+_VERSION:\\s*\"?(?<currentValue>[^\"\\s]+)\"?\\s*#\\s*renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)"
       ],

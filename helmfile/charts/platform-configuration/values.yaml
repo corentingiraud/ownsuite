@@ -76,7 +76,7 @@ objectStorage:
 
 # In-cluster RustFS object store (ADR-046). `enabled`/`region` drive the Tchap
 # synapse-s3 fragment's endpoint switch; RustFS's root credential is the s3-credentials
-# Secret directly (no separate internal creds like Garage's).
+# Secret directly (no separate internal creds).
 rustfs:
   enabled: false
   region: us-east-1

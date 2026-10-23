@@ -26,6 +26,10 @@
 
 replicaCount: 1
 
+# Override the chart's default image tag (its appVersion, v1.8.4) with the pinned release.
+image:
+  tag: {{ .Values.imageVersions.livekitEgress | quote }}
+
 egress:
   log_level: info
   # Signaling to LiveKit over the in-cluster service (plain ws, port 80 -> pod 7880).

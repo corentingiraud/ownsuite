@@ -76,6 +76,9 @@ extended to UDP ([ADR-039](decisions.md#adr-039-meet-media-ports-single-udp-mux-
   and `/media/files/` on Traefik — each authorized by its own backend media-auth route
   (`recordings/media-auth/`, `files/media-auth/`), then proxied to the store with the
   backend's SigV4 headers. It brings its own more-specific ingress on `meet.{domain}`.
+  For an external S3 over TLS the proxy re-resolves the S3 host over IPv4 only (chart value
+  `s3IPv4Only`, default `true`), so an IPv4-only node never tries the AAAA records; set it
+  to `false` on a dual-stack node.
 
 ## What is disabled
 

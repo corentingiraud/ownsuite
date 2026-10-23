@@ -31,9 +31,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "==> Creating k3d cluster '$CLUSTER' (${OWNSUITE_K3S_IMAGE:-k3d default})"
-k3d cluster create "$CLUSTER" "${IMAGE_ARGS[@]}" --wait --timeout 180s
-KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
-export KUBECONFIG
+create_cluster_with_retry "$CLUSTER" "${IMAGE_ARGS[@]}"
 kubectl create namespace "$NS" >/dev/null
 
 # Secrets normally produced by platform-configuration during a real install (ADR-046).
