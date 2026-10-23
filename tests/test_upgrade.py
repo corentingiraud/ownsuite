@@ -27,6 +27,8 @@ def _patch_common(monkeypatch, *, calls, ctx, health_failed=()):
     monkeypatch.setattr(upgrade.backup, "snapshot",
                         lambda: calls.append(["snapshot"]) or ("pg", "job"))
     monkeypatch.setattr(upgrade.state, "save", lambda st: None)
+    monkeypatch.setattr(upgrade.docs_migrate, "run_if_enabled",
+                        lambda enabled, st: calls.append(["docs-backfill"]))
     monkeypatch.setattr(upgrade, "run", lambda argv, **kw: calls.append(list(argv)))
     monkeypatch.setattr(upgrade.steps, "verify_https",
                         lambda domain, enabled, trusted: list(health_failed))
@@ -56,7 +58,7 @@ def test_happy_path_snapshots_then_applies(monkeypatch):
     _patch_common(monkeypatch, calls=calls, ctx=make_ctx())
     upgrade.run_upgrade(_args())
     # snapshot happens before helmfile diff/apply; no rollback on success.
-    assert [c[0] for c in calls] == ["snapshot", "helmfile", "helmfile"]
+    assert [c[0] for c in calls] == ["snapshot", "helmfile", "helmfile", "docs-backfill"]
     assert calls[1][:4] == ["helmfile", "-f", upgrade.HELMFILE, "diff"] and "--context" in calls[1]
     assert calls[2][-1] == "apply"
     assert not any("rollback" in c for c in calls)
@@ -89,6 +91,7 @@ def test_injects_resolved_issuer_into_apply_env(monkeypatch):
     monkeypatch.setattr(upgrade.backup, "snapshot", lambda: ("pg", "job"))
     monkeypatch.setattr(upgrade.state, "save", lambda st: None)
     monkeypatch.setattr(upgrade.steps, "verify_https", lambda d, e, trusted: [])
+    monkeypatch.setattr(upgrade.docs_migrate, "run_if_enabled", lambda e, st: None)
 
     def _run(argv, **kw):
         if argv[-1] == "apply":

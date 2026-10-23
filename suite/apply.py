@@ -28,6 +28,7 @@ from . import (
     bootstrap,
     config,
     dns,
+    docs_migrate,
     ip,
     mail,
     manifest,
@@ -166,6 +167,7 @@ def _run(args, plan_only):
                 "health check failed for: " + ", ".join(failed)
                 + " — rolled back the affected app(s). Re-run once resolved."
             )
+        docs_migrate.run_if_enabled(enabled, st)
     state.save(st)
 
     # 5. report — every mutating command ends with what changed and where to go.

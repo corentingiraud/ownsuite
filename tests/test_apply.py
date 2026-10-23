@@ -69,6 +69,8 @@ def _wire(monkeypatch, *, sp, state=None, helm_list=(), live_issuer="",
     monkeypatch.setattr(apply.config, "require_seed", lambda st, **kw: "seed")
     monkeypatch.setattr(apply.process, "preflight", lambda *a, **kw: None)
     monkeypatch.setattr(apply, "run", run)
+    monkeypatch.setattr(apply.docs_migrate, "run_if_enabled",
+                        lambda enabled, st: events.append(("backfill", None)))
     monkeypatch.setattr(apply, "_show_diff", lambda env: events.append(("diff", env)))
     monkeypatch.setattr(apply, "_confirm", lambda: True)
     monkeypatch.setattr(apply, "_rollback",
