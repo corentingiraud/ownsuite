@@ -24,7 +24,7 @@ chartVersions:
   # Docs (suitenumerique / impress) — official chart. The chart's appVersion is
   # "latest", so the impress image tags below are pinned independently.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/docs depName=docs
-  docs: "5.7.0"
+  docs: "6.0.2"
   # Drive (suitenumerique / drive) — official chart. Like docs, its appVersion is
   # "latest", so the drive image tags below are pinned independently.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/drive depName=drive
@@ -56,13 +56,21 @@ chartVersions:
 imageVersions:
   # renovate: datasource=docker depName=quay.io/keycloak/keycloak
   keycloak: "26.8.1"
-  # Docs images — keep these three in lockstep with the chart appVersion.
+  # Docs images — keep these four in lockstep with the chart version (the chart's
+  # appVersion is "latest", so every tag is pinned explicitly).
   # renovate: datasource=docker depName=lasuite/impress-backend
-  docsBackend: "v5.7.0"
+  docsBackend: "v6.0.2"
   # renovate: datasource=docker depName=lasuite/impress-frontend
-  docsFrontend: "v5.7.0"
+  docsFrontend: "v6.0.2"
   # renovate: datasource=docker depName=lasuite/impress-y-provider
-  docsYProvider: "v5.7.0"
+  docsYProvider: "v6.0.2"
+  # renovate: datasource=docker depName=lasuite/impress-yhub
+  docsYhub: "v6.0.2"
+  # Docs JWT key generation job (chart jwtKeys): openssl + kubectl images.
+  # renovate: datasource=docker depName=alpine/openssl
+  docsJwtOpenssl: "3.5.9"
+  # renovate: datasource=docker depName=dtzar/helm-kubectl
+  docsJwtKubectl: "4.3.0"
   # Drive images — keep these two in lockstep with the drive chart version above.
   # Drive is a file manager (no realtime y-provider, unlike Docs).
   # renovate: datasource=docker depName=lasuite/drive-backend
