@@ -77,6 +77,34 @@ the upgrade, or objects are missing, do not retry in a loop: wipe the in-cluster
 run [`suite restore`](backups.md#restore-tested) to rebuild it from the off-site copy taken just
 before. The chart now sets `serviceAccountName: rustfs`; nothing to configure.
 
+### Docs 5.7 to 6.0.2 (yhub)
+
+Docs 6.0 moves document content from the S3 bucket into a new collaboration server, yhub, backed
+by its own `yhub` database. Upstream does not allow skipping a major version, and there is no
+release between 5.7.0 and 6.0.0. The jump goes straight to 6.0.2, whose migrations are the only
+ones you run: Django migrate, yhub database init, then the document backfill.
+
+What to do: run `suite upgrade`. After the new release is applied, the CLI backfills your
+documents on its own, with no extra command:
+
+1. `manage.py migrate_documents --dry-run` in the backend pod, to list what will move.
+2. The real run, which hands each document to yhub.
+3. Reruns with `--retry-failed` until no document fails. A document that still fails aborts the
+   command with an error.
+
+The backfill is idempotent, so a rerun is safe, and `suite apply` repeats it each time. On success
+the state file `.suite-state.json` records `docs_yhub_migrated`. Until the backfill finishes, a
+document you open is migrated on first use (soft migration), so none opens empty.
+
+!!! warning "Never delete the docs bucket or the `{id}/file` objects"
+    The legacy objects are the only copy of a document that has not been migrated, and the source
+    for a restore. Keep them, and keep the bucket in the off-site copy.
+
+Rollback: the automatic per-app rollback restores the 5.7 code only. Edits made after the upgrade
+live in the yhub database and are not visible to 5.7. To go back for real, run
+[`suite restore`](backups.md#restore-tested) from the pre-upgrade snapshot. A Valkey restart can
+lose up to 10 seconds of edits in flight ([ADR-049](../understand/decisions.md#adr-049-docs-60-yhub-replaces-y-provider-for-collaboration)).
+
 ## Surgical change to one component
 
 Sometimes you need to reapply **one** component — say you changed a single app's option in

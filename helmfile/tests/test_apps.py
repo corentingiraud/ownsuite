@@ -403,8 +403,8 @@ def test_docs_database_applied():
 
 @only("docs")
 def test_docs_pods_ready():
-    """All Docs components reach Ready (backend, celery, frontend, y-provider)."""
-    for component in ("backend", "celery-worker", "frontend", "yProvider"):
+    """All Docs components reach Ready (backend, celery, frontend, y-provider, yhub)."""
+    for component in ("backend", "celery-worker", "frontend", "yProvider", "yhub"):
         _pod_ready("docs", component=component)
 
 
@@ -424,6 +424,32 @@ def test_docs_reachable_over_https():
 
 
 @only("docs")
+def test_docs_yhub_admin_routes_not_published():
+    """yhub's internal endpoints (prune, ...) are not exposed through the ingress."""
+    host = app_host("docs")
+
+    def probe():
+        res = subprocess.run(
+            ["curl", "-ksS", "-o", "/dev/null", "-w", "%{http_code}",
+             "--max-time", "10", "--resolve", f"{host}:443:127.0.0.1",
+             "-X", "POST", f"https://{host}/collaboration/prune/"],
+            capture_output=True, text=True, check=True,
+        )
+        assert res.stdout.strip() == "404", f"/collaboration/prune/ answered {res.stdout!r}"
+
+    retry(probe, attempts=20, delay=3)
+
+
+@only("docs")
+def test_docs_migrate_documents_dry_run():
+    """The yhub backfill command exists and runs (dry run, nothing is written)."""
+    kubectl(
+        "-n", NAMESPACE, "exec", "deploy/docs-backend", "--",
+        "python", "manage.py", "migrate_documents", "--dry-run",
+    )
+
+
+@only("docs")
 @pytest.mark.skipif(
     not (SECRET_SEED and SEED_TEST_USER),
     reason="needs OWNSUITE_SECRET_SEED and a seeded Keycloak test user",
@@ -440,32 +466,93 @@ def test_docs_sso_user_creates_and_reads_document():
     """
     host = app_host("docs")
     seed_pw = derive_secret("kc-test-user")
-    docs_api = f"https://{host}/api/v1.0/documents/"
 
     def create_and_read_back():
         with tempfile.NamedTemporaryFile(suffix=".cookiejar") as jar_file:
             csrf = _session_login(host, "docs-tester", seed_pw, jar_file.name)
-
-            def session_curl(url, *args):
-                return subprocess.run(
-                    ["curl", "-fksS", "--resolve", f"{host}:443:127.0.0.1",
-                     "-b", jar_file.name, *args, url],
-                    capture_output=True, text=True, check=True,
-                ).stdout
-
-            doc = json.loads(session_curl(
-                docs_api,
-                "-X", "POST",
-                "-H", f"X-CSRFToken: {csrf}",
-                "-H", f"Origin: https://{host}",
-                "-H", "Content-Type: application/json",
-                "--data", json.dumps({"title": DOC_TITLE}),
+            doc = _docs_create_document(host, jar_file.name, csrf, DOC_TITLE)
+            back = json.loads(_docs_session_curl(
+                host, jar_file.name, f"https://{host}/api/v1.0/documents/{doc['id']}/"
             ))
-            assert doc.get("id"), f"no document id returned: {doc}"
-            back = json.loads(session_curl(f"{docs_api}{doc['id']}/"))
             assert back["title"] == DOC_TITLE, back
 
     retry(create_and_read_back)
+
+
+@only("docs")
+@pytest.mark.skipif(
+    not (SECRET_SEED and SEED_TEST_USER),
+    reason="needs OWNSUITE_SECRET_SEED and a seeded Keycloak test user",
+)
+def test_docs_collaboration_websocket_opens():
+    """Real-time collaboration DoD: a signed-in user opens the websocket of a document
+    they own and yhub accepts it (101 Switching Protocols).
+
+    The upgrade goes where the frontend sends it (COLLABORATION_WS_URL + `/<doc id>`),
+    through Traefik, with the user's session cookie and the page Origin (yhub's CORS
+    allowlist). Before switching protocols yhub asks the backend who the caller is
+    (users/me) and what they may do with the document (documents/<id>/) over the public
+    ingress, then seeds the room from the legacy S3 store: a 101 proves the route, the
+    origin, that yhub->backend hairpin and the store access. A refusal is a 401/403, an
+    unreachable backend or store a 503 (yhub-server/src/backend.ts, server.ts)."""
+    host = app_host("docs")
+    seed_pw = derive_secret("kc-test-user")
+
+    with tempfile.NamedTemporaryFile(suffix=".cookiejar") as jar_file:
+        jar = jar_file.name
+
+        def login_and_create():
+            csrf = _session_login(host, "docs-tester", seed_pw, jar)
+            return _docs_create_document(host, jar, csrf, "OwnSuite e2e — docs websocket")
+
+        doc_id = retry(login_and_create)["id"]
+
+        def probe():
+            # --http1.1: an upgrade only exists in HTTP/1.1 (ALPN would pick h2).
+            # curl takes an unrequested 101 as the final answer and then reads the open
+            # socket until --max-time: it exits 28, but the code is still written last.
+            res = subprocess.run(
+                ["curl", "-ksS", "--http1.1", "-w", "\n%{http_code}",
+                 "--max-time", "10", "--resolve", f"{host}:443:127.0.0.1",
+                 "-b", jar,
+                 "-H", "Connection: Upgrade", "-H", "Upgrade: websocket",
+                 "-H", "Sec-WebSocket-Version: 13",
+                 "-H", "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+                 "-H", f"Origin: https://{host}",
+                 f"https://{host}/collaboration/ws/v1/docs/{doc_id}"],
+                capture_output=True,
+            )
+            # After a 101 the body is binary websocket frames: never decode it strictly.
+            body, _, code = res.stdout.rpartition(b"\n")
+            code = code.decode(errors="replace").strip()
+            assert code == "101", (
+                f"WS upgrade answered {code!r} (curl exit {res.returncode}): "
+                f"{body[:200].decode(errors='replace')!r}"
+            )
+
+        retry(probe, attempts=20, delay=3)
+
+
+def _docs_session_curl(host, jar, url, *args):
+    """curl the Docs API as the user whose session cookie jar `_session_login` filled."""
+    return subprocess.run(
+        ["curl", "-fksS", "--resolve", f"{host}:443:127.0.0.1", "-b", jar, *args, url],
+        capture_output=True, text=True, check=True,
+    ).stdout
+
+
+def _docs_create_document(host, jar, csrf, title):
+    """Create a document as the logged-in user and return the API payload."""
+    doc = json.loads(_docs_session_curl(
+        host, jar, f"https://{host}/api/v1.0/documents/",
+        "-X", "POST",
+        "-H", f"X-CSRFToken: {csrf}",
+        "-H", f"Origin: https://{host}",
+        "-H", "Content-Type: application/json",
+        "--data", json.dumps({"title": title}),
+    ))
+    assert doc.get("id"), f"no document id returned: {doc}"
+    return doc
 
 
 # --- Drive (suitenumerique/drive, ADR-022) ----------------------------------

@@ -21,7 +21,8 @@
 {{-   $s3Endpoint = printf "http://rustfs-svc.%s.svc.cluster.local:9000" $ns -}}
 {{-   $s3Region = .Values.rustfs.region -}}
 {{- end -}}
-{{- $verifySsl := ternary "False" "True" (eq .Values.tls.issuer "selfsigned") -}}
+{{- $selfSigned := eq .Values.tls.issuer "selfsigned" -}}
+{{- $verifySsl := ternary "False" "True" $selfSigned -}}
 {{- $mediaMiddlewares := printf "%s-docs-media-auth@kubernetescrd,%s-docs-media-rewrite@kubernetescrd" $ns $ns -}}
 {{- $emailParts := splitList ":" .Values.email.host }}
 
@@ -32,6 +33,11 @@ image:
 
 backend:
   replicas: 1
+  # Helm 4's --wait (kstatus) tracks Jobs. The chart deletes a finished Job after 30 s,
+  # and a Job deleted before the whole release is ready reads as NotFound, so the wait
+  # hangs until the timeout. Keep Jobs past the 1200 s helm timeout (see ADR-049).
+  jobs:
+    ttlSecondsAfterFinished: 1800
   # Probes tuned for a constrained single node: the backend runs DB migrations on first
   # boot, so liveness gets a long initialDelay (never restart it mid-migration) + a
   # tolerant timeout. Readiness still gates Ready, so the rollout isn't slowed. Fixes a
@@ -128,22 +134,18 @@ backend:
     LOGIN_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
     LOGIN_REDIRECT_URL_FAILURE: {{ printf "https://%s" $host | quote }}
     LOGOUT_REDIRECT_URL: {{ printf "https://%s" $host | quote }}
-    # --- Real-time collaboration (y-provider) ---
+    # --- Real-time collaboration (yhub, Docs 6) ---
+    # yhub (Service docs-yhub, port 80) serves the websocket and the document state;
+    # the backend calls it in-cluster. The y-provider only remains as the converter.
+    YHUB_API_BASE_URL: "http://docs-yhub:80"
     Y_PROVIDER_API_BASE_URL: "http://docs-y-provider:80/api/"
-    # The collaboration API (reset-/get-connections) is mounted under /collaboration/api/
-    # in the y-provider (dist/routes.js); only /api/convert/ lives at /api/. Pointing this
-    # at /api/ makes reset_connections POST to a route the server rejects (403/"Invalid route"),
-    # which surfaces as a 500 on share/link-configuration changes.
-    COLLABORATION_API_URL: "http://docs-y-provider:80/collaboration/api/"
-    COLLABORATION_WS_URL: {{ printf "wss://%s/collaboration/ws/" $host | quote }}
-    COLLABORATION_SERVER_SECRET:
-      secretKeyRef:
-        name: docs-secrets
-        key: COLLABORATION_SERVER_SECRET
+    COLLABORATION_WS_URL: {{ printf "wss://%s/collaboration/ws/v1/docs" $host | quote }}
     Y_PROVIDER_API_KEY:
       secretKeyRef:
         name: docs-secrets
         key: Y_PROVIDER_API_KEY
+    # Backend JWT signing key, generated on the cluster by the chart's jwtKeys job.
+    JWT_PRIVATE_KEY_FILE: /data/jwt/private.pem
     # --- Transactional email (external SMTP relay; Scaleway TEM recommended) ---
     {{- if .Values.email.configured }}
     EMAIL_HOST: {{ first $emailParts | quote }}
@@ -183,7 +185,7 @@ yProvider:
   # Serve the y-provider on :80, not the chart default :443. Traefik (k3s) treats a
   # backend service port of 443 as an HTTPS upstream and does a TLS handshake to the
   # plain-HTTP y-provider (port 4444) -> "tls: first record does not look like a TLS
-  # handshake" -> 500 on the collaboration WebSocket. Port 80 keeps Traefik on HTTP.
+  # handshake". Port 80 keeps Traefik on HTTP.
   service:
     port: 80
   image:
@@ -197,22 +199,104 @@ yProvider:
     limits:
       memory: "384Mi"
   envVars:
+    # Only the document converter is left: it fetches the backend JWKS to verify callers.
     COLLABORATION_BACKEND_BASE_URL: {{ printf "https://%s" $host | quote }}
-    COLLABORATION_SERVER_ORIGIN: {{ printf "https://%s" $host | quote }}
-    COLLABORATION_LOGGING: "true"
-    COLLABORATION_SERVER_SECRET:
-      secretKeyRef:
-        name: docs-secrets
-        key: COLLABORATION_SERVER_SECRET
+{{- if $selfSigned }}
+    # Same hairpin as yhub below: Node does not trust the self-signed ingress cert.
+    NODE_TLS_REJECT_UNAUTHORIZED: "0"
+{{- end }}
     Y_PROVIDER_API_KEY:
       secretKeyRef:
         name: docs-secrets
         key: Y_PROVIDER_API_KEY
 
+# --- yhub: the collaboration server (Docs 6). Live state in the shared Valkey (db 13,
+#     prefix yhub), persistence in the dedicated CNPG database `yhub`. One replica and no
+#     separate worker on a single node. SOFT_MIGRATION lets yhub seed a document from its
+#     legacy `{id}/file` S3 object on first open (the legacy bucket is read, never
+#     written); `migrate_documents` (run by `suite apply`) backfills the rest.
+yhub:
+  enabled: true
+  replicas: 1
+  # Same Job TTL override as backend.jobs (Helm 4 wait vs TTL-deleted Job).
+  jobs:
+    ttlSecondsAfterFinished: 1800
+  worker:
+    enabled: false
+  # Port 80, not the chart default 443: same Traefik HTTPS-upstream trap as the y-provider.
+  service:
+    port: 80
+  image:
+    repository: lasuite/impress-yhub
+    tag: {{ .Values.imageVersions.docsYhub | quote }}
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      memory: "512Mi"
+  envVars:
+    REDIS:
+      secretKeyRef:
+        name: docs-secrets
+        key: YHUB_REDIS_URL
+    REDIS_PREFIX: yhub
+    POSTGRES:
+      secretKeyRef:
+        name: docs-secrets
+        key: YHUB_POSTGRES_URL
+    # yhub asks the backend who the caller is and what they may do with the document
+    # (users/me, documents/<id>) on every websocket upgrade, and fetches its JWKS. The
+    # call goes through the public https ingress on purpose: the backend 301s plain
+    # http to https (SECURE_SSL_REDIRECT is hardcoded). When it gets no answer, yhub
+    # refuses the upgrade with a 503.
+    COLLABORATION_BACKEND_BASE_URL: {{ printf "https://%s" $host | quote }}
+    COLLABORATION_SERVER_ORIGIN: {{ printf "https://%s" $host | quote }}
+{{- if $selfSigned }}
+    # Self-signed issuer (CI/dev): Node rejects the ingress cert on that hairpin call,
+    # the same trade-off as OIDC_VERIFY_SSL above. A real issuer keeps full verification.
+    NODE_TLS_REJECT_UNAUTHORIZED: "0"
+{{- end }}
+    # Signs yhub's calls to the backend (key generated by the jwtKeys job).
+    YHUB_JWT_PRIVATE_KEY_FILE: /data/jwt/yhub-private.pem
+    Y_PROVIDER_API_KEY:
+      secretKeyRef:
+        name: docs-secrets
+        key: Y_PROVIDER_API_KEY
+    # Legacy document content (Docs 5 `{id}/file` objects), read through the same
+    # credentials as the backend. Endpoint has no path.
+    SOFT_MIGRATION: "true"
+    LEGACY_S3_ENDPOINT_URL: {{ $s3Endpoint | quote }}
+    LEGACY_S3_ACCESS_KEY_ID:
+      secretKeyRef:
+        name: s3-credentials
+        key: AWS_S3_ACCESS_KEY_ID
+    LEGACY_S3_SECRET_ACCESS_KEY:
+      secretKeyRef:
+        name: s3-credentials
+        key: AWS_S3_SECRET_ACCESS_KEY
+    LEGACY_S3_BUCKET_NAME: {{ .Values.objectStorage.bucket | quote }}
+    LEGACY_S3_REGION_NAME: {{ $s3Region | quote }}
+
+# Keys signing the backend and yhub JWTs, generated once on the cluster by a Job and
+# stored in a Secret mounted at /data/jwt. Job images are pinned in versions.yaml.
+jwtKeys:
+  enabled: true
+  # Same Job TTL override as backend.jobs (Helm 4 wait vs TTL-deleted Job).
+  job:
+    ttlSecondsAfterFinished: 1800
+  image:
+    repository: alpine/openssl
+    tag: {{ .Values.imageVersions.docsJwtOpenssl | quote }}
+  kubectlImage:
+    repository: dtzar/helm-kubectl
+    tag: {{ .Values.imageVersions.docsJwtKubectl | quote }}
+
 # --- Ingress (Traefik, K3s-bundled). cert-manager issues docs-tls on the main
 #     ingress; the other ingresses reuse that secret for the same host. Traefik
 #     proxies websockets natively, so the collaboration routes need no special
-#     annotations (single y-provider replica => no room-sticky routing needed).
+#     annotations (single yhub replica => no sticky routing needed).
 ingress:
   enabled: true
   className: traefik
@@ -234,11 +318,12 @@ ingressCollaborationWS:
     enabled: true
     secretName: docs-tls
 
+# Only the 5 browser-facing yhub API routes (chart default list: ydoc, activity,
+# changeset, rollback, jwks). The internal ones (prune, reset-*, migrate...) stay unpublished.
 ingressCollaborationApi:
   enabled: true
   className: traefik
   host: {{ $host | quote }}
-  path: /collaboration/api/
   annotations: {}
   tls:
     enabled: true

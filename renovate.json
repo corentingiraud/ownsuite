@@ -58,7 +58,10 @@
         "docs",
         "lasuite/impress-backend",
         "lasuite/impress-frontend",
-        "lasuite/impress-y-provider"
+        "lasuite/impress-y-provider",
+        "lasuite/impress-yhub",
+        "alpine/openssl",
+        "dtzar/helm-kubectl"
       ],
       "matchUpdateTypes": [
         "minor",

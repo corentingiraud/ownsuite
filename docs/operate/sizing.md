@@ -40,7 +40,7 @@ their chart defaults.
 | Component | Enabled | CPU request | Memory request | Memory limit |
 |---|---|---|---|---|
 | **Foundation** (Keycloak, PostgreSQL, Valkey, cert-manager + CNPG operators) | always on | ~0.4 vCPU | ~1.4 GB | ~2.8 GB |
-| **Docs** (backend, Celery, frontend, y-provider) | opt-in | 0.25 vCPU | 1.0 GB | 2.5 GB |
+| **Docs** (backend, Celery, frontend, y-provider, yhub) | opt-in | 0.25 vCPU | 1.0 GB | 2.5 GB |
 | **Drive** (backend, Celery, frontend) | opt-in | 0.15 vCPU | 0.65 GB | 1.4 GB |
 | **Grist** | opt-in | 0.1 vCPU | 0.25 GB | 1.0 GB |
 | **Projects** | opt-in | 0.1 vCPU | 0.25 GB | 0.75 GB |

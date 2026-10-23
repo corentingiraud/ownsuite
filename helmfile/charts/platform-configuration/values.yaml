@@ -48,6 +48,8 @@ databases:
     secretName: keycloak-db
   - name: docs
     secretName: docs-db
+  - name: yhub
+    secretName: yhub-db
   - name: drive
     secretName: drive-db
 

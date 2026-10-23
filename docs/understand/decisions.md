@@ -373,7 +373,8 @@ browser-facing URLs.
   clean later evolution.)
 - **Traefik ingress.** The official chart ships nginx annotations; we override them for
   Traefik. Websockets need no annotation (Traefik proxies them natively), and a single
-  y-provider replica removes the need for room-sticky routing. Authenticated **media
+  collaboration replica removes the need for room-sticky routing. (From Docs 6.0 the
+  collaboration server is yhub, not y-provider: see [ADR-049](#adr-049-docs-60-yhub-replaces-y-provider-for-collaboration).) Authenticated **media
   serving** is reproduced with two Traefik middlewares (a `forwardAuth` to the backend
   media-auth endpoint + a path rewrite to the bucket), defined in `platform-configuration`.
   cert-manager issues one `docs-tls` certificate on the main ingress; the sibling ingresses
@@ -1859,7 +1860,7 @@ wiring barely changes.
 **Maturity.** RustFS reached 1.0 (GA 2026-09-16). We pin chart 1.0.3 / appVersion 1.0.3, past the
 two secret-logging advisories (GHSA-r54g-49rx-98cr fixed in alpha.82; GHSA-8cm2-h255-v749's
 credential-log fix in beta.2). The pin moved from chart 0.8.0 / 1.0.0-beta.8; upgrade notes are in
-[Upgrading safely](../operate/upgrade.md#rustfs-100-beta-to-103). Distributed mode is still
+[Upgrading safely](../operate/upgrade.md#rustfs-100-beta8-to-103). Distributed mode is still
 a separate topology, and a single-node on-disk layout **cannot be converted to erasure coding in
 place** — HA later means a re-provision (noted for [ADR-006](#adr-006-backups-and-tested-restore)).
 
@@ -1983,3 +1984,60 @@ backup, so losing it costs only a re-download. Grist now depends on Valkey and o
 Touches [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness),
 [ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default),
 [ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster) and ADR-032.
+
+---
+
+## ADR-049 — Docs 6.0: yhub replaces y-provider for collaboration
+
+**Context.** Docs 6.0.0 moves document content out of S3 (`{id}/file`) into a new collaboration
+server, yhub, which keeps live state in Valkey and persists to Postgres. y-provider stays only as
+the Markdown/Yjs converter. Upstream warns that upgrading without handing existing documents to
+yhub opens every document empty, and that there is no way back once the legacy objects are deleted.
+The deployed version is 6.0.2 (chart `docs` 6.0.2, images `impress-backend`, `impress-frontend`,
+`impress-y-provider` and the new `impress-yhub` at v6.0.2). The chart 6.0.3 is built from a
+preprod tag with no GitHub release, so it is not used.
+
+**Decision.**
+- **yhub replaces y-provider for collaboration.** The browser connects to
+  `wss://docs.{domain}/collaboration/ws/v1/docs`. One yhub replica, worker disabled, Service port
+  80 (Traefik treats 443 as an HTTPS upstream). The ingress publishes only the five REST paths
+  upstream lists (ydoc, activity, changeset, rollback, jwks); the admin routes (prune, create-ydoc,
+  reset-connections, migrate, restore-ydoc, reset-ydoc) are never exposed.
+- **Own `yhub` database.** A CNPG database and role `yhub` (credentials secret `yhub-db`). The
+  Docs release runs after Postgres. The cluster-wide base backup, WAL archive and restore cover it
+  without extra configuration.
+- **Valkey database 13 with the prefix `yhub`.** yhub shares the platform Valkey. Valkey has no
+  persistence ([ADR-004](#adr-004-cloudnativepg-valkey-leaving-bitnami)), and yhub flushes its
+  live state to Postgres with a 10 second debounce. A Valkey restart can therefore lose up to
+  10 seconds of edits. We accept that window.
+- **JWT keys from the chart job.** Backend and yhub sign and verify with two RSA keys. The chart
+  `jwtKeys` job generates them into a Secret mounted at `/data/jwt`. RSA keys cannot be derived
+  from the seed. They are not backed up, which is harmless: tokens are short-lived and the JWKS is
+  fetched again. The two job images are pinned in `versions.yaml` like every other image.
+- **Soft migration stays on for this release.** `SOFT_MIGRATION=true` makes yhub read the legacy
+  `{id}/file` object the first time a document is opened. It reuses the `s3-credentials` secret.
+  Switching it off is a later change, once the backfill has run everywhere.
+- **Backfill in `suite`.** After `suite apply` or `suite upgrade` applies a release with Docs
+  enabled, the CLI runs `manage.py migrate_documents` in the backend pod: a dry run, then the
+  real run, then reruns with `--retry-failed` until no document fails. The command is idempotent
+  (table `impress_document_migration`), so it runs on every apply and finds zero documents on a
+  fresh install. The result is recorded as `docs_yhub_migrated` in `.suite-state.json`.
+- **Rollback.** After 6.0 the content lives in the yhub database. A code rollback to 5.7 cannot
+  bring back edits made since, so the real rollback is the pre-upgrade snapshot restore
+  ([ADR-034](#adr-034-suite-upgrade-backup-gated-snapshot-diff-apply-health-rollback)). The docs bucket and the
+  legacy `{id}/file` objects are never deleted or pruned.
+- **REST API.** The Docs REST API accepts sessions only since 5.7 (OIDC resource server access is
+  deny-by-default and OwnSuite sets no `OIDC_RESOURCE_SERVER_*`). The e2e already logs in with a
+  session, so nothing changes.
+
+**Consequences.** Docs gains one pod and one database. Collaboration depends on Valkey being up,
+and a Valkey restart costs at most 10 seconds of edits. Upgrading from 5.7 is one step to 6.0.2
+(Django migrate, yhub init-db, backfill); no intermediate release exists. Refines
+[ADR-016](#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split); the
+rollback rule relies on [ADR-006](#adr-006-backups-and-tested-restore).
+Helm 4's `--wait` tracks Jobs and the chart deletes finished Jobs after 30 s, which leaves a
+`NotFound` Job and a hung wait. The four Docs Jobs (`backend-migrate`, `backend-createsuperuser`,
+`jwt-keys`, `yhub-init-db`) therefore keep `ttlSecondsAfterFinished: 1800`, above the 1200 s helm
+timeout. Their names are fixed and the image tag is in the pod template, so an upgrade that
+changes the image within 30 minutes of the previous apply can fail with an immutable field error
+until the old Jobs expire or are deleted.

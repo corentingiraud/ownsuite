@@ -30,8 +30,16 @@ gated on `apps.docs.enabled` and depends, via `needs:`, on the shared infrastruc
   the in-cluster RustFS service; in `external` mode it is your configured S3 endpoint.
 - **SSO** — the `docs` confidential OIDC client (secret derived from the same seed id the app
   reads). The browser hits `https://auth.{domain}`; the backend reaches Keycloak in-cluster.
-- **Real-time collaboration** — the y-provider websocket server, exposed at
-  `/collaboration/ws/` through Traefik; backend and y-provider share a seed-derived secret.
+- **Real-time collaboration** — yhub (Docs 6.0), reached at
+  `wss://docs.{domain}/collaboration/ws/v1/docs` through Traefik. It has its own `yhub` Postgres
+  database and uses Valkey database 13 (prefix `yhub`) for live state, which it writes to Postgres
+  with a 10 second debounce. If Valkey restarts, up to 10 seconds of edits can be lost. Backend and
+  yhub verify each other's tokens with two RSA keys created by a chart job. Before it opens a
+  websocket, yhub asks the backend who the user is and what they may do with the document. It
+  calls `https://docs.{domain}`, so the server must reach its own public name. If the backend
+  does not answer, yhub refuses the connection with a 503. With `tls: selfsigned`, yhub and the
+  y-provider skip certificate checks on that call, as the backend already does for OIDC.
+  y-provider remains only as the document converter. See [ADR-049](decisions.md#adr-049-docs-60-yhub-replaces-y-provider-for-collaboration).
 
 All of it is configured in `helmfile/values/docs.yaml.gotmpl`; nothing secret is committed.
 
@@ -74,7 +82,10 @@ works, with no manual admin-console step.
 `make test-app APP=docs` boots Docs on its own throwaway cluster and checks the whole chain:
 the storage bucket is reachable, the database and login client are created, the pods answer
 over HTTPS, and — the key check — a real login token **creates and reads back a document**
-through the Docs API, proving single sign-on and that data persists. It runs nightly and on
+through the Docs API, proving single sign-on and that data persists. The same user then opens
+the collaboration websocket of a new document and yhub must answer `101 Switching Protocols`.
+That needs the yhub to backend call to work, so the e2e cluster resolves `*.{domain}` to
+Traefik in CoreDNS, as public DNS does on a real server. It runs nightly and on
 any PR that touches Docs (`apps-e2e.yml`); the heavy platform suite (`make test-platform`)
 keeps Docs enabled only as the bucket used by the backup/restore check, not as an app DoD. A
-full browser-driven login + collaboration check is left to a separate job.
+full browser-driven editing check is left to a separate job.

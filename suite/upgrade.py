@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import os
 
-from . import backup, config, manifest, process, spec, state, steps, tunnel
+from . import backup, config, docs_migrate, manifest, process, spec, state, steps, tunnel
 from .errors import SuiteError
 from .process import run
 
@@ -63,6 +63,7 @@ def run_upgrade(args):
                 + ", ".join(failed)
                 + " — rolled back the affected release(s). Re-run once resolved."
             )
+        docs_migrate.run_if_enabled(enabled, ctx.state)
     state.save(ctx.state)
     print("\n==> Upgrade complete — all health checks passed.")
 
