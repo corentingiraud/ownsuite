@@ -201,8 +201,8 @@ The same reasoning applies *within* the Helmfile layer: the full suite e2e (`mak
 ~15 images, 20–45 min, prone to shared-runner flakiness) is too heavy and slow to gate every PR,
 so a change to one component gets an **isolated, fast component e2e** that boots only that
 component's dependencies and runs the **same shared assertion code** as the full suite. The first
-is the PVC backup/restore round-trip ([ADR-032](#adr-032-standardised-reusable-off-site-pvc-backup)),
-which gates PRs in ~3 min via `make test-pvc-backup`; the full suite moved to nightly / `main` /
+is the object backup/restore round-trip ([ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired)),
+which gates PRs in ~3 min via `make test-object-backup`; the full suite moved to nightly / `main` /
 `workflow_dispatch` only. The shared round-trip lives in `helmfile/tests/lib.sh`, so the fast and
 full harnesses can never drift.
 
@@ -732,9 +732,13 @@ default (no password policy); a stricter policy would need the generated passwor
 
 ## ADR-024 — Grist integration: local chart, public-issuer OIDC, PVC storage, off by default
 
+> **Update (ADR-048).** Grist documents no longer live on the `/persist` PVC as the system of
+> record: they are stored in S3 ([ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired)),
+> and `/persist` is a cache. The PVC storage decision in the title is superseded.
+>
 > **Two "honest limits" below have since been closed.** The documents PVC **is** now backed up
-> off-site (the reusable volume copy of [ADR-032](#adr-032-standardised-reusable-off-site-pvc-backup),
-> built on the N-bucket object copy of [ADR-030](#adr-030-n-bucket-off-site-object-backup)), and
+> off-site (first through the volume copy of [ADR-032](#adr-032-standardised-reusable-off-site-pvc-backup),
+> now through the S3 bucket copy of ADR-048, both built on the N-bucket object copy of [ADR-030](#adr-030-n-bucket-off-site-object-backup)), and
 > Grist **is** now booted in CI on its own cluster
 > ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)). The local chart, public-issuer
 > OIDC and off-by-default decisions still hold.
@@ -1061,13 +1065,13 @@ enabled only as the object-bucket vehicle for the object-copy restore check (a f
 DoD) and asserts no application; its restore survivor is decoupled accordingly (see
 [ADR-006](#adr-006-backups-and-tested-restore)/[ADR-017](#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
 
-The fail-fast watchdog, the cert wait, the failure diagnostics and the PVC backup/restore round-trip
+The fail-fast watchdog, the cert wait, the failure diagnostics and the backup/restore helpers
 are **factored into a shared `helmfile/tests/lib.sh`** sourced by `run-e2e.sh`, `run-app-e2e.sh` and
-`run-pvc-backup-e2e.sh`, so the harnesses share one implementation. Locally: `make test-app
+`run-object-backup-e2e.sh`, so the harnesses share one implementation. Locally: `make test-app
 APP=<grist|projects|messages>`.
 
 The workflow is **split like `helmfile-e2e.yml`** (the same cost-aware pattern as the
-[ADR-032 PVC backup gate](#adr-032-standardised-reusable-off-site-pvc-backup)): the full
+[ADR-048 object backup gate](#adr-048-grist-documents-in-s3-pvc-backup-retired)): the full
 five-app matrix runs nightly and on demand, but a **PR that touches an app's chart or
 values boots only *that* app** as a fast, fail-fast gate, so a change to one app gets a real boot
 signal in minutes — not just lint/template — without waiting on (or paying for) the other four. A
@@ -1154,6 +1158,9 @@ is already mandatory for the core apps.
 
 ## ADR-032 — Standardised reusable off-site PVC backup
 
+> **Superseded by [ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired).** Grist documents
+> moved to S3, the `pvc-backup` chart, `make test-pvc-backup` and `run-pvc-backup-e2e.sh` are removed.
+
 **Context.** Some state lives on a **volume**, not S3: Grist keeps its documents as SQLite files in
 `/persist/docs` (no upstream S3 document store), so the N-bucket object copy
 ([ADR-030](#adr-030-n-bucket-off-site-object-backup)) cannot cover it. Rather than bolt a one-off
@@ -1180,7 +1187,7 @@ bound PVC before the app reads it — symmetric with the object restore.
 **Consequences.** Grist's documents are now backed up off-site and restored on recovery, closing the
 last PVC backup gap, and the pattern is ready for any future volume-backed app by adding a list
 entry. An e2e proves a seeded Grist document survives a PVC backup → wipe → restore — packaged as
-an **isolated, fast harness** (`make test-pvc-backup` / `run-pvc-backup-e2e.sh`) that boots only a
+an **isolated, fast harness** (`make test-pvc-backup` / `run-pvc-backup-e2e.sh`, since removed) that boots only a
 single off-site `garage-backup` store and runs the shared `pvc_backup_roundtrip`
 ([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness)), so it gates every PR in ~3 min
 instead of waiting on the heavy full suite. **Trade-off:**
@@ -1858,3 +1865,40 @@ The seam that ADR-003 defined is unchanged; `external` mode still deploys nothin
 [ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3),
 [ADR-006](#adr-006-backups-and-tested-restore), and
 [ADR-017](#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design).
+
+## ADR-048 — Grist documents in S3, PVC backup retired (supersedes ADR-032)
+
+**Context.** [ADR-032](#adr-032-standardised-reusable-off-site-pvc-backup) added a reusable
+`pvc-backup` chart because Grist kept its documents as SQLite files on a volume. Grist can store
+documents in S3 (the `GRIST_DOCS_MINIO_*` settings, aliased `GRIST_DOCS_S3_*` from 1.7.21), which
+puts them in the same store as every other app and under the object copy of
+[ADR-030](#adr-030-n-bucket-off-site-object-backup). The volume then has one consumer left, and
+that consumer no longer needs it as a system of record.
+
+**Decision.** Grist stores documents in a dedicated S3 bucket and `/persist` becomes a cache.
+The `pvc-backup` chart is deleted.
+
+- **Bucket.** `grist-docs` by default, set with the suite.yaml grist option `s3_bucket`
+  (`OWNSUITE_GRIST_S3_BUCKET`). Keys are `docs/<docId>.grist`, with metadata under
+  `docs/assets/unversioned/<docId>/meta.json`. The bucket is added to the off-site object copy.
+- **Versioning is required.** Grist checks at boot that the bucket is versioned and refuses to
+  start otherwise. In `in-cluster` mode the RustFS bootstrap Job enables versioning and asserts it.
+  In `external` mode the operator must pre-create the bucket with versioning enabled. The
+  Scaleway Terraform module does it for buckets it manages.
+- **Wiring.** The chart renders the `GRIST_DOCS_MINIO_*` variables (the old names, which 1.7.16
+  knows) from the Drive-style endpoint, region and `s3-credentials` secret. Grist also needs
+  Valkey (`REDIS_URL`, database 12) to register its document worker. The liveness probe is
+  `/status?docWorkerRegistered=1`, so Grist restarts and registers again if Valkey comes back empty.
+- **Existing installs.** Grist does not upload untouched local documents. An init container runs
+  once (marker file `/persist/.ownsuite-docs-on-s3`) and copies `/persist/docs/*.grist` to the
+  bucket with rclone, without overwriting. Grist then finds the S3 copy and refetches it.
+- **Tests.** `make test-object-backup` (`helmfile/tests/run-object-backup-e2e.sh`, helmfile-e2e
+  job `object-backup`) replaces the PVC gate. It seeds a Grist document object, runs the object
+  copy, wipes RustFS, restores, and checks the content and that versioning is enabled. The app
+  DoD for Grist also checks that a document survives deletion of the `/persist` PVC.
+
+**Consequences.** One backup mechanism (the object copy) covers every app. `/persist` loses its
+backup, so losing it costs only a re-download. Grist now depends on Valkey and on S3 versioning.
+Touches [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness),
+[ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default),
+[ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster) and ADR-032.

@@ -71,7 +71,8 @@ backup:
 apps:
   docs: {}                  # collaborative documents
   drive: {}                 # file storage
-  # grist: {}               # spreadsheets  (options: storage, org, sandbox)
+  # grist: {}               # spreadsheets  (options: s3_bucket, storage, org, sandbox)
+  #                         # s3_bucket must be versioned; pre-create it that way on external S3
   # projects: {}            # kanban
   # calendars: {}           # shared calendars — org free/busy + one-click Meet link
   #                         # (options: sharing_level none|freebusy|read|write)

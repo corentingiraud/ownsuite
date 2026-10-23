@@ -112,7 +112,8 @@ Options go under the app's key; every one is optional.
 |---|---|---|---|
 | [Docs](../understand/docs.md) | `s3_bucket` | `docs-media-storage` | Media/attachments bucket. |
 | [Drive](../understand/drive.md) | `s3_bucket` | `drive-media-storage` | Files bucket. |
-| [Grist](../understand/grist.md) | `storage` | `5Gi` | Size of the `/persist` document volume. |
+| [Grist](../understand/grist.md) | `s3_bucket` | `grist-docs` | Documents bucket (`OWNSUITE_GRIST_S3_BUCKET`). Must be versioned; with external S3, pre-create it with versioning enabled. |
+| | `storage` | `5Gi` | Size of the `/persist` document cache volume. |
 | | `org` | `ownsuite` | Single-tenant team-site name (`GRIST_SINGLE_ORG`). |
 | | `sandbox` | `unsandboxed` | Formula sandbox flavor; `gvisor` on a node configured for it. |
 | [Projects](../understand/projects.md) | `s3_bucket` | `projects-media-storage` | Uploads bucket. |
