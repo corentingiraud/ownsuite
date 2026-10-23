@@ -78,12 +78,13 @@ imageVersions:
   # chart), deployed from the local ./charts/projects chart (ADR-025).
   # renovate: datasource=docker depName=lasuite/projects
   projects: "1.27.10"
-  # Messages (suitenumerique) — the mailbox (ADR-021, ADR-026). No official Helm
-  # chart; the local ./charts/messages chart runs four images that share this one
-  # tag: messages-{backend,frontend,mta-in,mta-out} on ghcr.io (the worker reuses
-  # the backend image). Off by default.
+  # Messages (suitenumerique) — the mailbox (ADR-021, ADR-026, ADR-047). No official
+  # Helm chart; the local ./charts/messages chart runs three images that share this
+  # one tag: messages-{backend,frontend,mta-in} on ghcr.io (the worker reuses the
+  # backend image). Upstream dropped mta-out in 0.10.0 (no image past 0.9.0): the
+  # worker relays to the external smarthost itself. Off by default.
   # renovate: datasource=docker depName=ghcr.io/suitenumerique/messages-backend
-  messages: "0.8.0"
+  messages: "0.10.0"
   # Calendars (suitenumerique) — shared calendars (ADR-043). No official Helm chart; the
   # local ./charts/calendars chart runs three images (the worker reuses the backend). They
   # version independently upstream, so each is pinned separately. Upstream is at v0.1.0

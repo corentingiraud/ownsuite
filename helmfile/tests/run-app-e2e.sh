@@ -95,6 +95,9 @@ case "$APP" in
     # domain) so autojoin matches.
     export OWNSUITE_E2E_USER="${OWNSUITE_E2E_USER:-msg-tester@$OWNSUITE_DOMAIN}"
     export OWNSUITE_E2E_USER_PW="${OWNSUITE_E2E_USER_PW:-$(openssl rand -hex 16)}"
+    # A supplied DKIM key, generated the way `suite apply` does (base64 of the PEM), so
+    # the maildomain Job registers it and the DoD can check the signing key (ADR-047).
+    export OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64="${OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64:-$(openssl genrsa 2048 2>/dev/null | base64 | tr -d '\n')}"
     ;;
 esac
 

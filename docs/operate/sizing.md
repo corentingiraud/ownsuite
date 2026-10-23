@@ -44,14 +44,14 @@ their chart defaults.
 | **Drive** (backend, Celery, frontend) | opt-in | 0.15 vCPU | 0.65 GB | 1.4 GB |
 | **Grist** | opt-in | 0.1 vCPU | 0.25 GB | 1.0 GB |
 | **Projects** | opt-in | 0.1 vCPU | 0.25 GB | 0.75 GB |
-| **Mailbox** (backend, worker, frontend, 2× MTA) | opt-in | 0.45 vCPU | 1.15 GB | 2.3 GB |
+| **Mailbox** (backend, worker, frontend, MTA-in) | opt-in | 0.4 vCPU | 1.09 GB | 2.2 GB |
 | **Meet** (backend, Celery, frontend, LiveKit, Egress) | opt-in | 0.9 vCPU | 1.65 GB | 4.8 GB |
 | **Tchap** (Synapse, MAS, Element Web, HAProxy) | opt-in | 0.3 vCPU | 0.3 GB | 5.1 GB |
 | **Calendars** (backend, worker, frontend, CalDAV) | opt-in | 0.45 vCPU | 1.25 GB | 2.5 GB |
 | **RustFS** object store (only if not using external S3) | no | 0.05 vCPU | 0.13 GB | 0.5 GB |
 
 With Docs, Drive, Grist, Projects and the mailbox enabled, the declared requests total
-**~1.5 vCPU / 4.7 GB** and the memory limits total **~11 GB** — which is why 12 GB is the
+**~1.4 vCPU / 4.6 GB** and the memory limits total **~11 GB** — which is why 12 GB is the
 recommended figure there. **Meet** is the heavy outlier: real-time media (LiveKit) and, during a
 recording, the headless-Chrome **Egress** are CPU- and RAM-hungry and also consume real network
 **bandwidth** that scales with concurrent participants. Its memory *limit* is high (~4.8 GB) but

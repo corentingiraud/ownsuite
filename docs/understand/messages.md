@@ -15,8 +15,8 @@ messages web UI, not Thunderbird/Apple Mail.
 
 Unlike Grist/Projects, messages **is** a `suitenumerique` Django sibling of Docs, so it reuses the
 existing seam rather than a foreign one. Upstream ships container images
-(`ghcr.io/suitenumerique/messages-{backend,frontend,mta-in,mta-out}`, pinned in
-`versions.yaml`) but **no** Helm chart, so OwnSuite ships a thin local chart
+(`ghcr.io/suitenumerique/messages-{backend,frontend,mta-in}`, pinned in
+`versions.yaml`; upstream dropped `mta-out` in 0.10.0) but **no** Helm chart, so OwnSuite ships a thin local chart
 (`helmfile/charts/messages`). It is gated on `apps.messages.enabled` and depends, via `needs:`, on:
 
 | Needs | For |
@@ -37,11 +37,15 @@ existing seam rather than a foreign one. Upstream ships container images
   The `messages` OIDC client is one more `keycloak.clients` entry; the realm-import + upsert Job need
   no template change.
 - **Inbound on port 25, outbound relayed.** The Postfix **MTA-in** receives mail from the internet on
-  **port 25**, exposed by a `LoadBalancer` Service that K3s' ServiceLB binds to the host port. The
-  **MTA-out** **never** sends directly from the VPS IP: `MTA_OUT_MODE=relay`,
-  `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure` to a reputable relay — Scaleway TEM by default (see
-  [Outbound](#outbound-scaleway-tem-or-an-external-relay)). `THROTTLE_*_OUTBOUND_EXTERNAL_RECIPIENTS`
-  are set below the relay's cap so it fails gracefully in-app.
+  **port 25**, exposed by a `LoadBalancer` Service that K3s' ServiceLB binds to the host port.
+  Outbound mail **never** leaves directly from the VPS IP: the Celery **worker** DKIM-signs each
+  message, then hands it to a reputable relay itself (`MTA_OUT_MODE=relay`,
+  `MTA_OUT_SMTP_TLS_SECURITY_LEVEL=secure`), Scaleway TEM by default (see
+  [Outbound](#outbound-scaleway-tem-or-an-external-relay)). There is no outbound MTA container
+  since messages 0.10.0
+  ([ADR-047](decisions.md#adr-047-mailbox-outbound-without-mta-out-the-worker-relays-and-signs-with-the-supplied-dkim-key)).
+  `THROTTLE_*_OUTBOUND_EXTERNAL_RECIPIENTS` are set below the relay's cap so it fails gracefully
+  in-app.
 - **Reuse, per-app instances.** A dedicated CNPG `messages` database; the shared Valkey on DBs 4/5;
   a per-app S3 bucket for mail blobs. The Django `SECRET_KEY`, OIDC client secret and the internal
   `MDA_API_SECRET` (MTA↔MDA) are seed-derived; the
@@ -53,8 +57,9 @@ existing seam rather than a foreign one. Upstream ships container images
 
 ## Outbound: Scaleway TEM or an external relay { #outbound-scaleway-tem-or-an-external-relay }
 
-The MTA-out relays through an authenticated SMTP relay; you own the easy half (receiving) and rent
-the hard half (deliverability). The relay options live under `apps.messages` in `suite.yaml`. On
+The worker relays through an authenticated SMTP relay; you own the easy half (receiving) and rent
+the hard half (deliverability). The connection requires STARTTLS with a valid certificate for the
+relay's host name, so the relay password never crosses the internet in clear. The relay options live under `apps.messages` in `suite.yaml`. On
 the recommended Scaleway host, that relay is **Transactional Email (TEM)**, provisioned by
 `suite apply` when the mailbox is enabled — the relay account lands in the machine state:
 
@@ -83,6 +88,12 @@ A maildomain with `oidc_autojoin=True` auto-creates a user's mailbox on **first 
 same JIT model the `suite` CLI already relies on, so **`suite user add` needs no mailbox-specific
 step**. The one new piece is a one-time **maildomain seed Job** (mirrors `keycloak-config`) that
 creates the domain, enables autojoin, and registers the supplied DKIM key.
+
+messages signs with the domain's active DKIM key **from its database** (it reads no DKIM key
+from the environment) and generates one under its own selector when the domain is created. The
+seed Job therefore stores the key `suite apply` generated under `apps.messages.dkim_selector` and
+deactivates every other key of the domain, so outbound signatures match the DKIM record you
+publish.
 
 ### Calendars integration (only with Calendars enabled)
 
@@ -130,9 +141,9 @@ the **DKIM key** and keeps it in the machine state, provisions the **TEM relay a
 the state on Scaleway (bringing another relay, export
 `OWNSUITE_MTA_RELAY_USERNAME`/`OWNSUITE_MTA_RELAY_PASSWORD` instead), prints the
 MX/SPF/DKIM/DMARC records plus the rDNS/port-25 manual steps, then waits for propagation
-before issuing certificates. Without a relay account (state or environment), mta-out comes up
-**without** an external relay (the hermetic path — local delivery only); set one to send to
-the internet. When it finishes, the webmail answers at `https://messages.{domain}`; log in
+before issuing certificates. Without a relay account (state or environment), mail between
+local mailboxes works but the relay refuses sends to external recipients (the hermetic path);
+set one to send to the internet. When it finishes, the webmail answers at `https://messages.{domain}`; log in
 with a Keycloak user (e.g. one created by `suite user add`), then send a test message to an
 external inbox.
 
@@ -141,12 +152,13 @@ external inbox.
 messages is **template/lint-validated** (`make lint-helm`: `helm lint` the chart standalone +
 kubeconform the rendered manifests, in both relay states), and the CLI's DNS/DKIM logic is
 unit-tested (`tests/test_dns.py`, `tests/test_mail.py`). On top of that, the **hermetic mail
-loopback runs nightly** on its own throwaway cluster — kept separate from Docs and Drive because
-five pods would push the shared runner over its memory ceiling. Run it yourself with
+loopback runs nightly** on its own throwaway cluster, kept separate from Docs and Drive because
+four pods plus the jobs would push the shared runner over its memory ceiling. Run it yourself with
 `make test-app APP=messages`.
 
-- **Hermetic loopback** (nightly): the five components converge, the webmail answers, and a message
-  delivered to a local mailbox reads back via the API. The test injects a message over SMTP to the
+- **Hermetic loopback** (nightly): the four components converge, the supplied DKIM key is the mail
+  domain's only active signing key, the webmail answers, and a message delivered to a local
+  mailbox reads back via the API. The test injects a message over SMTP to the
   inbound MTA and confirms it lands in the recipient's mailbox — the real inbound path
   (MTA → delivery agent → mailbox), with no relay account, so nothing leaves the cluster.
 - **Real external deliverability** (a human, on a real domain + relay account): publish the records,

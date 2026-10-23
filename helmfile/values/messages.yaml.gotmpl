@@ -1,13 +1,13 @@
 # Messages (suitenumerique/messages) — the mailbox (ADR-021, ADR-026). Deployed from
 # the local ./charts/messages chart; OFF by default (gated on apps.messages.enabled at
-# the Helmfile level). Image tag pinned in versions.yaml; all four images share it.
+# the Helmfile level). Image tag pinned in versions.yaml; all three images share it.
 #
 # Like Docs (suitenumerique/impress), messages is a mozilla-django-oidc app, so OIDC
 # uses the external/internal endpoint split: the browser hits Keycloak at
 # https://auth.{domain}, while the backend reaches it in-cluster over plain HTTP. State
 # is external — CNPG `messages` DB, the shared Valkey (DBs 4/5), and an S3 bucket for
 # mail blobs. Every credential comes from a seed-derived Secret via secretKeyRef
-# (ADR-012); the external relay creds + DKIM key are layered in by the installer PR.
+# (ADR-012); the external relay account + DKIM key are overrides supplied by apply.
 {{- $domain := .Values.domain -}}
 {{- $host := printf "messages.%s" $domain -}}
 {{- $mailHost := printf "mail.%s" $domain -}}
@@ -21,10 +21,7 @@
 {{- if .Values.rustfs.enabled -}}
 {{-   $s3Endpoint = printf "http://rustfs-svc.%s.svc.cluster.local:9000" $ns -}}
 {{-   $s3Region = .Values.rustfs.region -}}
-{{- end -}}
-{{- /* Postfix relayhost wants [host]:port (the brackets skip the MX lookup). */ -}}
-{{- $relayParts := splitList ":" .Values.apps.messages.relayHost -}}
-{{- $relayHost := printf "[%s]:%s" (first $relayParts) (last $relayParts) }}
+{{- end }}
 
 image:
   repository: ghcr.io/suitenumerique/messages
@@ -44,6 +41,16 @@ mailDomain: {{ $domain | quote }}
 calendarsProvisioning:
   enabled: true
 mailDomainOrg: {{ $domain | quote }}
+{{- end }}
+
+{{- /* Supplied DKIM key (ADR-047): the maildomain Job registers it as the domain's only
+       active signing key, under the selector the published DKIM TXT record uses. On
+       whenever a key is supplied (`suite apply` always generates one); a raw sync
+       without it keeps upstream's auto-generated key. */}}
+{{- if hasKey (.Values.secretOverrides | default dict) "messages-dkim-key" }}
+dkim:
+  enabled: true
+  selector: {{ .Values.apps.messages.dkimSelector | quote }}
 {{- end }}
 
 ingress:
@@ -96,13 +103,16 @@ components:
       STORAGE_MESSAGE_BLOBS_ENDPOINT_URL: {{ $s3Endpoint | quote }}
       STORAGE_MESSAGE_BLOBS_BUCKET_NAME: {{ .Values.objectStorage.messagesBucket | quote }}
       STORAGE_MESSAGE_BLOBS_REGION_NAME: {{ $s3Region | quote }}
-      # --- Outbound: hand off to the in-cluster mta-out, which relays externally
-      #     (the external relay account is configured on mta-out by the installer PR).
-      #     TLS "may" because the worker->mta-out hop uses the MTA's self-signed cert.
+      # --- Outbound (ADR-021, ADR-047): the worker relays straight to the external
+      #     smarthost (upstream removed mta-out in 0.10.0), never direct from the VPS
+      #     IP. The worker DKIM-signs before handing off (the DKIMKey row the
+      #     maildomain Job registers). TLS "secure" (mandatory STARTTLS + CA chain +
+      #     hostname check): this hop now carries the relay password over the internet.
+      #     The relay account is only wired once supplied (relayConfigured); until then
+      #     the relay refuses external sends, local delivery stays internal.
       MTA_OUT_MODE: relay
-      MTA_OUT_RELAY_HOST: messages-mta-out:587
-      MTA_OUT_RELAY_USERNAME: messages
-      MTA_OUT_SMTP_TLS_SECURITY_LEVEL: may
+      MTA_OUT_RELAY_HOST: {{ .Values.apps.messages.relayHost | quote }}
+      MTA_OUT_SMTP_TLS_SECURITY_LEVEL: secure
       {{- if .Values.apps.calendars.enabled }}
       {{- /* Calendars integration, return path (issue #109): let a mailbox see/accept
              calendar invitations. Messages' CalDAV client hits Calendars' /caldav Django
@@ -145,10 +155,15 @@ components:
       - name: SALT_KEY
         secretName: messages-secrets
         secretKey: SALT_KEY
-      # The worker authenticates to mta-out with the internal SMTP password.
+      {{- if .Values.apps.messages.relayConfigured }}
+      # The external relay account (ADR-021), only once the operator supplied one.
+      - name: MTA_OUT_RELAY_USERNAME
+        secretName: messages-secrets
+        secretKey: SMTP_RELAY_USERNAME
       - name: MTA_OUT_RELAY_PASSWORD
         secretName: messages-secrets
-        secretKey: SMTP_INTERNAL_PASSWORD
+        secretKey: SMTP_RELAY_PASSWORD
+      {{- end }}
       # S3 key/secret are the shared seed-derived pair (one key owns every app bucket).
       - name: STORAGE_MESSAGE_BLOBS_ACCESS_KEY
         secretName: s3-credentials
@@ -180,30 +195,3 @@ components:
       - name: MDA_API_SECRET
         secretName: messages-secrets
         secretKey: MDA_API_SECRET
-  mta-out:
-    env:
-      MYHOSTNAME: {{ $mailHost | quote }}
-      # Internal submission auth — the worker logs in here with the same credentials.
-      SMTP_USERNAME: messages
-      {{- if .Values.apps.messages.relayConfigured }}
-      # External relay (ADR-021) — only once the operator has supplied an account.
-      # Until then mta-out runs without it (the hermetic e2e: local delivery only).
-      SMTP_RELAY_HOST: {{ $relayHost | quote }}
-      MESSAGES_DKIM_SELECTOR: {{ .Values.apps.messages.dkimSelector | quote }}
-      MESSAGES_DKIM_DOMAINS: {{ $domain | quote }}
-      {{- end }}
-    secretEnv:
-      - name: SMTP_PASSWORD
-        secretName: messages-secrets
-        secretKey: SMTP_INTERNAL_PASSWORD
-      {{- if .Values.apps.messages.relayConfigured }}
-      - name: SMTP_RELAY_USERNAME
-        secretName: messages-secrets
-        secretKey: SMTP_RELAY_USERNAME
-      - name: SMTP_RELAY_PASSWORD
-        secretName: messages-secrets
-        secretKey: SMTP_RELAY_PASSWORD
-      - name: MESSAGES_DKIM_PRIVATE_KEY_B64
-        secretName: messages-secrets
-        secretKey: DKIM_PRIVATE_KEY_B64
-      {{- end }}
