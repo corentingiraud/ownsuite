@@ -50,6 +50,33 @@ or let it prompt you. Add `--no-tunnel` if a tunnel is already open or you have 
     backup passphrase safe, or a restore won't be possible. See
     [Backups & restore](backups.md).
 
+## Version notes
+
+### RustFS 1.0.0-beta.8 to 1.0.3
+
+This release moves the in-cluster object store (`objectStorage.mode: in-cluster`) from chart 0.8.0
+(app 1.0.0-beta.8) to chart 1.0.3 (app 1.0.3). External S3 setups are not affected.
+
+What we checked, from the upstream release notes (`1.0.0-rc.1` to `1.0.3`) and a render of both
+chart versions with our values:
+
+- The rendered manifests differ only by the image tag, the chart labels and an added
+  `serviceAccountName`. The data mount (`/data`), the `RUSTFS_*` environment and the credential
+  Secret (`s3-credentials`) are unchanged, so existing credentials keep working.
+- No release note announces an on-disk format change or a data migration for an existing
+  single-node volume. The only breaking change listed since beta.8 is the console CORS default
+  (beta.2, already in effect); our console is disabled.
+- The MinIO import code that appears in the notes is for migrating from MinIO and does not touch
+  a RustFS volume.
+- Upstream CI tests upgrades from `1.0.0-rc.5` onwards. A direct jump from beta.8 is not in
+  that matrix, so treat it as untested upstream.
+
+What to do: run `suite upgrade`. The pre-upgrade snapshot includes the off-site copy of the
+object store, which is the rollback path. If RustFS fails to start on the existing volume after
+the upgrade, or objects are missing, do not retry in a loop: wipe the in-cluster store volume and
+run [`suite restore`](backups.md#restore-tested) to rebuild it from the off-site copy taken just
+before. The chart now sets `serviceAccountName: rustfs`; nothing to configure.
+
 ## Surgical change to one component
 
 Sometimes you need to reapply **one** component — say you changed a single app's option in

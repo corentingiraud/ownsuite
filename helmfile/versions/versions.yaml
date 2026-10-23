@@ -7,20 +7,20 @@
 
 chartVersions:
   # renovate: datasource=helm registryUrl=https://charts.jetstack.io depName=cert-manager
-  certManager: "v1.20.3"
+  certManager: "v1.21.2"
   # renovate: datasource=helm registryUrl=https://cloudnative-pg.github.io/charts depName=cloudnative-pg
-  cnpgOperator: "0.29.0"
+  cnpgOperator: "0.29.1"
   # renovate: datasource=helm registryUrl=https://codecentric.github.io/helm-charts depName=keycloakx
-  keycloakx: "7.2.0"
+  keycloakx: "7.4.0"
   # renovate: datasource=helm registryUrl=https://groundhog2k.github.io/helm-charts depName=valkey
-  valkey: "2.3.0"
+  valkey: "2.3.4"
   # In-cluster object store: RustFS (ADR-046), first-party chart at charts.rustfs.com.
-  # The chart appVersion tracks the app (chart 0.N.0 -> app 1.0.0-beta.N). Pin PAST the
+  # The chart version equals the app version since GA (chart 1.0.3 -> app 1.0.3); the image
+  # tag is left empty in the values so it follows the chart's appVersion. Past the
   # secret-logging advisories (GHSA-r54g-49rx-98cr fixed in app 1.0.0-alpha.82;
-  # GHSA-8cm2-h255-v749 credential-log fix in 1.0.0-beta.2) — 0.8.0/beta.8 clears both.
-  # RustFS is pre-1.0 (beta); revisit the pin at GA.
+  # GHSA-8cm2-h255-v749 credential-log fix in 1.0.0-beta.2).
   # renovate: datasource=helm registryUrl=https://charts.rustfs.com depName=rustfs
-  rustfs: "0.8.0"
+  rustfs: "1.0.3"
   # Docs (suitenumerique / impress) — official chart. The chart's appVersion is
   # "latest", so the impress image tags below are pinned independently.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/docs depName=docs
@@ -32,7 +32,7 @@ chartVersions:
   # Meet (suitenumerique / meet) — official chart. Video conferencing (LiveKit).
   # The chart has no appVersion, so the meet image tags below are pinned separately.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/meet depName=meet
-  meet: "0.0.26"
+  meet: "0.0.29"
   # LiveKit media server (SFU) — official chart. The chart lags the server binary
   # (chart frozen at 1.9.0 since 2025-06, while the server is already 1.13.x), so we
   # keep the latest published chart here but override the image tag below to a recent
@@ -40,8 +40,8 @@ chartVersions:
   # meet-frontend client SDK requires, which breaks live sessions.
   # renovate: datasource=helm registryUrl=https://helm.livekit.io depName=livekit-server
   livekit: "1.9.0"
-  # LiveKit Egress — official chart, records Meet rooms to S3. Image tag defaults to
-  # the chart appVersion.
+  # LiveKit Egress — official chart, records Meet rooms to S3. The chart (1.8.4, latest)
+  # lags the binary, so the image tag is overridden below (imageVersions.livekitEgress).
   # renovate: datasource=helm registryUrl=https://helm.livekit.io depName=egress
   livekitEgress: "1.8.4"
   # Tchap (Matrix/Element) — Element's ess-helm `matrix-stack` chart bundles Synapse +
@@ -55,7 +55,7 @@ chartVersions:
 
 imageVersions:
   # renovate: datasource=docker depName=quay.io/keycloak/keycloak
-  keycloak: "26.6.4"
+  keycloak: "26.8.1"
   # Docs images — keep these three in lockstep with the chart appVersion.
   # renovate: datasource=docker depName=lasuite/impress-backend
   docsBackend: "v5.3.0"
@@ -78,12 +78,13 @@ imageVersions:
   # chart), deployed from the local ./charts/projects chart (ADR-025).
   # renovate: datasource=docker depName=lasuite/projects
   projects: "1.27.12"
-  # Messages (suitenumerique) — the mailbox (ADR-021, ADR-026). No official Helm
-  # chart; the local ./charts/messages chart runs four images that share this one
-  # tag: messages-{backend,frontend,mta-in,mta-out} on ghcr.io (the worker reuses
-  # the backend image). Off by default.
+  # Messages (suitenumerique) — the mailbox (ADR-021, ADR-026, ADR-047). No official
+  # Helm chart; the local ./charts/messages chart runs three images that share this
+  # one tag: messages-{backend,frontend,mta-in} on ghcr.io (the worker reuses the
+  # backend image). Upstream dropped mta-out in 0.10.0 (no image past 0.9.0): the
+  # worker relays to the external smarthost itself. Off by default.
   # renovate: datasource=docker depName=ghcr.io/suitenumerique/messages-backend
-  messages: "0.8.0"
+  messages: "0.10.0"
   # Calendars (suitenumerique) — shared calendars (ADR-043). No official Helm chart; the
   # local ./charts/calendars chart runs three images (the worker reuses the backend). They
   # version independently upstream, so each is pinned separately. Upstream is at v0.1.0
@@ -99,13 +100,16 @@ imageVersions:
   # AI/transcription components (summary, agents) are disabled (replicas 0), so
   # only these two images are pulled. Off by default.
   # renovate: datasource=docker depName=lasuite/meet-backend
-  meetBackend: "v1.22.0"
+  meetBackend: "v1.36.2"
   # renovate: datasource=docker depName=lasuite/meet-frontend
-  meetFrontend: "v1.22.0"
+  meetFrontend: "v1.36.2"
   # LiveKit server image — overrides the lagging chart appVersion (see chartVersions.livekit).
   # Must be >= v1.9.10 for the /rtc/v1 signalling path the meet-frontend client SDK uses.
   # renovate: datasource=docker depName=livekit/livekit-server
-  livekitServer: "v1.13.3"
+  livekitServer: "v1.13.10"
+  # LiveKit Egress image — overrides the lagging chart appVersion (see chartVersions.livekitEgress).
+  # renovate: datasource=docker depName=livekit/egress
+  livekitEgress: "v1.15.0"
   # Tchap — Synapse image (ess-helm chart, ADR-041). We override the chart's stock
   # ghcr.io/element-hq/synapse with dotwee/matrix-synapse-s3, which is that same upstream
   # Synapse plus the `synapse-s3-storage-provider` module baked in (the chart injects the
@@ -126,7 +130,7 @@ imageVersions:
   # rclone image for the off-site object copy CronJob / restore Job (ADR-006/ADR-017),
   # and the RustFS bucket-creation bootstrap Job (ADR-046: `rclone mkdir` per bucket).
   # renovate: datasource=docker depName=rclone/rclone
-  rclone: "1.74.3"
+  rclone: "1.75.2"
   # nginx for the media-proxy chart: the authenticated /media/ download path on Traefik
   # (ADR-016). The upstream apps' media-auth is nginx-coupled (auth_request + X-Original-URL
   # + upstream-vhost) which Traefik forwardAuth cannot satisfy, so a tiny in-cluster nginx
@@ -147,4 +151,4 @@ manifestVersions:
   # that file with the new release's manifest.yaml (the operator + sidecar images are
   # pinned inside it).
   # renovate: datasource=github-releases depName=cloudnative-pg/plugin-barman-cloud
-  barmanCloudPlugin: "v0.13.0"
+  barmanCloudPlugin: "v0.15.1"

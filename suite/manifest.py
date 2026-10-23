@@ -25,6 +25,8 @@ class App:
     options: dict[str, tuple[str, str]] = field(default_factory=dict)
     # Terraform/ansible firewall flags this app needs (cloud SG + host ufw).
     tf_flags: tuple[str, ...] = ()
+    # The app's `s3_bucket` must be created with object versioning (Grist).
+    versioned_bucket: bool = False
 
     @property
     def env_key(self) -> str:
@@ -51,7 +53,9 @@ APPS: dict[str, App] = {
         App(
             "grist", "Grist (spreadsheets/tables)",
             ("grist",),
+            versioned_bucket=True,
             options={
+                "s3_bucket": ("OWNSUITE_GRIST_S3_BUCKET", "grist-docs"),
                 "storage": ("OWNSUITE_GRIST_STORAGE", "5Gi"),
                 "org": ("OWNSUITE_GRIST_ORG", "ownsuite"),
                 "sandbox": ("OWNSUITE_GRIST_SANDBOX", "unsandboxed"),

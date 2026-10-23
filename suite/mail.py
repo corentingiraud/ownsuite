@@ -1,15 +1,16 @@
-"""Mailbox helpers (Phase 6, ADR-026): the DKIM signing key.
+"""Mailbox helpers (Phase 6, ADR-026, ADR-047): the DKIM signing key.
 
-We chose the *supplied* DKIM model — messages signs outbound with a key we hand it
-(`MESSAGES_DKIM_PRIVATE_KEY_B64`) rather than one it generates in its DB, so the
-installer can print the public-key DNS record up front. The key is generated once
-with `openssl` (the installer already shells out to ssh/kubectl/helmfile, so this
-adds no Python dependency) and then carried like the seed: held in the environment
-for the run, never written to the repo. Re-export it (or it is regenerated and the
-DKIM TXT changes) on the next run.
+We chose the *supplied* DKIM model: messages signs outbound with a key we hand it
+rather than the one it generates in its DB, so the installer can print the
+public-key DNS record up front. messages reads DKIM keys only from its DB, so the
+chart's maildomain Job registers this key as the domain's only active one
+(ADR-047). The key is generated once with `openssl` (the installer already shells
+out to ssh/kubectl/helmfile, so this adds no Python dependency) and kept in the
+machine state, never written to the repo; a lost key is regenerated and the DKIM TXT
+changes.
 
-`MESSAGES_DKIM_PRIVATE_KEY_B64` is base64 of the PEM private key; the DNS `p=` value
-is base64 of the DER SubjectPublicKeyInfo, derived from that same private key.
+`OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64` is base64 of the PEM private key; the DNS `p=`
+value is base64 of the DER SubjectPublicKeyInfo, derived from that same private key.
 """
 
 from __future__ import annotations

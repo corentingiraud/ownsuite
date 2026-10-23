@@ -13,6 +13,7 @@ Shells out to kubectl/curl with the ambient KUBECONFIG; reuses the token/HTTP
 helpers from test_platform (same directory, same conventions).
 """
 
+import base64
 import html
 import json
 import os
@@ -126,6 +127,114 @@ def test_grist_ui_reachable():
     _ui_reachable(app_host("grist"))
 
 
+def _grist_api(host, token, method, path, body=None):
+    """Call the Grist REST API through the ingress; returns the decoded JSON."""
+    args = ["-X", method, "-H", f"Authorization: Bearer {token}"]
+    if body is not None:
+        args += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
+    return json.loads(curl(host, f"https://{host}/api{path}", *args))
+
+
+@only("grist")
+def test_grist_document_survives_pvc_loss():
+    """A Grist document is stored in S3, not only on the PVC: after the Grist volume is
+    deleted and recreated empty, the document is rehydrated from the versioned bucket
+    with its content. Flush pushes the doc to S3 (and snapshots prove the versioned
+    bucket); the PVC is then dropped (scale 0, delete, recreate, scale 1)."""
+    host = app_host("grist")
+    api_key = derive_secret("grist-e2e-api-key", 32)
+
+    # The install admin (GRIST_DEFAULT_EMAIL) owns the single org. Give it an API key
+    # directly in the Grist database (CNPG primary), since SSO has no non-interactive path.
+    def find_primary():
+        name = kubectl(
+            "-n", NAMESPACE, "get", "pods",
+            "-l", "cnpg.io/cluster=ownsuite-pg,cnpg.io/instanceRole=primary",
+            "-o", "jsonpath={.items[0].metadata.name}",
+        ).stdout.strip()
+        assert name, "no CNPG primary pod"
+        return name
+
+    primary = retry(find_primary)
+    admin_email = os.environ.get("OWNSUITE_ADMIN_EMAIL", "admin@example.org").lower()
+
+    def set_api_key():
+        out = kubectl(
+            "-n", NAMESPACE, "exec", primary, "-c", "postgres", "--",
+            "psql", "-U", "postgres", "-d", "grist", "-tA", "-c",
+            f"UPDATE users SET api_key = '{api_key}' FROM logins "
+            f"WHERE logins.user_id = users.id AND logins.email = '{admin_email}'",
+        ).stdout
+        assert "UPDATE 1" in out, f"admin user not found in Grist DB ({out!r})"
+
+    retry(set_api_key, attempts=40, delay=3)
+
+    workspaces = retry(
+        lambda: _grist_api(host, api_key, "GET", "/orgs/current/workspaces"),
+        attempts=40, delay=3,
+    )
+    assert workspaces, "no workspace in the Grist org"
+    doc_id = _grist_api(
+        host, api_key, "POST", f"/workspaces/{workspaces[0]['id']}/docs",
+        {"name": "ownsuite-e2e-rehydrate"},
+    )
+    marker = "ownsuite-rehydrated"
+    try:
+        # A fresh document ships with Table1 (columns A, B, C).
+        _grist_api(host, api_key, "POST", f"/docs/{doc_id}/tables/Table1/records",
+                   {"records": [{"fields": {"A": marker}}]})
+
+        def flushed():
+            # flush answers false when the doc is not open; the write above opens it.
+            assert _grist_api(host, api_key, "POST", f"/docs/{doc_id}/flush") is True
+            snaps = _grist_api(host, api_key, "GET", f"/docs/{doc_id}/snapshots")
+            assert snaps["snapshots"], "no snapshot: doc not uploaded to the versioned bucket"
+
+        retry(flushed, attempts=40, delay=3)
+
+        # Lose the volume: the only local copy of the document goes with it.
+        pvc_json = json.loads(kubectl(
+            "-n", NAMESPACE, "get", "pvc", "grist-persist", "-o", "json").stdout)
+        pvc_spec = pvc_json["spec"]
+        fresh_pvc = {
+            "apiVersion": "v1", "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "name": "grist-persist",
+                "labels": pvc_json["metadata"].get("labels", {}),
+                "annotations": {"helm.sh/resource-policy": "keep"},
+            },
+            "spec": {
+                "accessModes": pvc_spec["accessModes"],
+                "resources": pvc_spec["resources"],
+                **({"storageClassName": pvc_spec["storageClassName"]}
+                   if pvc_spec.get("storageClassName") else {}),
+            },
+        }
+        kubectl("-n", NAMESPACE, "scale", "deployment/grist", "--replicas=0")
+        kubectl("-n", NAMESPACE, "wait", "--for=delete", "pod",
+                "-l", "app.kubernetes.io/name=grist", "--timeout=180s")
+        kubectl("-n", NAMESPACE, "delete", "pvc", "grist-persist", "--timeout=180s")
+        with tempfile.NamedTemporaryFile("w", suffix=".json") as f:
+            json.dump(fresh_pvc, f)
+            f.flush()
+            kubectl("-n", NAMESPACE, "apply", "-f", f.name)
+        kubectl("-n", NAMESPACE, "scale", "deployment/grist", "--replicas=1")
+        kubectl("-n", NAMESPACE, "rollout", "status", "deployment/grist", "--timeout=300s")
+
+        def read_back():
+            recs = _grist_api(host, api_key, "GET", f"/docs/{doc_id}/tables/Table1/records")
+            values = [r["fields"].get("A") for r in recs["records"]]
+            assert marker in values, f"document not rehydrated from S3 (A={values!r})"
+
+        retry(read_back, attempts=60, delay=3)
+    finally:
+        # Best effort: leave no e2e document behind for the other grist tests.
+        try:
+            _grist_api(host, api_key, "DELETE", f"/docs/{doc_id}")
+        except Exception:  # noqa: BLE001
+            pass
+
+
 # --- Projects ----------------------------------------------------------------
 
 
@@ -157,8 +266,9 @@ def test_messages_database_applied():
 
 @only("messages")
 def test_messages_pods_ready():
-    """The four serving components reach Ready; the worker (no port/probe) is Running."""
-    for component in ("backend", "frontend", "mta-in", "mta-out"):
+    """The three serving components reach Ready; the worker (no port/probe) is Running.
+    There is no mta-out since 0.10.0: the worker relays outbound itself (ADR-047)."""
+    for component in ("backend", "frontend", "mta-in"):
         _pod_ready("messages", component=component)
     phase = kubectl(
         "-n", NAMESPACE, "get", "pods",
@@ -166,6 +276,38 @@ def test_messages_pods_ready():
         "-o", "jsonpath={.items[*].status.phase}",
     ).stdout
     assert "Running" in phase, f"messages worker not Running ({phase!r})"
+
+
+@only("messages")
+@pytest.mark.skipif(
+    not os.environ.get("OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64"),
+    reason="needs a supplied DKIM key (OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64)",
+)
+def test_messages_signs_with_supplied_dkim_key():
+    """Outbound DKIM (ADR-047): the worker signs with the mail domain's active DKIMKey
+    row, so the maildomain Job must make the supplied key, under the configured
+    selector, the domain's ONLY active key. Its public half is what `suite apply`
+    publishes as the DKIM TXT record, derived here the same way (suite/mail.py)."""
+    pem = base64.b64decode(os.environ["OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64"])
+    der = subprocess.run(
+        ["openssl", "rsa", "-pubout", "-outform", "DER"],
+        input=pem, capture_output=True, check=True,
+    ).stdout
+    expected = [os.environ.get("OWNSUITE_MTA_DKIM_SELECTOR", "ownsuite"),
+                base64.b64encode(der).decode()]
+    script = (
+        "from core.models import MailDomain\n"
+        f"d = MailDomain.objects.get(name='{DOMAIN}')\n"
+        "for k in d.dkim_keys.filter(is_active=True):\n"
+        "    print('ACTIVE', k.selector, k.public_key)\n"
+    )
+    res = kubectl(
+        "-n", NAMESPACE, "exec", "deploy/messages-backend", "--",
+        "python", "manage.py", "shell", "-c", script,
+    )
+    active = [line.split()[1:] for line in res.stdout.splitlines()
+              if line.startswith("ACTIVE ")]
+    assert active == [expected], res.stdout + res.stderr
 
 
 @only("messages")

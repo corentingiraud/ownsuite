@@ -13,6 +13,14 @@ Most apps need a single /media/ path + one media-auth endpoint (docs, drive). So
 so the config is driven by a `locations` list. When it is unset we synthesise a single
 entry from the legacy authPath/mediaPath/forceDownload keys — identical to before.
 */}}
+{{- /*
+External S3 over TLS: by default (s3IPv4Only) the S3 host is resolved at request time by an
+IPv4-only resolver (`ipv6=off`) through a variable proxy_pass, so an IPv4-only node never
+tries the AAAA records ("Network unreachable" + "upstream temporarily disabled", issue #78).
+A variable proxy_pass does not strip the location prefix, hence the explicit rewrite.
+Set s3IPv4Only=false on dual-stack nodes to use the plain static proxy_pass.
+*/}}
+{{- $ipv4Only := and (eq .Values.s3Scheme "https") .Values.s3IPv4Only -}}
 {{- $locations := .Values.locations | default (list (dict "path" (.Values.mediaPath | default "/media/") "authPath" .Values.authPath "forceDownload" .Values.forceDownload)) -}}
 apiVersion: v1
 kind: ConfigMap
@@ -26,6 +34,11 @@ data:
     server {
         listen 8080;
         server_name _;
+    {{- if $ipv4Only }}
+
+        # Re-resolve the external S3 host over IPv4 only (see the note on s3IPv4Only).
+        resolver {{ .Values.resolver }} ipv6=off valid=30s;
+    {{- end }}
 
         location = /healthz {
             return 200 "ok";
@@ -55,7 +68,13 @@ data:
             #     both map to <bucket>/<key> (preview/ is a delivery marker, not a key).
             # The upstream Host MUST also match what the backend signed against (its
             # AWS_S3_ENDPOINT_URL), or the store rejects the signature.
+            {{- if $ipv4Only }}
+            set $s3_upstream {{ $.Values.s3Scheme }}://{{ $.Values.s3Host }}:{{ $.Values.s3Port }};
+            rewrite ^{{ $loc.path }}(.*)$ /{{ $.Values.bucket }}/{{ $loc.keyPrefix | default "" }}$1 break;
+            proxy_pass $s3_upstream;
+            {{- else }}
             proxy_pass {{ $.Values.s3Scheme }}://{{ $.Values.s3Host }}:{{ $.Values.s3Port }}/{{ $.Values.bucket }}/{{ $loc.keyPrefix | default "" }};
+            {{- end }}
             proxy_set_header Host {{ $.Values.s3HostHeader }};
             {{- if eq $.Values.s3Scheme "https" }}
             # External S3 over TLS: send SNI matching the signed host.

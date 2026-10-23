@@ -246,11 +246,15 @@ def tfvars_for(spec: Spec) -> dict:
     apps = spec.enabled_apps()
     external_storage = spec.section("object_storage").get("mode", "external") != "in-cluster"
     buckets = []
+    versioned = []
     if external_storage:
         for name in apps:
             opt = manifest.APPS[name].options.get("s3_bucket")
             if opt:
-                buckets.append(_env_str(spec.app_options(name).get("s3_bucket", opt[1])))
+                b = _env_str(spec.app_options(name).get("s3_bucket", opt[1]))
+                buckets.append(b)
+                if manifest.APPS[name].versioned_bucket:
+                    versioned.append(b)
     backup = spec.section("backup")
     # A backup bucket is provisioned only when off-site backups are on, external,
     # and `backup.provision` is true. Provisioning is decoupled from endpoint
@@ -270,6 +274,7 @@ def tfvars_for(spec: Spec) -> dict:
         "enable_meet": "meet" in apps,
         "enable_meet_turn": "meet" in apps and turn,
         "bucket_names": buckets,
+        "versioned_bucket_names": versioned,
         "backup_bucket_name": _env_str(backup.get("bucket", "ownsuite-backups"))
         if provision_backup else "",
     }

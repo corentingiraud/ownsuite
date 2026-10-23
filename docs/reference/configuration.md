@@ -112,14 +112,15 @@ Options go under the app's key; every one is optional.
 |---|---|---|---|
 | [Docs](../understand/docs.md) | `s3_bucket` | `docs-media-storage` | Media/attachments bucket. |
 | [Drive](../understand/drive.md) | `s3_bucket` | `drive-media-storage` | Files bucket. |
-| [Grist](../understand/grist.md) | `storage` | `5Gi` | Size of the `/persist` document volume. |
+| [Grist](../understand/grist.md) | `s3_bucket` | `grist-docs` | Documents bucket (`OWNSUITE_GRIST_S3_BUCKET`). Must be versioned; with external S3, pre-create it with versioning enabled. |
+| | `storage` | `5Gi` | Size of the `/persist` document cache volume. |
 | | `org` | `ownsuite` | Single-tenant team-site name (`GRIST_SINGLE_ORG`). |
 | | `sandbox` | `unsandboxed` | Formula sandbox flavor; `gvisor` on a node configured for it. |
 | [Projects](../understand/projects.md) | `s3_bucket` | `projects-media-storage` | Uploads bucket. |
 | [Mailbox](../understand/messages.md) | `s3_bucket` | `messages-media-storage` | Message blobs/attachments bucket. |
-| | `relay_host` | `smtp.tem.scaleway.com:2587` | SMTP relay (`host:port`, STARTTLS). Default is Scaleway TEM; any authenticated relay works. |
+| | `relay_host` | `smtp.tem.scaleway.com:2587` | SMTP relay (`host:port`, STARTTLS with a verified certificate). Default is Scaleway TEM; any authenticated relay works. |
 | | `spf_include` | `_spf.tem.scaleway.com` | The relay's SPF include for the SPF TXT record. |
-| | `dkim_selector` | `ownsuite` | DKIM selector — must match the published `_domainkey` TXT record. |
+| | `dkim_selector` | `ownsuite` | DKIM selector the mailbox signs with; `suite apply` prints the matching `_domainkey` TXT record. |
 | | `dmarc_rua` | _(empty)_ | Optional DMARC aggregate-report mailbox. |
 | [Meet](../understand/meet.md) | `s3_bucket` | `meet-recordings` | Room-recordings bucket. |
 | | `turn` | `false` | TURN on `5349/tcp` for clients behind strict firewalls. |
@@ -188,7 +189,8 @@ A few advanced knobs have no `suite.yaml` key and are set by export only:
     One relay account powers both the mailbox and the transactional email other apps
     send (Meet recording links, Docs/Drive invitations, Keycloak account emails). Until
     a relay account exists (provisioned into the state, or exported), transactional
-    email is simply skipped and `mta-out` runs local-delivery only.
+    email is simply skipped, and the mailbox delivers between local mailboxes only (its
+    sends to external recipients fail until a relay account is set).
 
 !!! note "CI / test-only variables"
     `OWNSUITE_KC_*`, `OWNSUITE_E2E_*`, `OWNSUITE_K3S_IMAGE` and `OWNSUITE_CONFIG` (an

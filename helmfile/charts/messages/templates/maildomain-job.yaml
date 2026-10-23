@@ -7,6 +7,13 @@ login (the JIT path, like the rest of `suite user add`, ADR-005). A post-install
 post-upgrade hook so it runs after the schema is migrated (the pre-* migrate hook);
 `before-hook-creation` lets it re-run every sync and the upsert is idempotent. Uses
 the backend image + the backend's DB env, so it stays in lockstep with the app.
+
+With dkim.enabled it also registers the supplied DKIM key (ADR-047). The worker signs
+outbound mail with the domain's most recent ACTIVE DKIMKey row; creating the domain
+auto-generates one under the upstream default selector, whose public half nobody
+publishes. So the Job upserts the supplied key (keyed on selector + public key) and
+deactivates every other key of the domain: signatures then match the DKIM TXT record
+`suite apply` prints. The key is normalised to PKCS#8 PEM like upstream's own keys.
 */}}
 {{- $backend := .Values.components.backend }}
 apiVersion: batch/v1
@@ -54,6 +61,24 @@ spec:
               {{- end }}
               d.save(update_fields=fields)
               print("maildomain {{ .Values.mailDomain }}:", "created" if created else "exists")
+              {{- if .Values.dkim.enabled }}
+              import base64, os
+              from cryptography.hazmat.primitives import serialization as ser
+              from core.enums import DKIMAlgorithmChoices
+              from core.models import DKIMKey
+              key = ser.load_pem_private_key(base64.b64decode(os.environ["DKIM_PRIVATE_KEY_B64"]), password=None)
+              private_pem = key.private_bytes(ser.Encoding.PEM, ser.PrivateFormat.PKCS8, ser.NoEncryption()).decode()
+              public_b64 = base64.b64encode(key.public_key().public_bytes(ser.Encoding.DER, ser.PublicFormat.SubjectPublicKeyInfo)).decode()
+              selector = os.environ["DKIM_SELECTOR"]
+              k = DKIMKey.objects.filter(domain=d, selector=selector, public_key=public_b64).first()
+              if k is None:
+                  k = DKIMKey.objects.create(domain=d, selector=selector, private_key=private_pem, public_key=public_b64, algorithm=DKIMAlgorithmChoices.RSA, key_size=key.key_size, is_active=True)
+              elif not k.is_active:
+                  k.is_active = True
+                  k.save(update_fields=["is_active"])
+              retired = DKIMKey.objects.filter(domain=d, is_active=True).exclude(pk=k.pk).update(is_active=False)
+              print("dkim key", selector, "active; other keys deactivated:", retired)
+              {{- end }}
           env:
             {{- range $k, $v := $backend.env }}
             - name: {{ $k }}
@@ -65,6 +90,15 @@ spec:
                 secretKeyRef:
                   name: {{ .secretName }}
                   key: {{ .secretKey }}
+            {{- end }}
+            {{- if .Values.dkim.enabled }}
+            - name: DKIM_SELECTOR
+              value: {{ .Values.dkim.selector | quote }}
+            - name: DKIM_PRIVATE_KEY_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dkim.secretName }}
+                  key: {{ .Values.dkim.secretKey }}
             {{- end }}
           resources:
             {{- toYaml $.Values.resources | nindent 12 }}

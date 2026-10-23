@@ -14,6 +14,13 @@ persists into its internal .rustfs.sys bucket at first boot survive restarts.
 {{- if .Values.apps.projects.enabled }}{{ $buckets = append $buckets .Values.objectStorage.projectsBucket }}{{ end -}}
 {{- if .Values.apps.meet.enabled }}{{ $buckets = append $buckets .Values.objectStorage.meetBucket }}{{ end -}}
 {{- if .Values.apps.tchap.enabled }}{{ $buckets = append $buckets .Values.objectStorage.tchapBucket }}{{ end -}}
+{{- /* Buckets that also need S3 versioning: Grist stores document history as object
+       versions and refuses to boot on an unversioned bucket (ADR-047). */ -}}
+{{- $versioned := list -}}
+{{- if .Values.apps.grist.enabled }}
+{{-   $buckets = append $buckets .Values.objectStorage.gristBucket -}}
+{{-   $versioned = append $versioned .Values.objectStorage.gristBucket -}}
+{{- end }}
 
 # Single node: standalone, not distributed. The image tag is left empty so it tracks
 # the chart's pinned appVersion (chartVersions.rustfs -> app version, ADR-046).
@@ -48,7 +55,7 @@ service:
 ingress:
   enabled: false
 
-# Lightweight (Rust), matching the old Garage footprint; bump if media throughput grows.
+# Lightweight (Rust), small footprint; bump if media throughput grows.
 resources:
   requests:
     cpu: 50m
@@ -58,7 +65,8 @@ resources:
 
 # Bucket creation — the one gap the upstream chart leaves (no defaultBuckets). A small
 # post-install/post-upgrade hook Job runs `rclone mkdir` (idempotent for S3) per app
-# bucket against the RustFS S3 API. No pods/exec, no RBAC, no CLI-in-pod. `helm --wait`
+# bucket against the RustFS S3 API, then turns versioning on for the buckets that need
+# it (`rclone backend versioning`, idempotent; ADR-047). No pods/exec, no RBAC, no CLI-in-pod. `helm --wait`
 # blocks the release (and dependents like Docs) on the Job completing, so buckets exist
 # before any app runs. rclone is the image we already pin for the off-site copy.
 # Injected via the chart's extraManifests (rendered through `tpl`); the manifest is
@@ -98,10 +106,18 @@ extraManifests:
                     echo "Creating bucket $b (idempotent)..."
                     rclone mkdir "rustfs:$b"
                   done
+                  for b in $VERSIONED_BUCKETS; do
+                    echo "Enabling versioning on bucket $b (idempotent)..."
+                    status="$(rclone backend versioning "rustfs:$b" Enabled | tr -d '"[:space:]')"
+                    echo "  versioning: $status"
+                    [ "$status" = "Enabled" ] || { echo "versioning not enabled on $b" >&2; exit 1; }
+                  done
                   echo "RustFS bucket bootstrap complete."
               env:
                 - name: BUCKETS
                   value: {{ $buckets | join " " | quote }}
+                - name: VERSIONED_BUCKETS
+                  value: {{ $versioned | join " " | quote }}
                 - name: RCLONE_CONFIG_RUSTFS_TYPE
                   value: s3
                 - name: RCLONE_CONFIG_RUSTFS_PROVIDER

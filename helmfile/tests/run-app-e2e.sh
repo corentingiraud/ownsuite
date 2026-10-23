@@ -95,6 +95,9 @@ case "$APP" in
     # domain) so autojoin matches.
     export OWNSUITE_E2E_USER="${OWNSUITE_E2E_USER:-msg-tester@$OWNSUITE_DOMAIN}"
     export OWNSUITE_E2E_USER_PW="${OWNSUITE_E2E_USER_PW:-$(openssl rand -hex 16)}"
+    # A supplied DKIM key, generated the way `suite apply` does (base64 of the PEM), so
+    # the maildomain Job registers it and the DoD can check the signing key (ADR-047).
+    export OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64="${OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64:-$(openssl genrsa 2048 2>/dev/null | base64 | tr -d '\n')}"
     ;;
 esac
 
@@ -117,19 +120,15 @@ cleanup() {
 trap cleanup EXIT
 
 echo "==> Creating k3d cluster '$CLUSTER' for app '$APP' (${OWNSUITE_K3S_IMAGE:-k3d default})"
-k3d cluster create "$CLUSTER" \
+create_cluster_with_retry "$CLUSTER" \
   "${IMAGE_ARGS[@]}" \
   --port "80:80@loadbalancer" \
-  --port "443:443@loadbalancer" \
-  --wait --timeout 180s
-
-KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
-export KUBECONFIG
+  --port "443:443@loadbalancer"
 
 # Plain `helmfile sync` (not `suite install`, which verifies Docs over HTTPS — Docs is
 # off here). pytest resolves each host per-request with `curl --resolve`, so no
 # /etc/hosts entry is needed.
-provision_with_watchdog "app=$APP, issuer=$OWNSUITE_TLS_ISSUER" \
+OWNSUITE_E2E_RECREATE=1 provision_with_watchdog "app=$APP, issuer=$OWNSUITE_TLS_ISSUER" \
   helmfile -f "$HELMFILE" sync
 wait_for_certs "${CERTS[@]}"
 

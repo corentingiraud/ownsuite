@@ -42,6 +42,11 @@ OS/K3s version bumps. Drift is possible on manual edits (mitigated by idempotenc
 
 ## ADR-003 — Pluggable object storage: Garage or external EU S3
 
+> **Status note.** The in-cluster option is now RustFS, not Garage:
+> [ADR-046](#adr-046-in-cluster-object-storage-rustfs-supersedes-adr-015) replaced Garage.
+> The pluggable `in-cluster` / `external` seam decided here is unchanged. The title and
+> text below keep the original wording as history.
+
 **Context.** MinIO (community) is **archived** (February 2026): console removed,
 binaries/images discontinued. Drive can store hundreds of GB.
 
@@ -201,8 +206,8 @@ The same reasoning applies *within* the Helmfile layer: the full suite e2e (`mak
 ~15 images, 20–45 min, prone to shared-runner flakiness) is too heavy and slow to gate every PR,
 so a change to one component gets an **isolated, fast component e2e** that boots only that
 component's dependencies and runs the **same shared assertion code** as the full suite. The first
-is the PVC backup/restore round-trip ([ADR-032](#adr-032-standardised-reusable-off-site-pvc-backup)),
-which gates PRs in ~3 min via `make test-pvc-backup`; the full suite moved to nightly / `main` /
+is the object backup/restore round-trip ([ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired-supersedes-adr-032)),
+which gates PRs in ~3 min via `make test-object-backup`; the full suite moved to nightly / `main` /
 `workflow_dispatch` only. The shared round-trip lives in `helmfile/tests/lib.sh`, so the fast and
 full harnesses can never drift.
 
@@ -407,7 +412,7 @@ credentials, the depth of Keycloak backup, and how to prove the cycle hermetical
 
 **Decision.**
 
-- **PostgreSQL → CNPG Barman Cloud Plugin** ([v0.13.0](https://github.com/cloudnative-pg/plugin-barman-cloud),
+- **PostgreSQL → CNPG Barman Cloud Plugin** ([v0.15.1](https://github.com/cloudnative-pg/plugin-barman-cloud),
   the CNPG-I plugin), not the in-tree `.spec.backup.barmanObjectStore` (deprecated since CNPG
   1.26). The plugin is installed from its **pinned, vendored** release manifest
   (`charts/barman-cloud-plugin`) into `cnpg-system`, reusing cert-manager for its TLS. A
@@ -569,7 +574,7 @@ first-boot seed; the Job is the authoritative reconciler thereafter.
 
 ## ADR-021 — Mailbox: suitenumerique/messages, outbound via EU relay
 
-> **Refined by [ADR-026](#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred) (app integration) and [ADR-027](#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb) (port-25 ingress).**
+> **Refined by [ADR-026](#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred) (app integration), [ADR-027](#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb) (port-25 ingress) and [ADR-047](#adr-047-mailbox-outbound-without-mta-out-the-worker-relays-and-signs-with-the-supplied-dkim-key) (outbound without mta-out, DKIM).**
 > Two component specifics below were revisited against the verified-current upstream
 > (`suitenumerique/messages` v0.8.0, June 2026):
 >
@@ -581,6 +586,8 @@ first-boot seed; the Job is the authoritative reconciler thereafter.
 > - **DKIM key is supplied, not DB-generated.** messages accepts `MESSAGES_DKIM_PRIVATE_KEY_B64`,
 >   so the installer generates the keypair once and treats it as an external override (the S3-creds
 >   pattern), publishing the public key as a TXT record up front — no two-step DNS dance.
+>   *Corrected by ADR-047:* no upstream code reads that variable; the supplied key is registered in
+>   messages' database instead.
 
 **Context.** ADR-008 deferred mail and tentatively recommended Stalwart. Since then,
 **suitenumerique/messages** has become La Suite's own mail app, so adopting it keeps the
@@ -732,9 +739,13 @@ default (no password policy); a stricter policy would need the generated passwor
 
 ## ADR-024 — Grist integration: local chart, public-issuer OIDC, PVC storage, off by default
 
+> **Update (ADR-048).** Grist documents no longer live on the `/persist` PVC as the system of
+> record: they are stored in S3 ([ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired-supersedes-adr-032)),
+> and `/persist` is a cache. The PVC storage decision in the title is superseded.
+>
 > **Two "honest limits" below have since been closed.** The documents PVC **is** now backed up
-> off-site (the reusable volume copy of [ADR-032](#adr-032-standardised-reusable-off-site-pvc-backup),
-> built on the N-bucket object copy of [ADR-030](#adr-030-n-bucket-off-site-object-backup)), and
+> off-site (first through the volume copy of [ADR-032](#adr-032-standardised-reusable-off-site-pvc-backup),
+> now through the S3 bucket copy of ADR-048, both built on the N-bucket object copy of [ADR-030](#adr-030-n-bucket-off-site-object-backup)), and
 > Grist **is** now booted in CI on its own cluster
 > ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)). The local chart, public-issuer
 > OIDC and off-by-default decisions still hold.
@@ -881,6 +892,10 @@ Projects without forking.
 
 ## ADR-026 — Mailbox integration: messages, Django OIDC split, reuse the seam, OpenSearch deferred
 
+> **Outbound changed in [ADR-047](#adr-047-mailbox-outbound-without-mta-out-the-worker-relays-and-signs-with-the-supplied-dkim-key):**
+> messages 0.10.0 removed mta-out, so the worker relays to the smarthost itself and the image set
+> is `messages-{backend,frontend,mta-in}`.
+>
 > **The "not yet CI-booted" limit below is closed.** The hermetic mail loopback this ADR
 > describes as the intended boot check now runs in CI on the mailbox's own cluster
 > ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)). OpenSearch and the off-CI
@@ -1061,13 +1076,13 @@ enabled only as the object-bucket vehicle for the object-copy restore check (a f
 DoD) and asserts no application; its restore survivor is decoupled accordingly (see
 [ADR-006](#adr-006-backups-and-tested-restore)/[ADR-017](#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design)).
 
-The fail-fast watchdog, the cert wait, the failure diagnostics and the PVC backup/restore round-trip
+The fail-fast watchdog, the cert wait, the failure diagnostics and the backup/restore helpers
 are **factored into a shared `helmfile/tests/lib.sh`** sourced by `run-e2e.sh`, `run-app-e2e.sh` and
-`run-pvc-backup-e2e.sh`, so the harnesses share one implementation. Locally: `make test-app
+`run-object-backup-e2e.sh`, so the harnesses share one implementation. Locally: `make test-app
 APP=<grist|projects|messages>`.
 
 The workflow is **split like `helmfile-e2e.yml`** (the same cost-aware pattern as the
-[ADR-032 PVC backup gate](#adr-032-standardised-reusable-off-site-pvc-backup)): the full
+[ADR-048 object backup gate](#adr-048-grist-documents-in-s3-pvc-backup-retired-supersedes-adr-032)): the full
 five-app matrix runs nightly and on demand, but a **PR that touches an app's chart or
 values boots only *that* app** as a fast, fail-fast gate, so a change to one app gets a real boot
 signal in minutes — not just lint/template — without waiting on (or paying for) the other four. A
@@ -1154,6 +1169,9 @@ is already mandatory for the core apps.
 
 ## ADR-032 — Standardised reusable off-site PVC backup
 
+> **Superseded by [ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired-supersedes-adr-032).** Grist documents
+> moved to S3, the `pvc-backup` chart, `make test-pvc-backup` and `run-pvc-backup-e2e.sh` are removed.
+
 **Context.** Some state lives on a **volume**, not S3: Grist keeps its documents as SQLite files in
 `/persist/docs` (no upstream S3 document store), so the N-bucket object copy
 ([ADR-030](#adr-030-n-bucket-off-site-object-backup)) cannot cover it. Rather than bolt a one-off
@@ -1180,7 +1198,7 @@ bound PVC before the app reads it — symmetric with the object restore.
 **Consequences.** Grist's documents are now backed up off-site and restored on recovery, closing the
 last PVC backup gap, and the pattern is ready for any future volume-backed app by adding a list
 entry. An e2e proves a seeded Grist document survives a PVC backup → wipe → restore — packaged as
-an **isolated, fast harness** (`make test-pvc-backup` / `run-pvc-backup-e2e.sh`) that boots only a
+an **isolated, fast harness** (`make test-pvc-backup` / `run-pvc-backup-e2e.sh`, since removed) that boots only a
 single off-site `garage-backup` store and runs the shared `pvc_backup_roundtrip`
 ([ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness)), so it gates every PR in ~3 min
 instead of waiting on the heavy full suite. **Trade-off:**
@@ -1838,12 +1856,12 @@ wiring barely changes.
   post-install/post-upgrade hook. No `pods/exec`, no RBAC, no CLI-in-pod. `helm --wait` still gates
   the release (and dependents like Docs) on buckets existing — the ADR-015 ordering guarantee holds.
 
-**Maturity risk.** RustFS is `v1.0.0-beta.x`. We pin a fixed chart (0.8.0 / appVersion
-1.0.0-beta.8) that is past the two secret-logging advisories (GHSA-r54g-49rx-98cr fixed in
-alpha.82; GHSA-8cm2-h255-v749's credential-log fix in beta.2). Acceptable given pre-launch +
-single-node; revisit at GA. Distributed mode is itself "under testing" upstream, and a
-single-node on-disk layout **cannot be converted to erasure coding in place** — HA later means a
-re-provision (noted for [ADR-006](#adr-006-backups-and-tested-restore)).
+**Maturity.** RustFS reached 1.0 (GA 2026-09-16). We pin chart 1.0.3 / appVersion 1.0.3, past the
+two secret-logging advisories (GHSA-r54g-49rx-98cr fixed in alpha.82; GHSA-8cm2-h255-v749's
+credential-log fix in beta.2). The pin moved from chart 0.8.0 / 1.0.0-beta.8; upgrade notes are in
+[Upgrading safely](../operate/upgrade.md#rustfs-100-beta-to-103). Distributed mode is still
+a separate topology, and a single-node on-disk layout **cannot be converted to erasure coding in
+place** — HA later means a re-provision (noted for [ADR-006](#adr-006-backups-and-tested-restore)).
 
 **Validation (beta — must be exercised on a live cluster before cutover).** In risk order:
 Postgres/Barman **checksum** headers (the `AWS_*_CHECKSUM_CALCULATION=when_required` workaround is
@@ -1858,3 +1876,110 @@ The seam that ADR-003 defined is unchanged; `external` mode still deploys nothin
 [ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3),
 [ADR-006](#adr-006-backups-and-tested-restore), and
 [ADR-017](#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design).
+
+---
+
+## ADR-047 — Mailbox outbound without mta-out: the worker relays and signs with the supplied DKIM key
+
+**Context.** messages v0.10.0 removed the `mta-out` service
+([#785](https://github.com/suitenumerique/messages/releases/tag/v0.10.0)): in relay mode the
+backend worker now connects to an external `MTA_OUT_RELAY_HOST` itself, and the
+`ghcr.io/suitenumerique/messages-mta-out` image stops at 0.9.0, so the tag the chart shares across
+images cannot move past 0.9.0 while mta-out is deployed. Up to 0.8.0 the outbound path was worker
+→ in-cluster Postfix mta-out (port 587, an internal SASL account, TLS `may`) → the smarthost
+(`apps.messages.relay_host` with the relay account, TLS `may`).
+
+Reading the 0.8.0 and 0.10.0 code showed that DKIM never lived in mta-out. The worker signs
+(`core/mda/outbound.py`, `sign_message_dkim`) with the mail domain's most recent active `DKIMKey`
+database row, which upstream generates when the domain is created, under its default selector
+`stmessages`. The `MESSAGES_DKIM_{SELECTOR,DOMAINS,PRIVATE_KEY_B64}` variables we set on mta-out
+are listed in upstream's `docs/env.md` but no code reads them. So outbound mail was signed under a
+selector no DNS record backs, while the `<dkim_selector>._domainkey` record `suite apply` prints
+matched a key that signed nothing. The ADR-021 refinement "messages accepts
+`MESSAGES_DKIM_PRIVATE_KEY_B64`" was wrong.
+
+**Decision.**
+
+- **Drop the mta-out Deployment and Service.** Backend and worker get `MTA_OUT_MODE=relay` and
+  `MTA_OUT_RELAY_HOST=<apps.messages.relay_host>`; once a relay account exists
+  (`relayConfigured`), `MTA_OUT_RELAY_USERNAME`/`MTA_OUT_RELAY_PASSWORD` come from
+  `messages-secrets` (`SMTP_RELAY_*`, the same overrides as before). The internal SASL secret
+  `SMTP_INTERNAL_PASSWORD` is gone. `suite.yaml` keeps the same keys and defaults (`relay_host`,
+  `spf_include`, `dkim_selector`, `dmarc_rua`), and the relay account still comes from the machine
+  state or `OWNSUITE_MTA_RELAY_*`.
+- **TLS to the relay is `secure`** (mandatory STARTTLS, CA chain and host name checked), the value
+  ADR-021 and ADR-026 specified. This hop now crosses the internet with the relay password; at
+  `may` a failed STARTTLS falls back to a cleartext AUTH. Scaleway TEM's
+  `smtp.tem.scaleway.com:2587` presents a valid Let's Encrypt certificate (checked October 2026).
+- **The supplied DKIM key becomes the signing key.** When a key is supplied
+  (`secretOverrides.messages-dkim-key`, which `suite apply` always sets), the maildomain seed Job
+  loads it, upserts a `DKIMKey` row under `apps.messages.dkim_selector` keyed on (selector, public
+  key), and deactivates every other key of the domain. The worker then signs with the key whose
+  public half is in DNS. Without a supplied key (a raw `helmfile sync`), upstream's generated key
+  stays in use, as before.
+- **`SSRF_ALLOWED_HOSTS` stays unset.** Upstream SSRF-checks only per-domain relays
+  (`MailDomain.custom_settings`); the deployment-wide `MTA_OUT_RELAY_HOST` is trusted, and
+  OwnSuite sets no per-domain relay.
+- **mta-in is unchanged.** The `messages-mta-in` image is still Postfix plus the Python delivery
+  milter, with the same env (`MDA_API_*`, `MYHOSTNAME`). The v0.9 rewrite and the v0.10 env rework
+  concern the separate pure-Python `messages-mta-in-py` image, which we do not adopt.
+
+**Consequences.**
+
+- One pod fewer (50m CPU and 64 Mi requested, 128 Mi limit). Retries are upstream's per-recipient
+  schedule stored in Postgres, instead of a Postfix queue on the container filesystem that a pod
+  restart lost.
+- Without a relay account, the relay refuses sends to external recipients and the webmail shows
+  them as failed. Before, mta-out queued them and tried direct MX delivery on port 25 from the
+  server IP, which ADR-021 forbids. Local mailboxes still exchange mail over the internal path.
+- A relay with a self-signed or mismatched certificate no longer works. Reputable relays pass;
+  the level is one line in `helmfile/values/messages.yaml.gotmpl` if an operator needs `may`.
+- On existing installs DKIM starts verifying under the published selector with no DNS change.
+  The old `stmessages` key stays in the database, inactive.
+- mta-out stripped `Received:` headers; the worker composes MIME without one, so no internal hop
+  leaks either way. The relay sees the server IP as before; the EHLO name is now the worker pod
+  host name instead of `mail.{domain}`.
+- The per-app e2e supplies a DKIM key and asserts it is the mail domain's only active key. Real
+  deliverability stays the off-CI human check of ADR-026.
+- The Calendars integration (ADR-043, ADR-045) holds: the `api_key` Channel model, the
+  global-channel authentication, the provisioning and submit routes and the `CALDAV_DEFAULT_*`
+  settings are unchanged in 0.10.0 (`Channel` gained an `is_active` flag that defaults to true).
+
+---
+
+## ADR-048 — Grist documents in S3, PVC backup retired (supersedes ADR-032)
+
+**Context.** [ADR-032](#adr-032-standardised-reusable-off-site-pvc-backup) added a reusable
+`pvc-backup` chart because Grist kept its documents as SQLite files on a volume. Grist can store
+documents in S3 (the `GRIST_DOCS_MINIO_*` settings, aliased `GRIST_DOCS_S3_*` from 1.7.21), which
+puts them in the same store as every other app and under the object copy of
+[ADR-030](#adr-030-n-bucket-off-site-object-backup). The volume then has one consumer left, and
+that consumer no longer needs it as a system of record.
+
+**Decision.** Grist stores documents in a dedicated S3 bucket and `/persist` becomes a cache.
+The `pvc-backup` chart is deleted.
+
+- **Bucket.** `grist-docs` by default, set with the suite.yaml grist option `s3_bucket`
+  (`OWNSUITE_GRIST_S3_BUCKET`). Keys are `docs/<docId>.grist`, with metadata under
+  `docs/assets/unversioned/<docId>/meta.json`. The bucket is added to the off-site object copy.
+- **Versioning is required.** Grist checks at boot that the bucket is versioned and refuses to
+  start otherwise. In `in-cluster` mode the RustFS bootstrap Job enables versioning and asserts it.
+  In `external` mode the operator must pre-create the bucket with versioning enabled. The
+  Scaleway Terraform module does it for buckets it manages.
+- **Wiring.** The chart renders the `GRIST_DOCS_MINIO_*` variables (the old names, which 1.7.16
+  knows) from the Drive-style endpoint, region and `s3-credentials` secret. Grist also needs
+  Valkey (`REDIS_URL`, database 12) to register its document worker. The liveness probe is
+  `/status?docWorkerRegistered=1`, so Grist restarts and registers again if Valkey comes back empty.
+- **Existing installs.** Grist does not upload untouched local documents. An init container runs
+  once (marker file `/persist/.ownsuite-docs-on-s3`) and copies `/persist/docs/*.grist` to the
+  bucket with rclone, without overwriting. Grist then finds the S3 copy and refetches it.
+- **Tests.** `make test-object-backup` (`helmfile/tests/run-object-backup-e2e.sh`, helmfile-e2e
+  job `object-backup`) replaces the PVC gate. It seeds a Grist document object, runs the object
+  copy, wipes RustFS, restores, and checks the content and that versioning is enabled. The app
+  DoD for Grist also checks that a document survives deletion of the `/persist` PVC.
+
+**Consequences.** One backup mechanism (the object copy) covers every app. `/persist` loses its
+backup, so losing it costs only a re-download. Grist now depends on Valkey and on S3 versioning.
+Touches [ADR-010](#adr-010-testing-ci-strategy-a-layered-evolving-harness),
+[ADR-024](#adr-024-grist-integration-local-chart-public-issuer-oidc-pvc-storage-off-by-default),
+[ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster) and ADR-032.

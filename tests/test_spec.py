@@ -161,12 +161,13 @@ def test_tfvars_app_flags_and_buckets():
     assert tf["enable_meet"] is True
     assert tf["enable_meet_turn"] is True
     assert tf["domain"] == "x.org"
-    # Manifest defaults fill unset buckets; per-app options override; grist (PVC)
-    # would contribute none.
+    # Manifest defaults fill unset buckets; per-app options override; grist is
+    # not enabled here, so it contributes no (versioned) bucket.
     assert tf["bucket_names"] == [
         "docs-media-storage", "messages-media-storage", "meet-recordings",
         "custom-tchap",
     ]
+    assert tf["versioned_bucket_names"] == []
     assert tf["backup_bucket_name"] == "ownsuite-backups"
 
 
@@ -239,3 +240,9 @@ def test_render_byo_server(tmp_path):
     assert sp.provider is None
     assert sp.ssh == "root@1.2.3.4"
     assert sp.enabled_apps() == []
+
+
+def test_tfvars_grist_bucket_is_versioned():
+    tf = spec.tfvars_for(make_spec(apps=("grist",)))
+    assert tf["bucket_names"] == ["grist-docs"]
+    assert tf["versioned_bucket_names"] == ["grist-docs"]

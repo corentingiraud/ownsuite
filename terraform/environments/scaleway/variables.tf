@@ -90,6 +90,12 @@ variable "bucket_names" {
   default     = []
 }
 
+variable "versioned_bucket_names" {
+  description = "Subset of bucket_names that must have object versioning enabled (the Grist documents bucket)."
+  type        = list(string)
+  default     = []
+}
+
 variable "backup_bucket_name" {
   description = "Off-site backup bucket for rclone + CNPG Barman (OWNSUITE_BACKUP_S3_BUCKET). Empty = no backup bucket. Created in backup_region (default nl-ams, a DIFFERENT region than the fr-par primary) so it survives losing the server — which is what `suite restore` exercises. It reuses the workload IAM key (same project), so it is NOT account-isolated: true prod DR wants a separate account/provider (ADR-006)."
   type        = string

@@ -42,7 +42,7 @@ repositories:
 helmDefaults:
   wait: true
   # Generous: Keycloak's first boot pulls a large image and runs a DB migration.
-  timeout: 900
+  timeout: 1200
   createNamespace: true
 
 releases:
@@ -157,7 +157,7 @@ releases:
       - values/rustfs-backup.yaml.gotmpl
 
   # --- Off-site object copy: rclone (ADR-006, ADR-017) ---------------------
-  # Encrypted S3->S3 copy of the media bucket to the off-site store, plus the
+  # Encrypted S3->S3 copy of the media and Grist buckets to the off-site store, plus the
   # restore Job (gated on restore mode). Runs in both in-cluster and external modes.
   - name: object-backup
     namespace: {{ $ns }}
@@ -174,27 +174,6 @@ releases:
       {{- end }}
     values:
       - values/object-backup.yaml.gotmpl
-
-  # --- Off-site PVC copy: rclone (ADR-032) ---------------------------------
-  # Reusable encrypted off-site copy of app PVCs (CronJob per volume + restore Job),
-  # for state that lives on a volume rather than S3. First consumer: grist-persist
-  # (Grist's SQLite documents). Gated on backups AND Grist enabled; reuses the same
-  # off-site store + crypt passphrase as the object copy.
-  - name: pvc-backup
-    namespace: {{ $ns }}
-    chart: ./charts/pvc-backup
-    condition: backup.pvcBackup.enabled
-    needs:
-      - {{ $ns }}/platform-configuration
-      {{- if .Values.backup.rustfsBackup.enabled }}
-      - {{ $ns }}/rustfs-backup
-      {{- end }}
-      # The grist chart owns the grist-persist PVC; it must exist before the CronJob /
-      # restore Job can mount it. On restore the Job repopulates /persist before a doc
-      # is opened (Grist reads document SQLite files lazily, not on boot).
-      - {{ $ns }}/grist
-    values:
-      - values/pvc-backup.yaml.gotmpl
 
   # --- SSO: Keycloak over HTTPS (ADR-005, ADR-011) — the Phase 1 DoD -------
   - name: keycloak
@@ -316,9 +295,10 @@ releases:
 
   # --- App: Grist (getgrist) — Phase 5 broadening (ADR-024) -------------------
   # A single-container app from a local chart, OFF by default (apps.grist.enabled).
-  # Reuses CNPG (its own `grist` home database) + Keycloak SSO; its documents live on
-  # a PVC, so it needs neither Valkey nor S3 (no rustfs/valkey dependency, unlike the
-  # impress apps). OIDC is single-issuer discovery against the public Keycloak host.
+  # Reuses CNPG (its own `grist` home database) + Keycloak SSO; its documents live in a
+  # versioned S3 bucket (RustFS or external, ADR-047) and its doc worker registers in
+  # Valkey, hence the valkey/rustfs dependencies. OIDC is single-issuer discovery
+  # against the public Keycloak host.
   - name: grist
     namespace: {{ $ns }}
     chart: ./charts/grist
@@ -326,8 +306,12 @@ releases:
     needs:
       - {{ $ns }}/platform-configuration
       - {{ $ns }}/postgres
+      - {{ $ns }}/valkey
       - {{ $ns }}/keycloak
       - cert-manager/issuers
+      {{- if .Values.rustfs.enabled }}
+      - {{ $ns }}/rustfs
+      {{- end }}
     values:
       - values/grist.yaml.gotmpl
 

@@ -6,19 +6,39 @@
 # OIDC discovery — it has no per-endpoint split — so it points at the PUBLIC Keycloak
 # issuer (https://auth.{domain}/realms/{realm}); the browser and the in-cluster
 # backend both reach Keycloak there (the backend hairpins with the real cert in
-# production). Its documents are SQLite files on the /persist PVC; the home DB is a
-# dedicated CNPG `grist` database. No S3, no Redis on a single node. Every credential
-# comes from a seed-derived Secret via secretKeyRef (ADR-012); nothing secret here.
+# production). Its documents are SQLite files stored in a versioned S3 bucket
+# (objectStorage.gristBucket, ADR-047) with /persist as a cache; the home DB is a
+# dedicated CNPG `grist` database; the doc worker registers in Valkey (DB 12). Every
+# credential comes from a seed-derived Secret via secretKeyRef (ADR-012); nothing
+# secret here.
 {{- $domain := .Values.domain -}}
 {{- $host := printf "grist.%s" $domain -}}
 {{- $realm := .Values.keycloak.realm -}}
 {{- $ns := .Values.workloadsNamespace -}}
 {{- $pgHost := printf "%s-rw.%s.svc.cluster.local" .Values.postgres.clusterName $ns -}}
-{{- $issuer := printf "https://auth.%s/realms/%s" $domain $realm }}
+{{- $issuer := printf "https://auth.%s/realms/%s" $domain $realm -}}
+{{- $s3Endpoint := .Values.objectStorage.endpoint -}}
+{{- $s3Region := .Values.objectStorage.region -}}
+{{- if .Values.rustfs.enabled -}}
+{{-   $s3Endpoint = printf "http://rustfs-svc.%s.svc.cluster.local:9000" $ns -}}
+{{-   $s3Region = .Values.rustfs.region -}}
+{{- end }}
 
 image:
   repository: gristlabs/grist
   tag: {{ .Values.imageVersions.grist | quote }}
+
+# Document storage (ADR-047). The chart splits the endpoint URL into host/port/SSL.
+s3:
+  endpoint: {{ $s3Endpoint | quote }}
+  region: {{ $s3Region | quote }}
+  bucket: {{ .Values.objectStorage.gristBucket | quote }}
+  prefix: docs/
+
+docsMigration:
+  image:
+    repository: rclone/rclone
+    tag: {{ .Values.imageVersions.rclone | quote }}
 
 persistence:
   size: {{ .Values.apps.grist.storageSize | quote }}
@@ -83,3 +103,6 @@ secretEnv:
   - name: TYPEORM_PASSWORD
     secretName: grist-db
     secretKey: password
+  - name: REDIS_URL
+    secretName: grist-secrets
+    secretKey: REDIS_URL

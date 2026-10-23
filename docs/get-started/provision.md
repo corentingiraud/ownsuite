@@ -127,7 +127,7 @@ Confirm these account-specific values before you apply:
 
 ## Object storage
 
-OwnSuite's object storage is pluggable
+OwnSuite's object storage is pluggable, in-cluster RustFS or external S3
 ([ADR-003](../understand/decisions.md#adr-003-pluggable-object-storage-garage-or-external-eu-s3)):
 
 - **`external`** (recommended, and the default) — a managed S3 bucket per enabled app.

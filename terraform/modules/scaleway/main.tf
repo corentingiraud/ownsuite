@@ -161,6 +161,14 @@ resource "scaleway_object_bucket" "this" {
       max_age_seconds = 3000
     }
   }
+
+  # Grist requires a versioned bucket (it checks at boot and refuses otherwise).
+  dynamic "versioning" {
+    for_each = contains(var.versioned_bucket_names, each.value) ? [1] : []
+    content {
+      enabled = true
+    }
+  }
 }
 
 # --- Mailbox outbound relay: Scaleway TEM ------------------------------------

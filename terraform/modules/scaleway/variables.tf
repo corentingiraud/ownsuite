@@ -98,3 +98,9 @@ variable "bucket_names" {
   type        = list(string)
   default     = []
 }
+
+variable "versioned_bucket_names" {
+  description = "Subset of bucket_names that must have object versioning enabled (the Grist documents bucket)."
+  type        = list(string)
+  default     = []
+}
