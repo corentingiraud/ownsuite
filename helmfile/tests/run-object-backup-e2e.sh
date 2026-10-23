@@ -96,7 +96,7 @@ provision_with_watchdog "object-backup stack: secrets + 2 RustFS + rclone copy" 
 echo "==> Asserting the Grist bucket is versioned on the primary store"
 # shellcheck disable=SC2016  # $BUCKET is expanded inside the Job, not here
 rclone_primary_job e2e-check-versioning \
-  'test "$(rclone backend versioning "primary:$BUCKET")" = "Enabled"'
+  'rclone backend versioning "primary:$BUCKET" | grep -q "Enabled"'
 
 echo "==> Seeding a Grist document object (${GRIST_BUCKET}/${DOC_KEY})"
 rclone_primary_job e2e-seed-doc \
@@ -119,7 +119,7 @@ OWNSUITE_RESTORE=true provision_with_watchdog "RESTORE: primary RustFS + object 
 echo "==> Asserting the Grist document SURVIVED and the bucket is versioned again"
 rclone_primary_job e2e-verify-doc \
   "test \"\$(rclone cat \"primary:\$BUCKET/${DOC_KEY}\")\" = '${DOC_CONTENT}'
-test \"\$(rclone backend versioning \"primary:\$BUCKET\")\" = 'Enabled'
+rclone backend versioning \"primary:\$BUCKET\" | grep -q Enabled
 echo 'GRIST DOCUMENT SURVIVED'"
 
 echo "==> PASS: the Grist document survived backup -> wipe -> restore (ADR-047)"
