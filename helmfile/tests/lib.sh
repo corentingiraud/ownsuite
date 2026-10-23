@@ -34,6 +34,17 @@ dump_failure_diagnostics() {
     echo "### $p ###"
     kubectl -n "$NS" logs "$p" --all-containers --tail=80 2>&1 | tail -80 || true
   done
+  # A Ready pod can still be the failing piece (e.g. Docs' yhub refusing websocket
+  # upgrades with a 503): dump the recent logs of the app-under-test's Deployments
+  # (run-app-e2e.sh exports OWNSUITE_E2E_APP; the platform e2e has none).
+  if [ -n "${OWNSUITE_E2E_APP:-}" ]; then
+    echo "--- logs of the ${OWNSUITE_E2E_APP} Deployments ($NS) ---"
+    for d in $(kubectl -n "$NS" get deploy -o name 2>/dev/null \
+      | grep "^deployment.apps/${OWNSUITE_E2E_APP}-" || true); do
+      echo "### $d ###"
+      kubectl -n "$NS" logs "$d" --all-containers --tail=80 2>&1 | tail -160 || true
+    done
+  fi
 }
 
 # retry <attempts> <cmd...>: run a command up to N times with a growing pause
@@ -68,11 +79,41 @@ create_cluster_with_retry() {
     if k3d cluster create "$_CLUSTER_NAME" "${_CLUSTER_ARGS[@]}" --wait --timeout 180s; then
       KUBECONFIG="$(k3d kubeconfig write "$_CLUSTER_NAME")"
       export KUBECONFIG
-      wait_for_cluster_api 60 && return 0
+      wait_for_cluster_api 60 && route_domain_to_ingress && return 0
     fi
   done
   echo "==> k3d cluster '$_CLUSTER_NAME' could not be brought up after 3 attempts"
   return 1
+}
+
+# In production every app host resolves to the server, so a pod calling
+# https://<app>.<domain> hairpins into Traefik (Docs' yhub authorizes each websocket
+# upgrade that way, against the backend). The e2e domain (`ownsuite.localhost`) has no
+# real DNS: inside the cluster it resolves to nothing or to the pod's own loopback. Give
+# the throwaway cluster the same hairpin: k3s imports the user-owned `coredns-custom`
+# ConfigMap into its default server block, and the rewrite points `*.<domain>` at the
+# bundled Traefik Service.
+route_domain_to_ingress() {
+  [ -n "${OWNSUITE_DOMAIN:-}" ] || return 0
+  local pattern="${OWNSUITE_DOMAIN//./\\.}"
+  echo "==> Resolving *.${OWNSUITE_DOMAIN} to Traefik inside the cluster"
+  kubectl apply -f - <<EOF || return 1
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  ownsuite-hairpin.override: |
+    rewrite name regex ^(.+\\.)?${pattern}\\.$ traefik.kube-system.svc.cluster.local answer auto
+EOF
+  # CoreDNS reads the import at startup: restart it when k3s has already deployed it.
+  # Waiting on the rollout turns a rejected rule (CoreDNS crash-looping) into a loud
+  # failure instead of a silent missing route.
+  if kubectl -n kube-system get deploy coredns >/dev/null 2>&1; then
+    kubectl -n kube-system rollout restart deploy/coredns >/dev/null || return 1
+    kubectl -n kube-system rollout status deploy/coredns --timeout=180s || return 1
+  fi
 }
 
 # k3d's `--wait` returns once the k3s server process is up, but the Kubernetes API
