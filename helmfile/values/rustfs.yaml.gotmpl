@@ -108,7 +108,7 @@ extraManifests:
                   done
                   for b in $VERSIONED_BUCKETS; do
                     echo "Enabling versioning on bucket $b (idempotent)..."
-                    status="$(rclone backend versioning "rustfs:$b" Enabled)"
+                    status="$(rclone backend versioning "rustfs:$b" Enabled | tr -d '"[:space:]')"
                     echo "  versioning: $status"
                     [ "$status" = "Enabled" ] || { echo "versioning not enabled on $b" >&2; exit 1; }
                   done
