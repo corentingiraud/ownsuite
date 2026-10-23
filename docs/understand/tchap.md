@@ -112,7 +112,7 @@ v1 is deliberately **a Tchap-flavoured Matrix chat**, not the full French-govern
   allowlist).
 - **Logout ends the Keycloak session, but shows a prompt.** On logout Element clears its session and
   then redirects to Keycloak's end-session endpoint so the SSO session is also terminated (not just
-  the local app). Because MAS (1.19.0, shipped by the pinned chart) cannot yet propagate logout to
+  the local app). Because MAS (1.27.0, shipped by the pinned chart) cannot yet propagate logout to
   its upstream provider, this is done client-side with no `id_token_hint`, so Keycloak shows a "Do
   you want to log out?" confirmation page before ending the session. Revisit for a silent redirect
   once MAS gains upstream-logout propagation (element-hq/matrix-authentication-service PR #4249).

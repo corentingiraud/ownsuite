@@ -65,7 +65,7 @@ synapse:
     host: {{ printf "matrix.%s" $domain | quote }}
     tlsSecret: synapse-tls
   # S3-capable Synapse image: dotwee/matrix-synapse-s3 bundles synapse-s3-storage-provider
-  # so media can live on S3/RustFS. Tag pinned in versions.yaml (actual: v1.155.0).
+  # so media can live on S3/RustFS. Tag pinned in versions.yaml (actual: v1.163.0).
   image:
     registry: ghcr.io
     repository: dotwee/matrix-synapse-s3
@@ -140,7 +140,7 @@ synapse:
 # MAS owns login/registration and brokers SSO to Keycloak. It needs its own host: it
 # serves /account, /authorize, /oauth2 at path "/", which would collide with Synapse's
 # "/" on matrix.{domain}. auth.{domain} is already Keycloak, so MAS gets account.{domain}
-# (ess-helm's idiomatic MAS subdomain). MAS's image is left at the chart default.
+# (ess-helm's idiomatic MAS subdomain). MAS's image is left at the chart default (1.27.0 in chart 26.10.2).
 matrixAuthenticationService:
   ingress:
     host: {{ printf "account.%s" $domain | quote }}
@@ -170,8 +170,8 @@ matrixAuthenticationService:
           password_registration_enabled: false
 
 # --- Element Web (Tchap fork) -------------------------------------------------------
-# tchapgouv/tchap-web-v4 tracks a moving branch tag (develop_tchap); the real build is
-# digest-pinned in versions.yaml. The chart derives config.json (default_server_config,
+# tchapgouv/tchap-web-v4 is pinned to a release tag (tchap-X.Y.Z) plus its manifest digest
+# in versions.yaml. The chart derives config.json (default_server_config,
 # homeserver base_url) from serverName + the Synapse ingress, so no additional config is
 # needed to boot. Layer Tchap-specific branding/flags via elementWeb.additional later.
 elementWeb:
@@ -181,8 +181,7 @@ elementWeb:
   image:
     registry: ghcr.io
     repository: tchapgouv/tchap-web-v4
-    # develop_tchap is a MOVING tag, so the digest is what actually pins the image
-    # (no-latest rule). Both come from versions.yaml; the chart resolves repo@digest.
+    # Release tag + manifest digest, both from versions.yaml; the chart resolves repo@digest.
     tag: {{ .Values.imageVersions.tchapWeb | quote }}
     digest: {{ .Values.imageVersions.tchapWebDigest | quote }}
   # Skip the Tchap fork's "enter your professional email" (email-precheck) login screen
@@ -224,7 +223,7 @@ elementWeb:
     # deep-merge into setting_defaults alongside feature_new_room_list above (nested objects
     # merge, chart contract), so the working room list is preserved. Keys with dots
     # ("UIFeature.voip") are LITERAL string keys — every one was verified to exist in the
-    # pinned tchap-web-v4 (develop_tchap) build before being set. Why each:
+    # pinned tchap-web-v4 (tchap-4.21.x) build before being set. Why each:
     #  - UIFeature.voip: text-only (Meet covers video), hide call buttons.
     #  - UIFeature.locationSharing: no maps -> also lets us skip map_style_url entirely.
     #  - UIFeature.identityServer / thirdPartyId: we run no identity server, and auth is
@@ -277,8 +276,8 @@ elementWeb:
     # Logout terminates the upstream Keycloak SSO session, not just the local Matrix one.
     # Under MSC3861 (OIDC-native auth) Element still honors logout_redirect_url: on logout it
     # revokes its tokens at MAS, then browser-redirects here. MAS itself cannot propagate
-    # logout to its upstream_oauth2 provider in the pinned version (matrix-stack 26.6.2 ships
-    # MAS 1.19.0; outbound RP-initiated upstream logout is unmerged — element-hq/matrix-
+    # logout to its upstream_oauth2 provider in the pinned version (matrix-stack 26.10.2 ships
+    # MAS 1.27.0; outbound RP-initiated upstream logout is unmerged — element-hq/matrix-
     # authentication-service PR #4249), so this client-side redirect to Keycloak's
     # RP-initiated-logout (end_session) endpoint is the only mechanism that ends the Keycloak
     # session. LIMITATION: Element sends no id_token_hint, so Keycloak (18+) shows a "Do you
