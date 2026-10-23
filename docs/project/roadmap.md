@@ -75,7 +75,7 @@ Every app is opt-in via one line under `apps:` in `suite.yaml`; they reuse the s
 JIT seam and are boot-checked in CI. Enable any combination.
 
 - **Docs** — collaborative documents, `suitenumerique/impress`
-  (`docs: {}`), wired to SSO, Postgres and S3. See [Docs application](../understand/docs.md).
+  (`docs: {}`), wired to SSO, Postgres and S3; version 6.0 with yhub collaboration ([ADR-049](../understand/decisions.md#adr-049-docs-60-yhub-replaces-y-provider-for-collaboration)). See [Docs application](../understand/docs.md).
 - **Drive** — file manager, `suitenumerique/drive` (`drive: {}`), on the same
   foundation; one identity reaches Docs **and** Drive. See [Drive application](../understand/drive.md).
 - **Grist** — spreadsheets that behave like a database

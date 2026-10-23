@@ -30,8 +30,12 @@ gated on `apps.docs.enabled` and depends, via `needs:`, on the shared infrastruc
   the in-cluster RustFS service; in `external` mode it is your configured S3 endpoint.
 - **SSO** — the `docs` confidential OIDC client (secret derived from the same seed id the app
   reads). The browser hits `https://auth.{domain}`; the backend reaches Keycloak in-cluster.
-- **Real-time collaboration** — the y-provider websocket server, exposed at
-  `/collaboration/ws/` through Traefik; backend and y-provider share a seed-derived secret.
+- **Real-time collaboration** — yhub (Docs 6.0), reached at
+  `wss://docs.{domain}/collaboration/ws/v1/docs` through Traefik. It has its own `yhub` Postgres
+  database and uses Valkey database 13 (prefix `yhub`) for live state, which it writes to Postgres
+  with a 10 second debounce. If Valkey restarts, up to 10 seconds of edits can be lost. Backend and
+  yhub verify each other's tokens with two RSA keys created by a chart job. y-provider remains
+  only as the document converter. See [ADR-049](decisions.md#adr-049-docs-60-yhub-replaces-y-provider-for-collaboration).
 
 All of it is configured in `helmfile/values/docs.yaml.gotmpl`; nothing secret is committed.
 
