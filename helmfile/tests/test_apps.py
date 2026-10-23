@@ -31,7 +31,6 @@ from test_platform import (
     SEED_TEST_USER,
     curl,
     derive_secret,
-    docs_user_token,
     kubectl,
     password_token,
     retry,
