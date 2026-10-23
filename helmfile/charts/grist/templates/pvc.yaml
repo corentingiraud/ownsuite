@@ -1,6 +1,6 @@
-{{- /* Durable home for Grist's document SQLite files (/persist). Single-instance,
-       so ReadWriteOnce. NOT off-site-backed yet — see ADR-024 (same gap as Drive's
-       bucket); object-backup copies a single bucket today. */}}
+{{- /* Local cache for Grist's document SQLite files (/persist). The source of truth
+       is the versioned S3 bucket (ADR-047), which object-backup copies off-site, so
+       the PVC is not backed up. Single-instance, so ReadWriteOnce. */}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

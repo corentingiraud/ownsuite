@@ -18,6 +18,32 @@ port: 8484
 # Health endpoint used for the readiness probe (Grist serves a 200 on /status).
 probePath: /status
 
+# Liveness also requires the doc worker to be registered in Valkey, so Grist restarts
+# (and re-registers) if Valkey comes back empty. Available since Grist 1.7.16.
+livenessPath: /status?docWorkerRegistered=1
+
+# Document storage in S3 (ADR-047). Grist keeps /persist as a cache and stores the
+# documents in a VERSIONED bucket (it checks at boot, fatal otherwise). Rendered only
+# when `bucket` is set. Uses the pre-1.7.21 GRIST_DOCS_MINIO_* names, which newer
+# releases alias to GRIST_DOCS_S3_*.
+s3:
+  # Full URL; the template splits it into host, port and SSL flag.
+  endpoint: ""
+  region: ""
+  bucket: ""
+  prefix: docs/
+  secretName: s3-credentials
+  accessKeyKey: AWS_S3_ACCESS_KEY_ID
+  secretKeyKey: AWS_S3_SECRET_ACCESS_KEY
+
+# One-shot init container: uploads documents already on /persist (pre-S3 installs) to
+# the bucket, once, guarded by a marker file on the volume. Grist does not upload
+# untouched local documents by itself.
+docsMigration:
+  image:
+    repository: rclone/rclone
+    tag: ""
+
 persistence:
   size: 5Gi
   # Empty => cluster default StorageClass (local-path on K3s).
