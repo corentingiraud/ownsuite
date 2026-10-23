@@ -201,7 +201,7 @@ The same reasoning applies *within* the Helmfile layer: the full suite e2e (`mak
 ~15 images, 20–45 min, prone to shared-runner flakiness) is too heavy and slow to gate every PR,
 so a change to one component gets an **isolated, fast component e2e** that boots only that
 component's dependencies and runs the **same shared assertion code** as the full suite. The first
-is the object backup/restore round-trip ([ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired)),
+is the object backup/restore round-trip ([ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired-supersedes-adr-032)),
 which gates PRs in ~3 min via `make test-object-backup`; the full suite moved to nightly / `main` /
 `workflow_dispatch` only. The shared round-trip lives in `helmfile/tests/lib.sh`, so the fast and
 full harnesses can never drift.
@@ -733,7 +733,7 @@ default (no password policy); a stricter policy would need the generated passwor
 ## ADR-024 — Grist integration: local chart, public-issuer OIDC, PVC storage, off by default
 
 > **Update (ADR-048).** Grist documents no longer live on the `/persist` PVC as the system of
-> record: they are stored in S3 ([ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired)),
+> record: they are stored in S3 ([ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired-supersedes-adr-032)),
 > and `/persist` is a cache. The PVC storage decision in the title is superseded.
 >
 > **Two "honest limits" below have since been closed.** The documents PVC **is** now backed up
@@ -1071,7 +1071,7 @@ are **factored into a shared `helmfile/tests/lib.sh`** sourced by `run-e2e.sh`, 
 APP=<grist|projects|messages>`.
 
 The workflow is **split like `helmfile-e2e.yml`** (the same cost-aware pattern as the
-[ADR-048 object backup gate](#adr-048-grist-documents-in-s3-pvc-backup-retired)): the full
+[ADR-048 object backup gate](#adr-048-grist-documents-in-s3-pvc-backup-retired-supersedes-adr-032)): the full
 five-app matrix runs nightly and on demand, but a **PR that touches an app's chart or
 values boots only *that* app** as a fast, fail-fast gate, so a change to one app gets a real boot
 signal in minutes — not just lint/template — without waiting on (or paying for) the other four. A
@@ -1158,7 +1158,7 @@ is already mandatory for the core apps.
 
 ## ADR-032 — Standardised reusable off-site PVC backup
 
-> **Superseded by [ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired).** Grist documents
+> **Superseded by [ADR-048](#adr-048-grist-documents-in-s3-pvc-backup-retired-supersedes-adr-032).** Grist documents
 > moved to S3, the `pvc-backup` chart, `make test-pvc-backup` and `run-pvc-backup-e2e.sh` are removed.
 
 **Context.** Some state lives on a **volume**, not S3: Grist keeps its documents as SQLite files in

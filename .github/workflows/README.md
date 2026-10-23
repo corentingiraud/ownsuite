@@ -27,7 +27,7 @@ when it runs, and which checks gate a merge.
 |----------|----------------|----------|----------------|
 | `ci` | Lint (ansible + python) and fast unit tests, then Molecule host-prep on Debian 12/13. No cluster. | **Yes** | push `main`, dispatch |
 | `helmfile-ci` | Static Helmfile checks: `helm lint`, full `helmfile template`, kubeconform schema validation. | **Yes** | push `main`, dispatch |
-| `helmfile-e2e` → `object-backup` | Isolated ADR-048 object backup → wipe → restore (Grist document bucket) on a real k3d cluster (~4 min). | **Yes** | — |
+| `helmfile-e2e` → `object-backup` | Isolated ADR-048 object backup → wipe → restore (Grist document bucket) on a real k3d cluster (~5 min). | **Yes** | — |
 | `helmfile-e2e` → `full` | Heavy full suite: `suite install` → Docs/Drive DoD → backup/restore. | No | schedule (04:00), push `main`, dispatch |
 | `apps-e2e` | Per-app boot + definition-of-done, one app per fresh cluster (matrix). On a PR, only the changed app(s) run. | **Yes** (changed app only) | schedule (05:00), dispatch |
 | `bootstrap-e2e` | Whole bootstrap incl. a real pinned K3s install → node Ready, Debian 12/13. | **Yes** (k3s role changes) | schedule (03:00), push `main`, dispatch |

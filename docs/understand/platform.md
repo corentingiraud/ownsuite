@@ -155,7 +155,7 @@ while the heavy run stays off the PR path:
 
 ```bash
 make lint-helm        # helm lint + helmfile template + kubeconform (CRD-aware)
-make test-object-backup # isolated object backup → wipe → restore on k3d (~3 min) — the PR gate
+make test-object-backup # isolated object backup → wipe → restore on k3d (~5 min) — the PR gate
 make test-app APP=docs # boot ONE app on its own k3d cluster + assert its boot DoD
 make test-platform    # platform + `suite apply` + backup/restore, on a throwaway k3d cluster (heavy)
 ```

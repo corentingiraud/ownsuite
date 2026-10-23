@@ -29,7 +29,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `mkdocs.yml` | Docs site config (theme, nav, llms.txt plugin). |
 | `requirements-docs.txt` | Docs toolchain (MkDocs Material + plugins). |
 | `suite.yaml.example` | Commented template for `suite.yaml` — the one human-owned config file (git-ignored, ADR-042). |
-| `Makefile` | CI/dev shorthand only (ADR-037): `install` (alias for `suite apply`), `tunnel`/`sync`/`diff`/`destroy`, `backup`/`restore`, `lint*`, `test`, `test-full`, `test-platform` (full DoD via `suite apply`), `test-object-backup` (isolated ADR-048 object backup/restore, ~3 min), `test-app` (one optional app per cluster). |
+| `Makefile` | CI/dev shorthand only (ADR-037): `install` (alias for `suite apply`), `tunnel`/`sync`/`diff`/`destroy`, `backup`/`restore`, `lint*`, `test`, `test-full`, `test-platform` (full DoD via `suite apply`), `test-object-backup` (isolated ADR-048 object backup/restore, ~5 min), `test-app` (one optional app per cluster). |
 | `ansible/` | Server bootstrap: `bootstrap.yml` + `common`/`security`/`k3s` roles. |
 | `helmfile/` | Shared infrastructure + apps (Helmfile): cert-manager, CNPG (+ Barman Cloud Plugin), Valkey, Keycloak, RustFS, the apps — Docs, Drive, Grist, Projects, the Mailbox (messages), Meet, Tchap and Calendars, **all off by default** (local charts; RustFS, Meet and Tchap consume upstream charts) — and the off-site backups (rclone object copy, `rustfs-backup`); local charts, values, versions, k3d e2e. |
 | `suite/` | The declarative CLI (ADR-042, plus 018/023/033/034/036/037): `spec.py` (`suite.yaml` load/validate + env assembly), `state.py` (`.suite-state.json` machine state), `manifest.py` (the single app manifest), `apply.py` (the reconcile pipeline), `backup.py`, `info.py`, and the other verb modules — `init`/`plan`/`apply`/`apps`/`info`/`logs`/`tunnel`/`user`/`status`/`upgrade`/`backup`/`restore`/`destroy`/`deps` (no `sync.py`, no `.env`: human input is `suite.yaml`, machine state is `.suite-state.json`). Every operator action is a CLI verb; `make` is CI/dev only. Minimal deps (`questionary`, `PyYAML` — requirements.txt); lint with `ruff` (`ruff.toml`). |
@@ -40,7 +40,7 @@ Any structural decision → a new ADR. The site also publishes `/llms.txt` and
 | `.github/workflows/ci.yml` | Ansible lint + Molecule (Debian 12/13) on every PR. |
 | `.github/workflows/bootstrap-e2e.yml` | Full real-K3s bootstrap, nightly + on K3s changes. |
 | `.github/workflows/helmfile-ci.yml` | Helm/Helmfile lint + kubeconform on every `helmfile/` change. |
-| `.github/workflows/helmfile-e2e.yml` | Two jobs: `object-backup` (isolated ADR-048 backup/restore) gates every PR in ~3 min; `full` (`make test-platform`, the heavy suite — platform + `suite apply` + backup/restore, **no app DoD**) runs nightly / on `main` / on demand only — not on PRs. |
+| `.github/workflows/helmfile-e2e.yml` | Two jobs: `object-backup` (isolated ADR-048 backup/restore) gates every PR in ~5 min; `full` (`make test-platform`, the heavy suite — platform + `suite apply` + backup/restore, **no app DoD**) runs nightly / on `main` / on demand only — not on PRs. |
 | `.github/workflows/apps-e2e.yml` | Per-app boot e2e for ALL eight apps (Docs/Drive/Grist/Projects/messages/Meet/Tchap/Calendars), one app per fresh k3d cluster (ADR-029) — the single source of each app's boot DoD. A PR touching one app's chart/values boots only that app (fast `detect`-driven matrix); the full eight-app sweep runs nightly / on demand. |
 
 ## Hard rules
@@ -91,7 +91,7 @@ suite apply          # reconcile everything to suite.yaml (make install is its a
 export OWNSUITE_SECRET_SEED="$(openssl rand -hex 24)"   # required; never committed
 make diff            # preview pending helmfile changes (dev)
 make lint-helm       # helm lint + helmfile template + kubeconform
-make test-object-backup # isolated ADR-048 object backup→wipe→restore on k3d (~3 min) — the PR gate
+make test-object-backup # isolated ADR-048 object backup→wipe→restore on k3d (~5 min) — the PR gate
 make test-platform   # platform + `suite apply` + backup→restore DoD on a throwaway k3d cluster (heavy, nightly/main) — no app DoD
 make test-app APP=docs   # boot ONE app on its own k3d cluster + assert its boot DoD (grist|projects|messages|docs|drive|meet|tchap)
 make backup          # dev shorthand for `suite backup` (CNPG base backup + off-site copy)
