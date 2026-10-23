@@ -1860,7 +1860,7 @@ wiring barely changes.
 **Maturity.** RustFS reached 1.0 (GA 2026-09-16). We pin chart 1.0.3 / appVersion 1.0.3, past the
 two secret-logging advisories (GHSA-r54g-49rx-98cr fixed in alpha.82; GHSA-8cm2-h255-v749's
 credential-log fix in beta.2). The pin moved from chart 0.8.0 / 1.0.0-beta.8; upgrade notes are in
-[Upgrading safely](../operate/upgrade.md#rustfs-100-beta-to-103). Distributed mode is still
+[Upgrading safely](../operate/upgrade.md#rustfs-100-beta8-to-103). Distributed mode is still
 a separate topology, and a single-node on-disk layout **cannot be converted to erasure coding in
 place** — HA later means a re-provision (noted for [ADR-006](#adr-006-backups-and-tested-restore)).
 
