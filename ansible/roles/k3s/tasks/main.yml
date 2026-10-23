@@ -59,6 +59,11 @@
     owner: root
     group: root
     mode: "0755"
+  register: k3s_installer_download
+  # Transient DNS/network failures happen on shared CI runners.
+  retries: 5
+  delay: 10
+  until: k3s_installer_download is succeeded
 
 # Run the installer when K3s is absent or the pinned version differs. The script
 # is idempotent and honours INSTALL_K3S_VERSION; config.yaml drives the rest.

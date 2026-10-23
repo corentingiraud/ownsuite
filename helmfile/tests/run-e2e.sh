@@ -133,15 +133,10 @@ EOF
 }
 
 echo "==> Creating k3d cluster '$CLUSTER' (${OWNSUITE_K3S_IMAGE:-k3d default})"
-k3d cluster create "$CLUSTER" \
+create_cluster_with_retry "$CLUSTER" \
   "${IMAGE_ARGS[@]}" \
   --port "80:80@loadbalancer" \
-  --port "443:443@loadbalancer" \
-  --wait --timeout 180s
-
-KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
-export KUBECONFIG
-wait_for_cluster_api
+  --port "443:443@loadbalancer"
 
 # apply verifies HTTPS for auth.{domain} + each ENABLED app (ADR-035) with
 # Python's TLS stack (urllib honours /etc/hosts); point auth + the one enabled app
@@ -157,7 +152,7 @@ echo "127.0.0.1 auth.${OWNSUITE_DOMAIN} docs.${OWNSUITE_DOMAIN}" | sudo tee -a /
 # with the pinned issuer, waits for the keycloak/docs certs, verifies HTTPS. --yes:
 # no TTY here — apply must never block on a confirmation. Idempotent, so the
 # watchdog's one retry re-applies safely (the snapshot skips itself mid-bring-up).
-provision_with_watchdog "domain=$OWNSUITE_DOMAIN, issuer=$OWNSUITE_TLS_ISSUER, backups=on" \
+OWNSUITE_E2E_RECREATE=1 provision_with_watchdog "domain=$OWNSUITE_DOMAIN, issuer=$OWNSUITE_TLS_ISSUER, backups=on" \
   python3 -m suite apply --yes --no-tunnel
 wait_for_certs keycloak-tls docs-tls
 
