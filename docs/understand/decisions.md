@@ -42,6 +42,11 @@ OS/K3s version bumps. Drift is possible on manual edits (mitigated by idempotenc
 
 ## ADR-003 — Pluggable object storage: Garage or external EU S3
 
+> **Status note.** The in-cluster option is now RustFS, not Garage:
+> [ADR-046](#adr-046-in-cluster-object-storage-rustfs-supersedes-adr-015) replaced Garage.
+> The pluggable `in-cluster` / `external` seam decided here is unchanged. The title and
+> text below keep the original wording as history.
+
 **Context.** MinIO (community) is **archived** (February 2026): console removed,
 binaries/images discontinued. Drive can store hundreds of GB.
 

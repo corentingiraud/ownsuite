@@ -36,6 +36,45 @@ dump_failure_diagnostics() {
   done
 }
 
+# retry <attempts> <cmd...>: run a command up to N times with a growing pause
+# (10s, 20s, ...). For network-bound steps that flake on shared runners (helm repo
+# index fetches, chart pulls). Returns the last exit code on final failure.
+retry() {
+  local max="$1"; shift
+  local n rc=0
+  for n in $(seq 1 "$max"); do
+    rc=0
+    "$@" && return 0 || rc=$?
+    [ "$n" -lt "$max" ] || break
+    echo "==> '$1' failed (exit $rc), retry $n/$((max - 1)) in $((n * 10))s"
+    sleep $((n * 10))
+  done
+  return "$rc"
+}
+
+# create_cluster_with_retry <name> [k3d args...]: create a k3d cluster, export its
+# KUBECONFIG and block on the API. On a k3d failure or an API that is not ready within
+# ~2 min (apiserver EOF / unreachable on a starved runner), delete the cluster and
+# start over, up to 3 attempts. Remembers name+args so provision_with_watchdog can
+# recreate the cluster the same way.
+_CLUSTER_NAME="" ; _CLUSTER_ARGS=()
+create_cluster_with_retry() {
+  _CLUSTER_NAME="$1"; shift
+  _CLUSTER_ARGS=("$@")
+  local attempt
+  for attempt in 1 2 3; do
+    [ "$attempt" -eq 1 ] || echo "==> recreating k3d cluster '$_CLUSTER_NAME' (attempt $attempt)"
+    k3d cluster delete "$_CLUSTER_NAME" >/dev/null 2>&1 || true
+    if k3d cluster create "$_CLUSTER_NAME" "${_CLUSTER_ARGS[@]}" --wait --timeout 180s; then
+      KUBECONFIG="$(k3d kubeconfig write "$_CLUSTER_NAME")"
+      export KUBECONFIG
+      wait_for_cluster_api 60 && return 0
+    fi
+  done
+  echo "==> k3d cluster '$_CLUSTER_NAME' could not be brought up after 3 attempts"
+  return 1
+}
+
 # k3d's `--wait` returns once the k3s server process is up, but the Kubernetes API
 # can still answer 503 ("the server is currently unable to handle the request") for
 # tens of seconds on a slow shared runner. `suite apply` hits the API on its very
@@ -44,7 +83,7 @@ dump_failure_diagnostics() {
 wait_for_cluster_api() {
   echo "==> Waiting for the cluster API to be ready"
   local i
-  for i in $(seq 1 60); do
+  for i in $(seq 1 "${1:-60}"); do
     kubectl get --raw='/readyz' >/dev/null 2>&1 && return 0
     sleep 2
   done
@@ -60,7 +99,7 @@ wait_for_cluster_api() {
 # into a ~15-second, actionable failure. Reused for the initial sync and `restore`.
 #
 # A plain progress-deadline timeout (NOT one of the fail-fast states) is retried
-# once: on a cold, CPU-starved single-node runner a Deployment that mounts a
+# (up to 3 attempts): on a cold, CPU-starved single-node runner a Deployment that mounts a
 # cert-manager-issued secret created in the same release (e.g. the barman-cloud
 # plugin's TLS) can sit in ContainerCreating past helm's deadline while the secret
 # is still being issued. `helmfile sync` is idempotent — the second pass finds the
@@ -69,22 +108,36 @@ wait_for_cluster_api() {
 provision_with_watchdog() {
   local desc="$1"; shift
   local attempt rc
-  for attempt in 1 2; do
-    [ "$attempt" -eq 1 ] || echo "==> retrying provisioning (attempt $attempt) — previous sync timed out"
+  # Pull helm repo indexes up front with backoff: a transient
+  # `groundhog2k.github.io ... cannot be reached` otherwise aborts the whole sync.
+  if [ -n "${HELMFILE:-}" ]; then
+    retry 5 helmfile -f "$HELMFILE" repos || echo "==> helm repos still unreachable, syncing anyway"
+  fi
+  for attempt in 1 2 3; do
+    [ "$attempt" -eq 1 ] || echo "==> retrying provisioning (attempt $attempt) — previous sync failed"
     rc=0
     _provision_attempt "$desc" "$@" || rc=$?
     case "$rc" in
       0) return 0 ;;
       2) exit 1 ;;   # unrecoverable, diagnosed above — do not retry
+      3)
+        # API unreachable: the killed sync may have left releases pending-install, so
+        # only a brand-new cluster is a safe retry. Opt-in (OWNSUITE_E2E_RECREATE=1),
+        # only for a first bring-up where the cluster holds nothing worth keeping.
+        if [ "${OWNSUITE_E2E_RECREATE:-0}" = "1" ] && [ -n "$_CLUSTER_NAME" ]; then
+          create_cluster_with_retry "$_CLUSTER_NAME" "${_CLUSTER_ARGS[@]}" || exit 1
+        else
+          exit 1
+        fi ;;
     esac
-    # rc>=1: plain sync failure (e.g. progress deadline) — retry once, then give up.
+    # rc>=1: plain sync failure (e.g. progress deadline) — retry, then give up.
   done
   echo "==> helmfile sync still failing after $attempt attempts (exit $rc)"
   exit 1
 }
 
 # One provisioning attempt. Returns 0 on success, 2 on an unrecoverable state that
-# must NOT be retried, or the sync's own exit code (>=1) on a plain timeout/failure.
+# must NOT be retried, 3 on an unreachable API (cluster recreated when opted in), or the sync's own exit code (>=1) on a plain timeout/failure.
 _provision_attempt() {
   # Run an arbitrary provisioning command ("$@") in the background while monitoring
   # pods, so a wedged bring-up fails fast instead of waiting out the helm timeout.
@@ -93,7 +146,7 @@ _provision_attempt() {
   local log; log="$(mktemp)"
   "$@" >"$log" 2>&1 &
   local pid=$!
-  local empty=0
+  local empty=0 pull_bad=0
   while kill -0 "$pid" 2>/dev/null; do
     sleep 15
     local summary
@@ -113,10 +166,16 @@ _provision_attempt() {
       kubectl cluster-info 2>&1 | head -5 || true
       kill "$pid" 2>/dev/null || true
       cat "$log"
-      return 2
+      return 3
     fi
-    if kubectl get pods -A --no-headers --request-timeout=10s 2>/dev/null | awk '
-        $4 ~ /ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerError|RunContainerError|CreateContainerConfigError/ {bad=1; print "  ! "$0}
+    # Registry pulls flake on shared runners and kubelet retries them with backoff, so
+    # an image-pull error only counts once it persisted ~2 min (8 checks); the other
+    # states are never transient.
+    if kubectl get pods -A --no-headers --request-timeout=10s 2>/dev/null \
+        | grep -qE 'ImagePullBackOff|ErrImagePull'; then pull_bad=$((pull_bad + 1)); else pull_bad=0; fi
+    if kubectl get pods -A --no-headers --request-timeout=10s 2>/dev/null | awk -v pull="$pull_bad" '
+        $4 ~ /ImagePullBackOff|ErrImagePull/ && pull >= 8 {bad=1; print "  ! "$0}
+        $4 ~ /InvalidImageName|CreateContainerError|RunContainerError|CreateContainerConfigError/ {bad=1; print "  ! "$0}
         $4 == "CrashLoopBackOff" && ($5+0) >= 3 {bad=1; print "  ! "$0}
         # Several pods stuck in Error usually means a Job (e.g. CNPG recovery) is
         # failing and retrying — surface it instead of waiting for the helm timeout.

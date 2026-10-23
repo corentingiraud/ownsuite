@@ -82,9 +82,7 @@ YAML
 }
 
 echo "==> Creating k3d cluster '$CLUSTER' (${OWNSUITE_K3S_IMAGE:-k3d default})"
-k3d cluster create "$CLUSTER" "${IMAGE_ARGS[@]}" --wait --timeout 180s
-KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
-export KUBECONFIG
+create_cluster_with_retry "$CLUSTER" "${IMAGE_ARGS[@]}"
 wait_for_cluster_api
 kubectl create namespace "$NS" >/dev/null
 

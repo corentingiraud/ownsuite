@@ -143,18 +143,10 @@ backend:
     LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX: "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
     # --- Recording (LiveKit Egress -> S3) ---
     RECORDING_ENABLE: "True"
-    # "False" enables meet >= v1.22.0's LiveKit egress_ended fallback: on
-    # EGRESS_COMPLETE the webhook handler calls notify_external_services() and
-    # sends the recording-ready email directly, with no MinIO/S3 bucket
-    # notification hitting the storage-hook endpoint. "True" would gate the
-    # email behind a storage-event POST we don't wire in external-S3 mode, so
-    # the email would never be sent (issue #73). The storage-hook endpoint
-    # 404s and RECORDING_STORAGE_EVENT_TOKEN goes unused in this mode.
-    RECORDING_STORAGE_EVENT_ENABLE: "False"
-    RECORDING_STORAGE_EVENT_TOKEN:
-      secretKeyRef:
-        name: meet-secrets
-        key: RECORDING_STORAGE_EVENT_TOKEN
+    # Recordings are finalized from LiveKit's egress_ended webhook (since v1.22.0;
+    # storage-event webhooks and their RECORDING_STORAGE_EVENT_* settings were removed
+    # in v1.30.0). The livekit release must deliver webhooks to
+    # /api/v1.0/rooms/webhooks-livekit/ (see values/livekit.yaml.gotmpl).
     RECORDING_DOWNLOAD_BASE_URL: {{ printf "https://%s/recording" $host | quote }}
     FILE_UPLOAD_ENABLED: "True"
     # --- Disabled optional features (AI/analytics/telephony/external) ---
@@ -287,6 +279,16 @@ ingressMedia:
   enabled: false
 ingressMediaFiles:
   enabled: false
+
+# The chart (>= 0.0.27) defaults these Services to garage.meet.svc.cluster.local;
+# point them at the in-cluster RustFS explicitly (the Services are templated off
+# these values even though the media ingresses stay disabled).
+serviceMedia:
+  host: {{ printf "rustfs-svc.%s.svc.cluster.local" $ns | quote }}
+  port: 9000
+serviceMediaFiles:
+  host: {{ printf "rustfs-svc.%s.svc.cluster.local" $ns | quote }}
+  port: 9000
 
 posthog:
   ingress:
