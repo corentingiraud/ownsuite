@@ -19,7 +19,7 @@ restore:
 primary:
   endpoint: "http://rustfs-svc.ownsuite.svc.cluster.local:9000"
   region: us-east-1
-  # Buckets copied off-site, one per enabled app (docs/drive/messages/projects).
+  # Buckets copied off-site, one per enabled app (docs/drive/messages/projects/tchap/grist).
   # Helmfile fills this from the enabled apps' buckets (values/object-backup.yaml.gotmpl).
   buckets:
     - docs-media-storage

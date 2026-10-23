@@ -54,7 +54,7 @@ Production essentials, implemented and **proven in CI**:
   Let's Encrypt certificates (staging → production), and brings the whole stack up. See
   [Guided install](../get-started/install.md).
 - **Off-site backups + tested restore** — CNPG PITR plus an encrypted off-site copy of **every
-  enabled app's media bucket and the Grist document volume**; CI replays a full
+  enabled app's bucket, Grist documents included**; CI replays a full
   **backup → destroy → restore** cycle. See [Backups & restore](../operate/backups.md).
 - **Tuned for a single small server** — resource requests/limits and liveness/readiness probes on
   every workload, with a per-app **server-sizing guide** (RAM/CPU/disk). See [Sizing](../operate/sizing.md).

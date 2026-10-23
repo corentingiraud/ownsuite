@@ -100,9 +100,9 @@ test-platform: ## Platform + installer + backup/restore DoD on a throwaway k3d c
 test-app: ## Boot ONE app on its own throwaway k3d cluster (APP=grist|projects|messages|docs|drive|meet|tchap|calendars)
 	helmfile/tests/run-app-e2e.sh $(APP)
 
-.PHONY: test-pvc-backup
-test-pvc-backup: ## Fast, isolated ADR-032 PVC backup/restore round-trip (off-site store only, ~3 min)
-	helmfile/tests/run-pvc-backup-e2e.sh
+.PHONY: test-object-backup
+test-object-backup: ## Fast, isolated object-backup round-trip (Grist bucket -> off-site -> wipe -> restore, ~5 min)
+	helmfile/tests/run-object-backup-e2e.sh
 
 # --- Backups & tested restore (ADR-006, ADR-017) -----------------------------
 PG_CLUSTER ?= ownsuite-pg

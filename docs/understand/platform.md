@@ -47,8 +47,7 @@ helmfile/
     postgres/                 #   CNPG Cluster + Database + backup ObjectStore/ScheduledBackup
     barman-cloud-plugin/      #   vendored CNPG backup/recovery plugin
     object-backup/            #   rclone off-site media copy + restore
-    pvc-backup/               #   rclone off-site volume copy + restore (reusable)
-  tests/                      # end-to-end checks (platform, per-app, PVC backup/restore)
+  tests/                      # end-to-end checks (platform, per-app, object backup/restore)
 ```
 
 Nothing secret is committed: the human input is `suite.yaml`, the machine state is
@@ -156,13 +155,13 @@ while the heavy run stays off the PR path:
 
 ```bash
 make lint-helm        # helm lint + helmfile template + kubeconform (CRD-aware)
-make test-pvc-backup  # isolated PVC backup → wipe → restore on k3d (~3 min) — the PR gate
+make test-object-backup # isolated object backup → wipe → restore on k3d (~5 min) — the PR gate
 make test-app APP=docs # boot ONE app on its own k3d cluster + assert its boot DoD
 make test-platform    # platform + `suite apply` + backup/restore, on a throwaway k3d cluster (heavy)
 ```
 
 - `make lint-helm` runs on every change under `helmfile/` (`helmfile-ci.yml`), on PRs and on `main`.
-- **PR gate (fast):** `make test-pvc-backup` runs the isolated backup → wipe → restore
+- **PR gate (fast):** `make test-object-backup` runs the isolated backup → wipe → restore
   round-trip in ~3 min (`helmfile-e2e.yml`), and `apps-e2e.yml` boots whichever app a PR
   touches on its own cluster — so a change gets a real boot/restore signal pre-merge.
 - **Full suite (heavy, off the PR path):** `make test-platform` provisions a real K3s with
@@ -171,8 +170,8 @@ make test-platform    # platform + `suite apply` + backup/restore, on a throwawa
   through `suite apply --yes --no-tunnel` (self-signed issuer), provisions a
   user with `suite user`, seeds a media object, then runs a full **backup → destroy →
   restore** cycle and asserts all three storage classes survived — the **Keycloak user**
-  (Postgres PITR), the **media object** (rclone object copy) and a **PVC document** (the
-  reusable volume copy). It asserts **no application** — each app's boot is checked by the
+  (Postgres PITR), the **media object** (rclone object copy) and a **Grist document
+  object** (same object copy, versioned bucket). It asserts **no application** — each app's boot is checked by the
   per-app e2e above. It runs nightly, on `main`, and on demand — not on PRs
   (`helmfile-e2e.yml`).
 

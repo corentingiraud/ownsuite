@@ -66,7 +66,7 @@ deployment rarely approaches (its request is only ~0.3 GB).
 |---|---|
 | OS + K3s + container images | ~20 GB |
 | PostgreSQL volume (`postgres.storage`, default 10 Gi) | 10 GB |
-| Grist documents PVC (`apps.grist.storage`, default 5 Gi) | 5 GB (if enabled) |
+| Grist document cache PVC (`apps.grist.storage`, default 5 Gi; documents live in S3) | 5 GB (if enabled) |
 | In-cluster RustFS data (+ off-site copy if in-cluster) | +10 GB each (if used) |
 
 User files and mail blobs live in **object storage**, not on the disk, when you use external

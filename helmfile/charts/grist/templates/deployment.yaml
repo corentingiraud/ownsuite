@@ -1,7 +1,11 @@
+{{- $s3 := .Values.s3 -}}
+{{- $u := urlParse (default "" $s3.endpoint) -}}
+{{- $port := trimPrefix ":" (regexFind ":[0-9]+$" (default "" $u.host)) -}}
 {{- /*
-Grist server (ADR-024). One container, one replica. The document SQLite files live
-on the `grist-persist` PVC mounted at /persist; the home database is external (CNPG,
-via TYPEORM_* env). `strategy: Recreate` guarantees the read-write-once volume is
+Grist server (ADR-024, ADR-047). One container, one replica. Documents are stored in
+a versioned S3 bucket (s3.* values); the `grist-persist` PVC mounted at /persist is a
+local cache. The home database is external (CNPG, via TYPEORM_* env) and the doc
+worker registers in the shared Valkey (REDIS_URL). `strategy: Recreate` guarantees the read-write-once volume is
 never mounted by two pods during a rollout. All credentials arrive by secretKeyRef
 (secretEnv) — nothing secret is rendered here.
 */}}
@@ -27,6 +31,48 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if $s3.bucket }}
+      initContainers:
+        - name: docs-to-s3
+          image: "{{ .Values.docsMigration.image.repository }}:{{ .Values.docsMigration.image.tag }}"
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              marker=/persist/.ownsuite-docs-on-s3
+              if [ ! -e "$marker" ]; then
+                if [ -d /persist/docs ]; then
+                  rclone copy /persist/docs "s3:$BUCKET/{{ $s3.prefix }}" \
+                    --include "/*.grist" --ignore-existing --s3-no-check-bucket
+                fi
+                touch "$marker"
+              fi
+          env:
+            - name: BUCKET
+              value: {{ $s3.bucket | quote }}
+            - name: RCLONE_CONFIG_S3_TYPE
+              value: s3
+            - name: RCLONE_CONFIG_S3_PROVIDER
+              value: Other
+            - name: RCLONE_CONFIG_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: RCLONE_CONFIG_S3_ENDPOINT
+              value: {{ $s3.endpoint | quote }}
+            - name: RCLONE_CONFIG_S3_REGION
+              value: {{ $s3.region | quote }}
+            - name: RCLONE_CONFIG_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $s3.secretName }}
+                  key: {{ $s3.accessKeyKey }}
+            - name: RCLONE_CONFIG_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $s3.secretName }}
+                  key: {{ $s3.secretKeyKey }}
+          volumeMounts:
+            - name: persist
+              mountPath: /persist
+      {{- end }}
       containers:
         - name: grist
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -37,6 +83,32 @@ spec:
             {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
               value: {{ $v | quote }}
+            {{- end }}
+            {{- if $s3.bucket }}
+            - name: GRIST_DOCS_MINIO_BUCKET
+              value: {{ $s3.bucket | quote }}
+            - name: GRIST_DOCS_MINIO_ENDPOINT
+              value: {{ $u.hostname | quote }}
+            {{- if $port }}
+            - name: GRIST_DOCS_MINIO_PORT
+              value: {{ $port | quote }}
+            {{- end }}
+            - name: GRIST_DOCS_MINIO_USE_SSL
+              value: {{ ternary "1" "0" (eq $u.scheme "https") | quote }}
+            - name: GRIST_DOCS_MINIO_BUCKET_REGION
+              value: {{ $s3.region | quote }}
+            - name: GRIST_DOCS_MINIO_PREFIX
+              value: {{ $s3.prefix | quote }}
+            - name: GRIST_DOCS_MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $s3.secretName }}
+                  key: {{ $s3.accessKeyKey }}
+            - name: GRIST_DOCS_MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $s3.secretName }}
+                  key: {{ $s3.secretKeyKey }}
             {{- end }}
             {{- range .Values.secretEnv }}
             - name: {{ .name }}
@@ -64,7 +136,7 @@ spec:
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: {{ .Values.probePath }}
+              path: {{ .Values.livenessPath }}
               port: http
             periodSeconds: 20
             timeoutSeconds: 5

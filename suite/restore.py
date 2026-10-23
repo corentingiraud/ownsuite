@@ -43,7 +43,7 @@ def run_restore(args):
 
     domain = ctx.spec.domain
     # Restore mode + backups forced on, exactly as `make restore` runs it: CNPG
-    # bootstraps via recovery and the object/pvc restore Jobs run (ADR-006, ADR-017).
+    # bootstraps via recovery and the object restore Jobs run (ADR-006, ADR-017).
     env = {
         **ctx.env,
         "OWNSUITE_RESTORE": "true",

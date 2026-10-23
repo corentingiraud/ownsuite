@@ -32,12 +32,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Fast, isolated ADR-032 PVC backup/restore round-trip (a single off-site rustfs +
-  # the pvc-backup chart, ~3-5 min). This is the PR gate for backup changes: it proves
-  # backup -> wipe -> restore on the real chart WITHOUT the heavy full suite, so a PR
+  # Fast, isolated object-backup round-trip (primary rustfs + off-site rustfs + the
+  # object-backup chart, a seeded Grist document, ~5 min). This is the PR gate for
+  # backup changes: it proves backup -> wipe -> restore on the real charts WITHOUT the
+  # heavy full suite, so a PR
   # gets a meaningful signal in minutes instead of waiting on (and flaking with) the
   # full job below.
-  pvc-backup:
+  object-backup:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -48,13 +49,13 @@ jobs:
       - uses: ./.github/actions/setup-cluster-tools
         with:
           cluster: "true"
-      - name: ADR-032 PVC backup/restore (isolated)
-        run: make test-pvc-backup
+      - name: Object backup/restore (isolated)
+        run: make test-object-backup
 
   # The heavy full suite (suite install -> Docs/Drive DoD -> backup/restore): pulls
   # ~15 large images and takes 20-45 min, and is prone to shared-runner flakiness
   # (containerd sandbox collisions, slow pulls). Run it nightly / on main / on demand
-  # — NOT as a PR gate. The `pvc-backup` job above covers backup changes on PRs.
+  # — NOT as a PR gate. The `object-backup` job above covers backup changes on PRs.
   full:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
