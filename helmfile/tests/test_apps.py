@@ -403,8 +403,8 @@ def test_docs_database_applied():
 
 @only("docs")
 def test_docs_pods_ready():
-    """All Docs components reach Ready (backend, celery, frontend, y-provider)."""
-    for component in ("backend", "celery-worker", "frontend", "yProvider"):
+    """All Docs components reach Ready (backend, celery, frontend, y-provider, yhub)."""
+    for component in ("backend", "celery-worker", "frontend", "yProvider", "yhub"):
         _pod_ready("docs", component=component)
 
 
@@ -421,6 +421,57 @@ def test_docs_reachable_over_https():
         return data
 
     retry(fetch, attempts=40, delay=3)
+
+
+@only("docs")
+def test_docs_collaboration_websocket_routed():
+    """The yhub WebSocket path is routed: an upgrade request is answered by yhub (101,
+    or 401/403 without a valid token), never by Traefik's 404."""
+    host = app_host("docs")
+
+    def probe():
+        res = subprocess.run(
+            ["curl", "-ksS", "-o", "/dev/null", "-w", "%{http_code}",
+             "--max-time", "10", "--resolve", f"{host}:443:127.0.0.1",
+             "-H", "Connection: Upgrade", "-H", "Upgrade: websocket",
+             "-H", "Sec-WebSocket-Version: 13",
+             "-H", "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+             "-H", f"Origin: https://{host}",
+             f"https://{host}/collaboration/ws/v1/docs"],
+            capture_output=True, text=True,
+        )
+        # curl exits 28 when an accepted upgrade keeps the socket open: the code is
+        # still written first.
+        code = res.stdout.strip()
+        assert code in ("101", "401", "403"), f"WS upgrade answered {code!r}"
+
+    retry(probe, attempts=20, delay=3)
+
+
+@only("docs")
+def test_docs_yhub_admin_routes_not_published():
+    """yhub's internal endpoints (prune, ...) are not exposed through the ingress."""
+    host = app_host("docs")
+
+    def probe():
+        res = subprocess.run(
+            ["curl", "-ksS", "-o", "/dev/null", "-w", "%{http_code}",
+             "--max-time", "10", "--resolve", f"{host}:443:127.0.0.1",
+             "-X", "POST", f"https://{host}/collaboration/prune/"],
+            capture_output=True, text=True, check=True,
+        )
+        assert res.stdout.strip() == "404", f"/collaboration/prune/ answered {res.stdout!r}"
+
+    retry(probe, attempts=20, delay=3)
+
+
+@only("docs")
+def test_docs_migrate_documents_dry_run():
+    """The yhub backfill command exists and runs (dry run, nothing is written)."""
+    kubectl(
+        "-n", NAMESPACE, "exec", "deploy/docs-backend", "--",
+        "python", "manage.py", "migrate_documents", "--dry-run",
+    )
 
 
 @only("docs")
