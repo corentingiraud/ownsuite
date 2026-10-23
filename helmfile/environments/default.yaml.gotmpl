@@ -240,6 +240,12 @@ databases:
     secretName: keycloak-db
   - name: docs
     secretName: docs-db
+  {{- if eq (env "OWNSUITE_APP_DOCS" | default "false") "true" }}
+  # yhub (Docs 6 collaboration server) persists Yjs documents here. Only
+  # provisioned when Docs is enabled.
+  - name: yhub
+    secretName: yhub-db
+  {{- end }}
   - name: drive
     secretName: drive-db
   {{- if eq (env "OWNSUITE_APP_GRIST" | default "false") "true" }}
