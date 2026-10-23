@@ -1,0 +1,48 @@
+# OwnSuite
+
+> Self-host La Suite numérique, production-ready, on a single server, for a non-profit — K3s, Helmfile, shared SSO, backups included.
+
+OwnSuite: an open-source, production-ready deployment of La Suite numérique on a single server for a non-profit (K3s + Helmfile, shared Keycloak SSO, CloudNativePG, pluggable S3 storage, backups and tested restore).
+
+## Overview
+
+- [Home](https://corentingiraud.github.io/ownsuite/index.md): Project overview and product vision.
+
+## Get started
+
+- [Install](https://corentingiraud.github.io/ownsuite/get-started/install/index.md): The guided install — suite init writes suite.yaml, suite plan previews, suite apply takes a bare server + domain to all-in-HTTPS (provision → bootstrap → DNS → deploy).
+- [Server sizing](https://corentingiraud.github.io/ownsuite/operate/sizing/index.md): Server sizing — minimum and recommended VPS specs (RAM/CPU/disk) per enabled app; decide before provisioning.
+- [Provisioning (Terraform)](https://corentingiraud.github.io/ownsuite/get-started/provision/index.md): The Terraform phase `suite apply` runs when a provider is set — server, buckets and firewall on Scaleway — and how to bring your own server.
+- [Bootstrap (Ansible)](https://corentingiraud.github.io/ownsuite/get-started/bootstrap/index.md): The Ansible phase of `suite apply` — bare Debian server into a single-node K3s cluster; not a command you run directly.
+
+## Operate
+
+- [Users](https://corentingiraud.github.io/ownsuite/operate/users/index.md): User provisioning with the `suite user` CLI (one Keycloak identity, JIT to all apps).
+- [Status & monitoring](https://corentingiraud.github.io/ownsuite/operate/status/index.md): Health monitoring with `suite status` (node, database, certificates, backups, per-app pods).
+- [Upgrading](https://corentingiraud.github.io/ownsuite/operate/upgrade/index.md): Safe upgrades with `suite upgrade` (backup-gated snapshot, diff, apply, health check, auto rollback).
+- [Backups & restore](https://corentingiraud.github.io/ownsuite/operate/backups/index.md): Off-site backups (CNPG PITR, rclone objects) and the tested restore procedure.
+
+## How it works
+
+- [Overview](https://corentingiraud.github.io/ownsuite/understand/overview/index.md): How it works — the moving parts, in plain terms.
+- [Under the hood](https://corentingiraud.github.io/ownsuite/understand/platform/index.md): Under the hood — the shared foundation (HTTPS, database, cache, single sign-on) and the order it comes up in.
+- [Docs](https://corentingiraud.github.io/ownsuite/understand/docs/index.md): Docs — collaborative documents with single sign-on and file storage.
+- [Drive](https://corentingiraud.github.io/ownsuite/understand/drive/index.md): Drive — the file manager, on the same shared foundation.
+- [Grist](https://corentingiraud.github.io/ownsuite/understand/grist/index.md): Grist — spreadsheets that behave like a database; optional, off by default.
+- [Projects](https://corentingiraud.github.io/ownsuite/understand/projects/index.md): Projects — kanban boards and task management; optional, off by default.
+- [Mailbox](https://corentingiraud.github.io/ownsuite/understand/messages/index.md): Mailbox — a full mail provider with webmail; advanced, off by default.
+- [Meet](https://corentingiraud.github.io/ownsuite/understand/meet/index.md): Meet — video conferencing on LiveKit; advanced, off by default.
+- [Tchap](https://corentingiraud.github.io/ownsuite/understand/tchap/index.md): Tchap — Matrix/Element secure chat; advanced, off by default.
+- [Calendars](https://corentingiraud.github.io/ownsuite/understand/calendars/index.md): Calendars — shared calendars with org free/busy and a one-click Meet link; optional, off by default.
+- [Design decisions](https://corentingiraud.github.io/ownsuite/understand/decisions/index.md): Design decisions and their rationale.
+
+## Reference
+
+- [suite CLI](https://corentingiraud.github.io/ownsuite/reference/cli/index.md): The `suite` CLI — every command and flag (init, plan, apply, apps, info, logs, tunnel, user, status, upgrade, backup, restore, destroy, deps).
+- [Configuration](https://corentingiraud.github.io/ownsuite/reference/configuration/index.md): The suite.yaml schema — every key, with defaults, and how to choose which apps to deploy.
+
+## Project
+
+- [Status &amp; roadmap](https://corentingiraud.github.io/ownsuite/project/roadmap/index.md): Status board (Shipped / Optional / Planned) and the product vision.
+- [For AI agents](https://corentingiraud.github.io/ownsuite/project/for-ai-agents/index.md): Conventions for AI agents and the documentation.
+
