@@ -20,3 +20,6 @@ packages = ["suite"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]             # bare `pytest` runs the CLI unit tests, not molecule/*/tests (needs testinfra)
