@@ -43,3 +43,10 @@ tlsSecret: drive-tls
 # Force a download (Content-Disposition: attachment). True for Drive (files), false
 # for Docs (inline document images).
 forceDownload: true
+
+# External S3 over TLS only: resolve the S3 host at request time over IPv4 only, so an
+# IPv4-only node never tries the AAAA records (issue #78). Set false on a dual-stack node
+# to use the plain static proxy_pass. `resolver` is the DNS server nginx queries (k3s
+# CoreDNS by default); ignored when s3IPv4Only is false or the store is in-cluster (http).
+s3IPv4Only: true
+resolver: kube-dns.kube-system.svc.cluster.local
