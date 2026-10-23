@@ -38,6 +38,12 @@ image:
 backend:
   # One replica is right-sized for a single-server non-profit (the chart defaults to 3).
   replicas: 1
+  # Helm 4's --wait (kstatus) tracks Jobs. The chart deletes a finished Job after 30 s,
+  # and a TTL-deleted Job reads as NotFound, so the wait hangs until the 1200 s helm
+  # timeout. Keep Jobs 1800 s, past that timeout. A Job alive under 30 min can make a
+  # later image-bumping upgrade fail with "field is immutable"; accepted trade-off.
+  jobs:
+    ttlSecondsAfterFinished: 1800
   # Probes tuned for a constrained single node: the backend runs DB migrations on first
   # boot, so liveness gets a long initialDelay (never restart it mid-migration) + a
   # tolerant timeout. Readiness still gates Ready, so the rollout isn't slowed. Fixes a
