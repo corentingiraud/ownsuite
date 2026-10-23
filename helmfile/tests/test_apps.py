@@ -497,6 +497,32 @@ def test_drive_reachable_over_https():
     retry(fetch, attempts=40, delay=3)
 
 
+def _drive_session_whoami(host):
+    """Log the CLI user into Drive through the real OIDC authorization-code flow
+    (Drive -> Keycloak login form -> Drive callback) and return /users/me/.
+
+    Drive >= 0.25 only authenticates the main API with its session cookie (the
+    bearer/userinfo backend was removed; bearer tokens are reserved for the opt-in
+    resource-server routes), so a direct-access-grant token no longer works there.
+    """
+    resolve = ["--resolve", f"{AUTH_HOST}:443:127.0.0.1"]
+    with tempfile.TemporaryDirectory() as tmp:
+        jar = os.path.join(tmp, "cookies")
+        common = [*resolve, "-b", jar, "-c", jar, "-L"]
+        page = curl(host, f"https://{host}/api/v1.0/authenticate/", *common)
+        form = re.search(r'<form[^>]*id="kc-form-login"[^>]*action="([^"]+)"', page)
+        if not form:
+            form = re.search(r'<form[^>]*action="([^"]+)"[^>]*method="post"', page, re.I)
+        assert form, f"no Keycloak login form in the response: {page[:300]!r}"
+        curl(
+            host, html.unescape(form.group(1)), *common,
+            "--data-urlencode", f"username={CLI_USER}",
+            "--data-urlencode", f"password={CLI_USER_PW}",
+            "--data-urlencode", "credentialId=",
+        )
+        return json.loads(curl(host, f"https://{host}/api/v1.0/users/me/", *common))
+
+
 @only("drive")
 @pytest.mark.skipif(
     not (SECRET_SEED and CLI_USER and CLI_USER_PW),
@@ -504,22 +530,17 @@ def test_drive_reachable_over_https():
 )
 def test_drive_jit_provisions_cli_user():
     """The Drive definition of done: a user created through the `suite user` CLI
-    (Keycloak only — no per-app step) is just-in-time provisioned into Drive on its
-    first authenticated call (ADR-005, ADR-022, ADR-023).
+    (Keycloak only, no per-app step) is just-in-time provisioned into Drive on its
+    first login (ADR-005, ADR-022, ADR-023).
 
-    Mint an access token with Drive's OIDC client for the CLI-created user
-    (direct-access grant), then call /users/me/ — a 200 echoing the user's email proves
-    the token is accepted and the account was JIT-created in Drive.
+    Run the OIDC browser flow headlessly with curl, then call /users/me/ with the
+    resulting session: a 200 echoing the user's email proves the SSO client wiring and
+    that the account was JIT-created in Drive.
     """
     host = app_host("drive")
 
     def whoami():
-        token = password_token("drive", CLI_USER, CLI_USER_PW)
-        out = curl(
-            host, f"https://{host}/api/v1.0/users/me/",
-            "-H", f"Authorization: Bearer {token}",
-        )
-        data = json.loads(out)
+        data = _drive_session_whoami(host)
         assert (data.get("email") or "").lower() == CLI_USER.lower(), data
 
     retry(whoami)
