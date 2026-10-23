@@ -2035,3 +2035,9 @@ and a Valkey restart costs at most 10 seconds of edits. Upgrading from 5.7 is on
 (Django migrate, yhub init-db, backfill); no intermediate release exists. Refines
 [ADR-016](#adr-016-docs-impress-integration-one-namespace-traefik-ingress-oidc-split); the
 rollback rule relies on [ADR-006](#adr-006-backups-and-tested-restore).
+Helm 4's `--wait` tracks Jobs and the chart deletes finished Jobs after 30 s, which leaves a
+`NotFound` Job and a hung wait. The four Docs Jobs (`backend-migrate`, `backend-createsuperuser`,
+`jwt-keys`, `yhub-init-db`) therefore keep `ttlSecondsAfterFinished: 1800`, above the 1200 s helm
+timeout. Their names are fixed and the image tag is in the pod template, so an upgrade that
+changes the image within 30 minutes of the previous apply can fail with an immutable field error
+until the old Jobs expire or are deleted.

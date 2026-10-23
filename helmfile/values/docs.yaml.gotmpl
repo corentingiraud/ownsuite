@@ -32,6 +32,11 @@ image:
 
 backend:
   replicas: 1
+  # Helm 4's --wait (kstatus) tracks Jobs. The chart deletes a finished Job after 30 s,
+  # and a Job deleted before the whole release is ready reads as NotFound, so the wait
+  # hangs until the timeout. Keep Jobs past the 1200 s helm timeout (see ADR-049).
+  jobs:
+    ttlSecondsAfterFinished: 1800
   # Probes tuned for a constrained single node: the backend runs DB migrations on first
   # boot, so liveness gets a long initialDelay (never restart it mid-migration) + a
   # tolerant timeout. Readiness still gates Ready, so the rollout isn't slowed. Fixes a
@@ -208,6 +213,9 @@ yProvider:
 yhub:
   enabled: true
   replicas: 1
+  # Same Job TTL override as backend.jobs (Helm 4 wait vs TTL-deleted Job).
+  jobs:
+    ttlSecondsAfterFinished: 1800
   worker:
     enabled: false
   # Port 80, not the chart default 443: same Traefik HTTPS-upstream trap as the y-provider.
@@ -260,6 +268,9 @@ yhub:
 # stored in a Secret mounted at /data/jwt. Job images are pinned in versions.yaml.
 jwtKeys:
   enabled: true
+  # Same Job TTL override as backend.jobs (Helm 4 wait vs TTL-deleted Job).
+  job:
+    ttlSecondsAfterFinished: 1800
   image:
     repository: alpine/openssl
     tag: {{ .Values.imageVersions.docsJwtOpenssl | quote }}
