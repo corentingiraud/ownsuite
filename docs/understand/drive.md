@@ -38,7 +38,7 @@ It is the Docs wiring with two pieces removed and a few names changed:
 - **SSO** — the `drive` confidential OIDC client (secret derived from the same seed id the app
   reads). Browser → `https://auth.{domain}`; backend → Keycloak in-cluster.
 - **No real-time collaboration** — Drive is a file manager, so (unlike Docs) it ships no
-  y-provider/websocket server.
+  collaboration (yhub/websocket) server.
 
 All of it is in `helmfile/values/drive.yaml.gotmpl`; nothing secret is committed.
 
