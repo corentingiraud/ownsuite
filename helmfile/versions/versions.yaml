@@ -32,7 +32,7 @@ chartVersions:
   # Meet (suitenumerique / meet) — official chart. Video conferencing (LiveKit).
   # The chart has no appVersion, so the meet image tags below are pinned separately.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/meet depName=meet
-  meet: "0.0.26"
+  meet: "0.0.29"
   # LiveKit media server (SFU) — official chart. The chart lags the server binary
   # (chart frozen at 1.9.0 since 2025-06, while the server is already 1.13.x), so we
   # keep the latest published chart here but override the image tag below to a recent
@@ -40,8 +40,8 @@ chartVersions:
   # meet-frontend client SDK requires, which breaks live sessions.
   # renovate: datasource=helm registryUrl=https://helm.livekit.io depName=livekit-server
   livekit: "1.9.0"
-  # LiveKit Egress — official chart, records Meet rooms to S3. Image tag defaults to
-  # the chart appVersion.
+  # LiveKit Egress — official chart, records Meet rooms to S3. The chart (1.8.4, latest)
+  # lags the binary, so the image tag is overridden below (imageVersions.livekitEgress).
   # renovate: datasource=helm registryUrl=https://helm.livekit.io depName=egress
   livekitEgress: "1.8.4"
   # Tchap (Matrix/Element) — Element's ess-helm `matrix-stack` chart bundles Synapse +
@@ -99,13 +99,16 @@ imageVersions:
   # AI/transcription components (summary, agents) are disabled (replicas 0), so
   # only these two images are pulled. Off by default.
   # renovate: datasource=docker depName=lasuite/meet-backend
-  meetBackend: "v1.22.0"
+  meetBackend: "v1.36.2"
   # renovate: datasource=docker depName=lasuite/meet-frontend
-  meetFrontend: "v1.22.0"
+  meetFrontend: "v1.36.2"
   # LiveKit server image — overrides the lagging chart appVersion (see chartVersions.livekit).
   # Must be >= v1.9.10 for the /rtc/v1 signalling path the meet-frontend client SDK uses.
   # renovate: datasource=docker depName=livekit/livekit-server
-  livekitServer: "v1.13.3"
+  livekitServer: "v1.13.10"
+  # LiveKit Egress image — overrides the lagging chart appVersion (see chartVersions.livekitEgress).
+  # renovate: datasource=docker depName=livekit/egress
+  livekitEgress: "v1.15.0"
   # Tchap — Synapse image (ess-helm chart, ADR-041). We override the chart's stock
   # ghcr.io/element-hq/synapse with dotwee/matrix-synapse-s3, which is that same upstream
   # Synapse plus the `synapse-s3-storage-provider` module baked in (the chart injects the
