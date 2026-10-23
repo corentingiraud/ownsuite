@@ -29,7 +29,7 @@ when it runs, and which checks gate a merge.
 | `helmfile-ci` | Static Helmfile checks: `helm lint`, full `helmfile template`, kubeconform schema validation. | **Yes** | push `main`, dispatch |
 | `helmfile-e2e` → `object-backup` | Isolated ADR-048 object backup → wipe → restore (Grist document bucket) on a real k3d cluster (~5 min). | **Yes** | — |
 | `helmfile-e2e` → `full` | Heavy full suite: `suite install` → Docs/Drive DoD → backup/restore. | No | schedule (04:00), push `main`, dispatch |
-| `apps-e2e` | Per-app boot + definition-of-done, one app per fresh cluster (matrix). On a PR, only the changed app(s) run. | **Yes** (changed app only) | schedule (05:00), dispatch |
+| `apps-e2e` | Per-app boot + definition-of-done, one app per fresh cluster (matrix). On a PR, only the changed app(s) run (chart/values files, plus `versions.yaml` keys mapped to their app). Dispatch takes an `app` input (`all` or one app). | **Yes** (changed app only) | schedule (05:00), dispatch |
 | `bootstrap-e2e` | Whole bootstrap incl. a real pinned K3s install → node Ready, Debian 12/13. | **Yes** (k3s role changes) | schedule (03:00), push `main`, dispatch |
 | `docs` | Builds and deploys the MkDocs site to GitHub Pages. | No | push `main` (docs paths) |
 
@@ -40,6 +40,8 @@ nothing under a workflow's paths is not gated by it.
 
 - Need the cluster CLIs? Use the composite action — don't re-add the `curl`
   install block. Bump tool versions in the action (Renovate keeps them current).
+- k3d jobs get `OWNSUITE_K3S_IMAGE` (`rancher/k3s:<k3s_version, + as ->`) from the
+  composite action with `cluster: "true"`, derived from the Ansible k3s pin.
 - A new PR-triggering workflow should copy the `concurrency:` block from an
   existing one so stale PR runs get cancelled.
 - Keep heavy, image-pulling, flake-prone jobs off the PR path; gate the PR on a

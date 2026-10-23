@@ -65,3 +65,14 @@ runs:
       run: |
         echo "${RUNNER_TEMP}/cluster-tools-bin" >> "$GITHUB_PATH"
         echo "HELM_PLUGINS=${RUNNER_TEMP}/cluster-tools-bin/helm-plugins" >> "$GITHUB_ENV"
+
+    # k3d jobs test the same K3s as the Ansible bootstrap: derive the rancher/k3s image
+    # from the single pin (k3s role default); docker tags use '-' where the release has '+'.
+    # The e2e scripts read OWNSUITE_K3S_IMAGE. No second pin to maintain.
+    - name: Pin the k3d node image to the Ansible K3s version
+      if: inputs.cluster == 'true'
+      shell: bash
+      run: |
+        v="$(sed -nE 's/^k3s_version: "([^"]+)".*/\1/p' ansible/roles/k3s/defaults/main.yml)"
+        [ -n "$v" ] || { echo "k3s_version not found" >&2; exit 1; }
+        echo "OWNSUITE_K3S_IMAGE=rancher/k3s:${v//+/-}" >> "$GITHUB_ENV"

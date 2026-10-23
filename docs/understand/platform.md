@@ -160,10 +160,12 @@ make test-app APP=docs # boot ONE app on its own k3d cluster + assert its boot D
 make test-platform    # platform + `suite apply` + backup/restore, on a throwaway k3d cluster (heavy)
 ```
 
+- The k3d e2e runs the K3s image derived from the Ansible pin (`OWNSUITE_K3S_IMAGE`, set by the
+  `setup-cluster-tools` action), so the tested K3s matches the bootstrap.
 - `make lint-helm` runs on every change under `helmfile/` (`helmfile-ci.yml`), on PRs and on `main`.
 - **PR gate (fast):** `make test-object-backup` runs the isolated backup → wipe → restore
   round-trip in ~3 min (`helmfile-e2e.yml`), and `apps-e2e.yml` boots whichever app a PR
-  touches on its own cluster — so a change gets a real boot/restore signal pre-merge.
+  touches on its own cluster (chart/values files, or the app's keys in `versions.yaml`; a manual dispatch takes an `app` input) — so a change gets a real boot/restore signal pre-merge.
 - **Full suite (heavy, off the PR path):** `make test-platform` provisions a real K3s with
   **k3d**, writes a throwaway `suite.yaml` into a temp dir (pointed at via
   `OWNSUITE_CONFIG`, so a developer's real file is never touched), brings the platform up

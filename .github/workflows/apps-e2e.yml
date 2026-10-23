@@ -57,7 +57,15 @@ on:
       - "helmfile/tests/lib.sh"
       - "helmfile/tests/test_apps.py"
       - ".github/workflows/apps-e2e.yml"
+      # Version-only PRs (most Renovate bumps): `detect` maps the changed keys to apps.
+      - "helmfile/versions/versions.yaml"
   workflow_dispatch:
+    inputs:
+      app:
+        description: "App to boot (all = the full sweep)"
+        type: choice
+        default: all
+        options: [all, grist, projects, messages, docs, drive, meet, tchap, calendars]
 
 # Least privilege: e2e only reads the repo (spins up an ephemeral k3d cluster).
 permissions:
@@ -90,8 +98,13 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          APP: ${{ inputs.app }}
         run: |
           all='["grist","projects","messages","docs","drive","meet","tchap","calendars"]'
+          # Manual dispatch of a single app boots only that one.
+          if [ "$EVENT" = "workflow_dispatch" ] && [ -n "$APP" ] && [ "$APP" != "all" ]; then
+            echo "apps=[\"$APP\"]" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           if [ "$EVENT" != "pull_request" ]; then
             echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
           fi
@@ -103,6 +116,21 @@ jobs:
             echo "apps=$all" >> "$GITHUB_OUTPUT"; exit 0
           fi
           picked=()
+          # versions.yaml: map each changed key to its app. Shared/platform keys (certManager,
+          # keycloak, rclone, ...) map to nothing: helmfile-e2e covers them.
+          for key in $(git diff -U0 "$BASE_SHA"...HEAD -- helmfile/versions/versions.yaml \
+                         | sed -nE 's/^[+-]  ([A-Za-z0-9]+):.*/\1/p' | sort -u); do
+            case "$key" in
+              grist) picked+=("grist") ;;
+              projects) picked+=("projects") ;;
+              messages) picked+=("messages") ;;
+              docs|docs[A-Z]*) picked+=("docs") ;;
+              drive|drive[A-Z]*) picked+=("drive") ;;
+              meet|meet[A-Z]*|livekit|livekit[A-Z]*) picked+=("meet") ;;
+              tchap|tchap[A-Z]*|synapse*) picked+=("tchap") ;;
+              calendars*) picked+=("calendars") ;;
+            esac
+          done
           for app in grist projects messages docs drive meet tchap calendars; do
             # Grist/Projects/messages own a charts/<app>/ dir; Docs/Drive have no such
             # dir — their only local chart is charts/<app>-ingress/ (upstream chart +
@@ -128,7 +156,7 @@ jobs:
           if [ ${#picked[@]} -eq 0 ]; then
             echo "apps=[]" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          apps="$(printf '%s\n' "${picked[@]}" | jq -R . | jq -s -c .)"
+          apps="$(printf '%s\n' "${picked[@]}" | sort -u | jq -R . | jq -s -c .)"
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
   app-e2e:
