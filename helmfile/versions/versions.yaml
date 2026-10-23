@@ -51,7 +51,7 @@ chartVersions:
   # release train. Every component image is pinned/overridden below; the chart's own
   # image defaults are only used for components we don't override (MAS).
   # renovate: datasource=docker depName=ghcr.io/element-hq/ess-helm/matrix-stack
-  tchap: "26.6.2"
+  tchap: "26.10.2"
 
 imageVersions:
   # renovate: datasource=docker depName=quay.io/keycloak/keycloak
@@ -113,20 +113,18 @@ imageVersions:
   # Tchap — Synapse image (ess-helm chart, ADR-041). We override the chart's stock
   # ghcr.io/element-hq/synapse with dotwee/matrix-synapse-s3, which is that same upstream
   # Synapse plus the `synapse-s3-storage-provider` module baked in (the chart injects the
-  # media-store CONFIG but not the module). Tag tracks upstream Synapse releases.
+  # media-store CONFIG but not the module). Tag tracks upstream Synapse releases and must
+  # equal the Synapse the pinned matrix-stack chart ships (chart 26.10.2 = v1.163.0).
   # renovate: datasource=docker depName=ghcr.io/dotwee/matrix-synapse-s3
-  synapse: "v1.155.0"
+  synapse: "v1.163.0"
   # Tchap — Element Web client image: Tchap's fork (tchapgouv/tchap-web-v4). Upstream
-  # ships only the moving branch tag `develop_tchap` (no versioned releases), so Renovate
-  # pins it by DIGEST — the tag stays `develop_tchap` while the digest advances on review.
-  # renovate: datasource=docker depName=ghcr.io/tchapgouv/tchap-web-v4 versioning=docker
-  tchapWeb: "develop_tchap"
-  # ...and its digest — because `develop_tchap` is a MOVING tag (upstream ships no
-  # versioned releases), the digest is what actually pins the deployed image (no-latest
-  # rule, AGENTS.md). The values file sets image.digest from this; Renovate advances it
-  # on review. Bump `tchapWeb` (tag) and this together.
-  # renovate: datasource=docker depName=ghcr.io/tchapgouv/tchap-web-v4
-  tchapWebDigest: "sha256:5d1488092dc3e0921aea36f2444486792ccd5c1bc04efcb26bd122c710ddd292"
+  # publishes versioned tags (`tchap-X.Y.Z`) alongside the moving `develop_tchap` branch
+  # tag; we pin a release tag AND its manifest digest (the values file sets both, the
+  # chart resolves repo@digest). Renovate bumps the tag and the digest together (custom
+  # manager in renovate.json: keep the two lines adjacent).
+  # renovate-tchap-web
+  tchapWeb: "tchap-4.21.10"
+  tchapWebDigest: "sha256:9d6b165ee3ffff4e79dfe541c3d5963bb1a1d5288022877f585a3d4b196996bc"
   # rclone image for the off-site object copy CronJob / restore Job (ADR-006/ADR-017),
   # and the RustFS bucket-creation bootstrap Job (ADR-046: `rclone mkdir` per bucket).
   # renovate: datasource=docker depName=rclone/rclone

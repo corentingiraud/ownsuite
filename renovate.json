@@ -244,6 +244,17 @@
       "datasourceTemplate": "{{{datasource}}}"
     },
     {
+      "description": "Track the Tchap Web release tag together with its manifest digest (adjacent lines in versions.yaml).",
+      "customType": "regex",
+      "managerFilePatterns": ["/^helmfile/versions/versions\\.yaml$/"],
+      "matchStrings": [
+        "# renovate-tchap-web\\s+tchapWeb:\\s*\"(?<currentValue>[^\"]+)\"\\s+tchapWebDigest:\\s*\"(?<currentDigest>sha256:[a-f0-9]+)\""
+      ],
+      "depNameTemplate": "ghcr.io/tchapgouv/tchap-web-v4",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^tchap-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
       "description": "Track pinned CLI tool versions (helm/helmfile/kubeconform/k3d/kubectl) in CI workflows and composite actions.",
       "customType": "regex",
       "managerFilePatterns": [
