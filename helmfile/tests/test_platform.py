@@ -291,9 +291,8 @@ def test_restore_preserves_keycloak_user():
     client. It is also a genuine PITR proof: the CLI user is created at runtime and is
     in no declarative realm import, so its presence cannot come from a re-sync.
 
-    The other two storage classes are proven by run-e2e.sh's own shell steps: the
-    media object (rclone object-copy, ADR-030) is read back from the primary bucket,
-    and the PVC document (pvc_backup_roundtrip, ADR-032) survives a wipe -> restore.
+    The other storage class is proven by run-e2e.sh's own shell steps: the media
+    object (rclone object-copy, ADR-030) is read back from the primary bucket.
     """
     def found():
         token = keycloak_admin_token()  # realm + admin creds recovered

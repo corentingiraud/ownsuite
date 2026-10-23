@@ -6,9 +6,9 @@
 #   RustFS as the off-site store) -> assert the shared infra DoD + provision a user
 #   via the `suite user` CLI -> seed a media object -> back up (PostgreSQL base
 #   backup + off-site object copy) -> DESTROY the primary state -> `make restore`
-#   -> assert all THREE storage classes SURVIVED (ADR-006): the Keycloak user
-#   (Postgres PITR), the media object (rclone object-copy, ADR-030) and a PVC
-#   document (pvc_backup_roundtrip, ADR-032) -> destroy.
+#   -> assert BOTH storage classes SURVIVED (ADR-006): the Keycloak user
+#   (Postgres PITR) and the media object (rclone object-copy, ADR-030) -> destroy.
+#   (Grist documents live in S3 too and are covered by run-object-backup-e2e.sh.)
 #
 # This asserts NO application: each app's boot DoD lives in apps-e2e.yml / test_apps.py.
 # Docs is the one app kept enabled here, SOLELY to provide a primary object bucket for
@@ -208,12 +208,6 @@ echo "==> Copying media off-site (rclone CronJob, encrypted)"
 kubectl -n "$NS" delete job object-backup-e2e --ignore-not-found >/dev/null 2>&1 || true
 kubectl -n "$NS" create job --from=cronjob/object-backup object-backup-e2e >/dev/null
 wait_job object-backup-e2e 180
-
-# --- ADR-032: prove a Grist document SURVIVES a PVC-backup -> restore ------------
-# Exercises the reusable pvc-backup chart end to end WITHOUT booting the heavy Grist
-# pod (kept out of this constrained runner). The round-trip lives in lib.sh so the
-# isolated, fast harness (run-pvc-backup-e2e.sh) runs the exact same code path.
-pvc_backup_roundtrip
 
 echo "==> DESTROYING the primary state (DB + primary object store + docs)"
 # Keep platform-configuration (secrets), rustfs-backup (the off-site backups!), the
