@@ -36,8 +36,10 @@ Three choices differ from the impress apps:
   Encrypt certificate, so no TLS-skip or CA wiring is needed. The `grist` confidential OIDC client
   (secret derived from the same seed id the app reads) reuses the existing client template
   verbatim — its `redirectUris: https://grist.{domain}/*` already covers Grist's `/oauth2/callback`.
-- **Documents on a PVC, home DB on CNPG.** Grist's document SQLite files live on the
-  `grist-persist` volume (mounted at `/persist`); orgs, users and ACLs live in a dedicated CNPG
+- **Documents in S3, home DB on CNPG.** Grist's document SQLite files are stored in the
+  versioned S3 bucket `grist-docs` ([ADR-048](decisions.md)); `/persist` (the `grist-persist` volume) is a cache.
+  Grist also uses Valkey database 12 to register its document worker, and its liveness probe
+  restarts it if Valkey comes back empty. Orgs, users and ACLs live in a dedicated CNPG
   `grist` database via `TYPEORM_*`. The session secret and OIDC client secret are
   seed-derived in `grist-secrets`; the home-DB password is the per-app `grist-db` Secret.
 - **Formula sandbox `unsandboxed` by default.** `gvisor` (the image default) needs node
@@ -72,7 +74,7 @@ runner never has to hold every app at once. Run it yourself with `make test-app 
 - **`unsandboxed` formulas trust the document authors** (true for one organisation); switch to
   `gvisor` otherwise.
 
-The documents PVC (`/persist`, holding the SQLite documents) is now backed up off-site: when
-backups are on, a reusable rclone copy syncs the volume to the off-site store — encrypted — on the
-backup schedule, and restores it during recovery, just like the object (media) copy. So enabling
-Grist no longer opens a backup gap.
+Documents are in the `grist-docs` bucket, which the off-site object copy backs up and restores
+with the media buckets. The bucket must be versioned: the in-cluster RustFS bootstrap enables it,
+and with external S3 you create the bucket with versioning on. Installs that predate this change
+get their local documents copied to the bucket once, by an init container, at the next apply.

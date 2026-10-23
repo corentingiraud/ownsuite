@@ -9,8 +9,7 @@ destination has to survive losing the whole server, so it's never stored on the 
 | State | How | Covers |
 |---|---|---|
 | **PostgreSQL** | CNPG **Barman Cloud Plugin** — continuous WAL archiving + base backups to off-site S3, with PITR. | Every app database (`keycloak`, `docs`, and any enabled app's database) — so **Keycloak realm + users** and each app's documents/metadata (Keycloak DR is PITR of its database, no separate export). |
-| **Objects (media)** | **rclone** `sync` of **every enabled app's media bucket** to the off-site store, client-side encrypted (rclone `crypt`). | Docs, Drive, Projects and Mailbox media/uploads — each bucket copied to its own encrypted off-site path. Required even with external S3 (accidental deletion, lock-in). |
-| **App volumes (PVCs)** | **rclone** copy of each backed-up volume to the off-site store, encrypted the same way; restored on recovery. | State that lives on a volume rather than S3 — today **Grist's documents** (`/persist`, its SQLite files). Reusable for any future PVC-backed app. |
+| **Objects (media, Grist documents)** | **rclone** `sync` of **every enabled app's bucket** to the off-site store, client-side encrypted (rclone `crypt`). | Docs, Drive, Projects and Mailbox media/uploads, plus Grist documents (bucket `grist-docs`, versioned) — each bucket copied to its own encrypted off-site path. Required even with external S3 (accidental deletion, lock-in). |
 
 ## The off-site destination
 
@@ -82,8 +81,7 @@ server-side encryption for the PostgreSQL backups, e.g. `AES256` on AWS.)
 Enabling backups installs the [Barman Cloud Plugin](https://cloudnative-pg.io/plugin-barman-cloud/)
 into `cnpg-system` (pinned, vendored manifest) and attaches a WAL archiver + `ScheduledBackup`
 to the PostgreSQL cluster, plus the rclone object-copy CronJob (one pass over every enabled app's
-media bucket) and — when a PVC-backed app such as Grist is enabled — an rclone volume-copy CronJob
-per backed-up volume.
+bucket, including the Grist documents bucket).
 
 !!! note "Encryption & retention"
     PostgreSQL backups rely on **TLS in transit** + the destination's **at-rest** protection
@@ -136,9 +134,8 @@ The restore-mode sync:
    database comes back, to the latest backup / PITR).
 2. **Objects** are copied back from the off-site store into each app's primary bucket (rclone
    restore Job).
-3. **Volumes** are copied back into each backed-up PVC (e.g. Grist's `/persist`) by the rclone
-   volume restore Job, before the app reads them.
-4. **Apps** come up against the restored databases, buckets and volumes.
+3. **Apps** come up against the restored databases and buckets. Grist refetches its documents
+   from its bucket into the `/persist` cache.
 
 ## Tested every night
 
@@ -147,3 +144,11 @@ the whole cycle on a throwaway cluster: it brings the stack up with backups on, 
 document and a file, backs them up, **destroys** the primary data (keeping only the off-site
 copy), runs `make restore`, and checks that the **document, the user account, and the file all
 came back**. If restore ever broke, the build would catch it before you ever needed it.
+
+## Grist documents
+
+Grist stores its documents in the S3 bucket `grist-docs` ([ADR-048](../understand/decisions.md)),
+so they follow the object copy above. `/persist` is only a cache and is not backed up. With
+`objectStorage.mode: external`, create the bucket before `suite apply` and enable versioning on
+it, because Grist refuses to start on an unversioned bucket. In `in-cluster` mode the bootstrap
+Job does both. The bucket name is the grist option `s3_bucket` in `suite.yaml`.
