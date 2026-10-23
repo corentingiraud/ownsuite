@@ -412,7 +412,7 @@ credentials, the depth of Keycloak backup, and how to prove the cycle hermetical
 
 **Decision.**
 
-- **PostgreSQL → CNPG Barman Cloud Plugin** ([v0.13.0](https://github.com/cloudnative-pg/plugin-barman-cloud),
+- **PostgreSQL → CNPG Barman Cloud Plugin** ([v0.15.1](https://github.com/cloudnative-pg/plugin-barman-cloud),
   the CNPG-I plugin), not the in-tree `.spec.backup.barmanObjectStore` (deprecated since CNPG
   1.26). The plugin is installed from its **pinned, vendored** release manifest
   (`charts/barman-cloud-plugin`) into `cnpg-system`, reusing cert-manager for its TLS. A
@@ -574,7 +574,7 @@ first-boot seed; the Job is the authoritative reconciler thereafter.
 
 ## ADR-021 — Mailbox: suitenumerique/messages, outbound via EU relay
 
-> **Refined by [ADR-026](#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred) (app integration) and [ADR-027](#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb) (port-25 ingress).**
+> **Refined by [ADR-026](#adr-026-mailbox-integration-messages-django-oidc-split-reuse-the-seam-opensearch-deferred) (app integration), [ADR-027](#adr-027-non-http-ingress-inbound-smtp-on-port-25-via-k3s-servicelb) (port-25 ingress) and [ADR-047](#adr-047-mailbox-outbound-without-mta-out-the-worker-relays-and-signs-with-the-supplied-dkim-key) (outbound without mta-out, DKIM).**
 > Two component specifics below were revisited against the verified-current upstream
 > (`suitenumerique/messages` v0.8.0, June 2026):
 >
@@ -586,6 +586,8 @@ first-boot seed; the Job is the authoritative reconciler thereafter.
 > - **DKIM key is supplied, not DB-generated.** messages accepts `MESSAGES_DKIM_PRIVATE_KEY_B64`,
 >   so the installer generates the keypair once and treats it as an external override (the S3-creds
 >   pattern), publishing the public key as a TXT record up front — no two-step DNS dance.
+>   *Corrected by ADR-047:* no upstream code reads that variable; the supplied key is registered in
+>   messages' database instead.
 
 **Context.** ADR-008 deferred mail and tentatively recommended Stalwart. Since then,
 **suitenumerique/messages** has become La Suite's own mail app, so adopting it keeps the
@@ -890,6 +892,10 @@ Projects without forking.
 
 ## ADR-026 — Mailbox integration: messages, Django OIDC split, reuse the seam, OpenSearch deferred
 
+> **Outbound changed in [ADR-047](#adr-047-mailbox-outbound-without-mta-out-the-worker-relays-and-signs-with-the-supplied-dkim-key):**
+> messages 0.10.0 removed mta-out, so the worker relays to the smarthost itself and the image set
+> is `messages-{backend,frontend,mta-in}`.
+>
 > **The "not yet CI-booted" limit below is closed.** The hermetic mail loopback this ADR
 > describes as the intended boot check now runs in CI on the mailbox's own cluster
 > ([ADR-029](#adr-029-per-app-nightly-e2e-one-app-per-cluster)). OpenSearch and the off-CI
@@ -1870,6 +1876,76 @@ The seam that ADR-003 defined is unchanged; `external` mode still deploys nothin
 [ADR-003](#adr-003-pluggable-object-storage-garage-or-external-eu-s3),
 [ADR-006](#adr-006-backups-and-tested-restore), and
 [ADR-017](#adr-017-backups-tested-restore-barman-cloud-plugin-rclone-off-site-by-design).
+
+---
+
+## ADR-047 — Mailbox outbound without mta-out: the worker relays and signs with the supplied DKIM key
+
+**Context.** messages v0.10.0 removed the `mta-out` service
+([#785](https://github.com/suitenumerique/messages/releases/tag/v0.10.0)): in relay mode the
+backend worker now connects to an external `MTA_OUT_RELAY_HOST` itself, and the
+`ghcr.io/suitenumerique/messages-mta-out` image stops at 0.9.0, so the tag the chart shares across
+images cannot move past 0.9.0 while mta-out is deployed. Up to 0.8.0 the outbound path was worker
+→ in-cluster Postfix mta-out (port 587, an internal SASL account, TLS `may`) → the smarthost
+(`apps.messages.relay_host` with the relay account, TLS `may`).
+
+Reading the 0.8.0 and 0.10.0 code showed that DKIM never lived in mta-out. The worker signs
+(`core/mda/outbound.py`, `sign_message_dkim`) with the mail domain's most recent active `DKIMKey`
+database row, which upstream generates when the domain is created, under its default selector
+`stmessages`. The `MESSAGES_DKIM_{SELECTOR,DOMAINS,PRIVATE_KEY_B64}` variables we set on mta-out
+are listed in upstream's `docs/env.md` but no code reads them. So outbound mail was signed under a
+selector no DNS record backs, while the `<dkim_selector>._domainkey` record `suite apply` prints
+matched a key that signed nothing. The ADR-021 refinement "messages accepts
+`MESSAGES_DKIM_PRIVATE_KEY_B64`" was wrong.
+
+**Decision.**
+
+- **Drop the mta-out Deployment and Service.** Backend and worker get `MTA_OUT_MODE=relay` and
+  `MTA_OUT_RELAY_HOST=<apps.messages.relay_host>`; once a relay account exists
+  (`relayConfigured`), `MTA_OUT_RELAY_USERNAME`/`MTA_OUT_RELAY_PASSWORD` come from
+  `messages-secrets` (`SMTP_RELAY_*`, the same overrides as before). The internal SASL secret
+  `SMTP_INTERNAL_PASSWORD` is gone. `suite.yaml` keeps the same keys and defaults (`relay_host`,
+  `spf_include`, `dkim_selector`, `dmarc_rua`), and the relay account still comes from the machine
+  state or `OWNSUITE_MTA_RELAY_*`.
+- **TLS to the relay is `secure`** (mandatory STARTTLS, CA chain and host name checked), the value
+  ADR-021 and ADR-026 specified. This hop now crosses the internet with the relay password; at
+  `may` a failed STARTTLS falls back to a cleartext AUTH. Scaleway TEM's
+  `smtp.tem.scaleway.com:2587` presents a valid Let's Encrypt certificate (checked October 2026).
+- **The supplied DKIM key becomes the signing key.** When a key is supplied
+  (`secretOverrides.messages-dkim-key`, which `suite apply` always sets), the maildomain seed Job
+  loads it, upserts a `DKIMKey` row under `apps.messages.dkim_selector` keyed on (selector, public
+  key), and deactivates every other key of the domain. The worker then signs with the key whose
+  public half is in DNS. Without a supplied key (a raw `helmfile sync`), upstream's generated key
+  stays in use, as before.
+- **`SSRF_ALLOWED_HOSTS` stays unset.** Upstream SSRF-checks only per-domain relays
+  (`MailDomain.custom_settings`); the deployment-wide `MTA_OUT_RELAY_HOST` is trusted, and
+  OwnSuite sets no per-domain relay.
+- **mta-in is unchanged.** The `messages-mta-in` image is still Postfix plus the Python delivery
+  milter, with the same env (`MDA_API_*`, `MYHOSTNAME`). The v0.9 rewrite and the v0.10 env rework
+  concern the separate pure-Python `messages-mta-in-py` image, which we do not adopt.
+
+**Consequences.**
+
+- One pod fewer (50m CPU and 64 Mi requested, 128 Mi limit). Retries are upstream's per-recipient
+  schedule stored in Postgres, instead of a Postfix queue on the container filesystem that a pod
+  restart lost.
+- Without a relay account, the relay refuses sends to external recipients and the webmail shows
+  them as failed. Before, mta-out queued them and tried direct MX delivery on port 25 from the
+  server IP, which ADR-021 forbids. Local mailboxes still exchange mail over the internal path.
+- A relay with a self-signed or mismatched certificate no longer works. Reputable relays pass;
+  the level is one line in `helmfile/values/messages.yaml.gotmpl` if an operator needs `may`.
+- On existing installs DKIM starts verifying under the published selector with no DNS change.
+  The old `stmessages` key stays in the database, inactive.
+- mta-out stripped `Received:` headers; the worker composes MIME without one, so no internal hop
+  leaks either way. The relay sees the server IP as before; the EHLO name is now the worker pod
+  host name instead of `mail.{domain}`.
+- The per-app e2e supplies a DKIM key and asserts it is the mail domain's only active key. Real
+  deliverability stays the off-CI human check of ADR-026.
+- The Calendars integration (ADR-043, ADR-045) holds: the `api_key` Channel model, the
+  global-channel authentication, the provisioning and submit routes and the `CALDAV_DEFAULT_*`
+  settings are unchanged in 0.10.0 (`Channel` gained an `is_active` flag that defaults to true).
+
+---
 
 ## ADR-048 — Grist documents in S3, PVC backup retired (supersedes ADR-032)
 

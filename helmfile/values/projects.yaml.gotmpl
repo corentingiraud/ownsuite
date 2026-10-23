@@ -87,7 +87,7 @@ env:
 
 secretEnv:
   {{- if .Values.email.configured }}
-  # Shared platform outbound-relay account (same one the mailbox mta-out uses).
+  # Shared platform outbound-relay account (same one the mailbox uses).
   - name: SMTP_USER
     secretName: email-relay
     secretKey: EMAIL_HOST_USER

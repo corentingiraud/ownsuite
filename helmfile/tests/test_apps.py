@@ -13,6 +13,7 @@ Shells out to kubectl/curl with the ambient KUBECONFIG; reuses the token/HTTP
 helpers from test_platform (same directory, same conventions).
 """
 
+import base64
 import html
 import json
 import os
@@ -265,8 +266,9 @@ def test_messages_database_applied():
 
 @only("messages")
 def test_messages_pods_ready():
-    """The four serving components reach Ready; the worker (no port/probe) is Running."""
-    for component in ("backend", "frontend", "mta-in", "mta-out"):
+    """The three serving components reach Ready; the worker (no port/probe) is Running.
+    There is no mta-out since 0.10.0: the worker relays outbound itself (ADR-047)."""
+    for component in ("backend", "frontend", "mta-in"):
         _pod_ready("messages", component=component)
     phase = kubectl(
         "-n", NAMESPACE, "get", "pods",
@@ -274,6 +276,38 @@ def test_messages_pods_ready():
         "-o", "jsonpath={.items[*].status.phase}",
     ).stdout
     assert "Running" in phase, f"messages worker not Running ({phase!r})"
+
+
+@only("messages")
+@pytest.mark.skipif(
+    not os.environ.get("OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64"),
+    reason="needs a supplied DKIM key (OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64)",
+)
+def test_messages_signs_with_supplied_dkim_key():
+    """Outbound DKIM (ADR-047): the worker signs with the mail domain's active DKIMKey
+    row, so the maildomain Job must make the supplied key, under the configured
+    selector, the domain's ONLY active key. Its public half is what `suite apply`
+    publishes as the DKIM TXT record, derived here the same way (suite/mail.py)."""
+    pem = base64.b64decode(os.environ["OWNSUITE_MTA_DKIM_PRIVATE_KEY_B64"])
+    der = subprocess.run(
+        ["openssl", "rsa", "-pubout", "-outform", "DER"],
+        input=pem, capture_output=True, check=True,
+    ).stdout
+    expected = [os.environ.get("OWNSUITE_MTA_DKIM_SELECTOR", "ownsuite"),
+                base64.b64encode(der).decode()]
+    script = (
+        "from core.models import MailDomain\n"
+        f"d = MailDomain.objects.get(name='{DOMAIN}')\n"
+        "for k in d.dkim_keys.filter(is_active=True):\n"
+        "    print('ACTIVE', k.selector, k.public_key)\n"
+    )
+    res = kubectl(
+        "-n", NAMESPACE, "exec", "deploy/messages-backend", "--",
+        "python", "manage.py", "shell", "-c", script,
+    )
+    active = [line.split()[1:] for line in res.stdout.splitlines()
+              if line.startswith("ACTIVE ")]
+    assert active == [expected], res.stdout + res.stderr
 
 
 @only("messages")

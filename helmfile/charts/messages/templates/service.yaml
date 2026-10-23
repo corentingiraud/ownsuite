@@ -1,5 +1,5 @@
 {{- /*
-A Service per component that declares one (ADR-026). backend/frontend/mta-out are
+A Service per component that declares one (ADR-026). backend/frontend are
 ClusterIP (in-cluster only); mta-in is a LoadBalancer so K3s' ServiceLB binds host
 port 25 for inbound SMTP from the internet (ADR-027).
 */}}

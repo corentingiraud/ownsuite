@@ -167,19 +167,21 @@ apps:
   # Enable with OWNSUITE_APP_MESSAGES=true.
   messages:
     enabled: {{ env "OWNSUITE_APP_MESSAGES" | default "false" }}
-    # The reputable EU SMTP relay messages' mta-out delivers through (never direct
-    # from the VPS IP, ADR-021). Default: Scaleway TEM. Format host:port (STARTTLS).
+    # The reputable EU SMTP relay the messages worker delivers through (never direct
+    # from the VPS IP, ADR-021, ADR-047). Default: Scaleway TEM. Format host:port
+    # (STARTTLS, certificate verified).
     relayHost: {{ env "OWNSUITE_MTA_RELAY_HOST" | default "smtp.tem.scaleway.com:2587" | quote }}
     # The relay's SPF include (published in the SPF TXT). Provider-specific; the
     # default matches the Scaleway TEM relay above.
     spfInclude: {{ env "OWNSUITE_MTA_SPF_INCLUDE" | default "_spf.tem.scaleway.com" | quote }}
-    # DKIM selector — must match the published DKIM TXT record (_domainkey).
+    # DKIM selector — must match the published DKIM TXT record (_domainkey). The
+    # maildomain Job registers the supplied key under it (ADR-047).
     dkimSelector: {{ env "OWNSUITE_MTA_DKIM_SELECTOR" | default "ownsuite" | quote }}
     # Optional DMARC aggregate-report mailbox.
     dmarcRua: {{ env "OWNSUITE_MTA_DMARC_RUA" | default "" | quote }}
     # True once the operator has supplied the external relay account (username set).
-    # Until then mta-out runs without an external relay (the hermetic e2e path:
-    # internal local delivery only, no outbound to the internet).
+    # Until then the worker has no relay account: sends to external recipients fail
+    # (the relay refuses them), local delivery stays internal (the hermetic e2e path).
     relayConfigured: {{ ne (env "OWNSUITE_MTA_RELAY_USERNAME" | default "") "" }}
   # Meet (suitenumerique/meet, LiveKit) — video conferencing. OFF by default. The
   # only app needing non-HTTP ports (LiveKit media 7882/udp + 7881/tcp), opened via
@@ -217,7 +219,7 @@ adminEmail: {{ env "OWNSUITE_ADMIN_EMAIL" | default "admin@example.org" | quote 
 # set the apps skip sending (Django falls back to a dummy backend; recordings stay
 # reachable via a presigned S3 URL). Enable by exporting the relay account below.
 email:
-  # Relay endpoint (host:port, STARTTLS). Shared with the mailbox mta-out relayHost.
+  # Relay endpoint (host:port, STARTTLS). Shared with the mailbox relayHost.
   host: {{ env "OWNSUITE_MTA_RELAY_HOST" | default "smtp.tem.scaleway.com:2587" | quote }}
   # Envelope/From address on outgoing mail (must be an allowed sender on the relay).
   from: {{ env "OWNSUITE_EMAIL_FROM" | default (printf "no-reply@%s" (env "OWNSUITE_DOMAIN" | default "ownsuite.localhost")) | quote }}

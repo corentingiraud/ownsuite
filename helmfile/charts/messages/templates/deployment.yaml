@@ -1,9 +1,10 @@
 {{- /*
-One Deployment per component (ADR-026): backend, worker, frontend, mta-in, mta-out.
+One Deployment per component (ADR-026): backend, worker, frontend, mta-in. There is
+no mta-out since 0.10.0: the worker relays outbound mail itself (ADR-047).
 All share the image repository + pinned tag; each picks its published image via
 imageSuffix (the worker reuses the backend image with a different command). State is
 external (CNPG + Valkey + S3), so no volumes — `strategy: Recreate` only matters for
-the MTAs' brief in-flight queue. Credentials arrive by secretKeyRef (secretEnv);
+mta-in's brief in-flight queue. Credentials arrive by secretKeyRef (secretEnv);
 nothing secret is rendered here.
 */}}
 {{- /* The probe action (httpGet/tcpSocket) is identical across startup/readiness/
