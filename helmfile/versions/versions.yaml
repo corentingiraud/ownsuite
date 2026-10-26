@@ -74,9 +74,9 @@ imageVersions:
   # Drive images — keep these two in lockstep with the drive chart version above.
   # Drive is a file manager (no realtime y-provider, unlike Docs).
   # renovate: datasource=docker depName=lasuite/drive-backend
-  driveBackend: "v0.25.2"
+  driveBackend: "v0.25.3"
   # renovate: datasource=docker depName=lasuite/drive-frontend
-  driveFrontend: "v0.25.2"
+  driveFrontend: "v0.25.3"
   # Grist (getgrist) — a single-container app (no official Helm chart), deployed
   # from the local ./charts/grist chart (ADR-024). One image; the Docker tag has no
   # "v" prefix (the grist-core GitHub release is tagged v1.7.21).
