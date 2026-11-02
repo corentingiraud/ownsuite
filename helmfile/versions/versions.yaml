@@ -81,7 +81,7 @@ imageVersions:
   # from the local ./charts/grist chart (ADR-024). One image; the Docker tag has no
   # "v" prefix (the grist-core GitHub release is tagged v1.7.21).
   # renovate: datasource=docker depName=gristlabs/grist
-  grist: "1.7.21"
+  grist: "1.7.22"
   # Projects (suitenumerique) — a single-container Sails.js app (no official Helm
   # chart), deployed from the local ./charts/projects chart (ADR-025).
   # renovate: datasource=docker depName=lasuite/projects
