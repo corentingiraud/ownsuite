@@ -28,7 +28,7 @@ chartVersions:
   # Drive (suitenumerique / drive) — official chart. Like docs, its appVersion is
   # "latest", so the drive image tags below are pinned independently.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/drive depName=drive
-  drive: "0.25.0"
+  drive: "0.26.0"
   # Meet (suitenumerique / meet) — official chart. Video conferencing (LiveKit).
   # The chart has no appVersion, so the meet image tags below are pinned separately.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/meet depName=meet
@@ -74,9 +74,9 @@ imageVersions:
   # Drive images — keep these two in lockstep with the drive chart version above.
   # Drive is a file manager (no realtime y-provider, unlike Docs).
   # renovate: datasource=docker depName=lasuite/drive-backend
-  driveBackend: "v0.25.2"
+  driveBackend: "v0.27.0"
   # renovate: datasource=docker depName=lasuite/drive-frontend
-  driveFrontend: "v0.25.2"
+  driveFrontend: "v0.27.0"
   # Grist (getgrist) — a single-container app (no official Helm chart), deployed
   # from the local ./charts/grist chart (ADR-024). One image; the Docker tag has no
   # "v" prefix (the grist-core GitHub release is tagged v1.7.21).
