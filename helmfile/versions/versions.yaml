@@ -85,7 +85,7 @@ imageVersions:
   # Projects (suitenumerique) — a single-container Sails.js app (no official Helm
   # chart), deployed from the local ./charts/projects chart (ADR-025).
   # renovate: datasource=docker depName=lasuite/projects
-  projects: "1.27.12"
+  projects: "1.27.13"
   # Messages (suitenumerique) — the mailbox (ADR-021, ADR-026, ADR-047). No official
   # Helm chart; the local ./charts/messages chart runs three images that share this
   # one tag: messages-{backend,frontend,mta-in} on ghcr.io (the worker reuses the
