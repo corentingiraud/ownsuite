@@ -7,20 +7,20 @@
 
 chartVersions:
   # renovate: datasource=helm registryUrl=https://charts.jetstack.io depName=cert-manager
-  certManager: "v1.21.2"
+  certManager: "v1.21.3"
   # renovate: datasource=helm registryUrl=https://cloudnative-pg.github.io/charts depName=cloudnative-pg
-  cnpgOperator: "0.29.1"
+  cnpgOperator: "0.29.2"
   # renovate: datasource=helm registryUrl=https://codecentric.github.io/helm-charts depName=keycloakx
   keycloakx: "7.4.0"
   # renovate: datasource=helm registryUrl=https://groundhog2k.github.io/helm-charts depName=valkey
-  valkey: "2.3.4"
+  valkey: "2.4.2"
   # In-cluster object store: RustFS (ADR-046), first-party chart at charts.rustfs.com.
   # The chart version equals the app version since GA (chart 1.0.3 -> app 1.0.3); the image
   # tag is left empty in the values so it follows the chart's appVersion. Past the
   # secret-logging advisories (GHSA-r54g-49rx-98cr fixed in app 1.0.0-alpha.82;
   # GHSA-8cm2-h255-v749 credential-log fix in 1.0.0-beta.2).
   # renovate: datasource=helm registryUrl=https://charts.rustfs.com depName=rustfs
-  rustfs: "1.0.3"
+  rustfs: "1.0.7"
   # Docs (suitenumerique / impress) — official chart. The chart's appVersion is
   # "latest", so the impress image tags below are pinned independently.
   # renovate: datasource=helm registryUrl=https://suitenumerique.github.io/docs depName=docs
@@ -55,7 +55,7 @@ chartVersions:
 
 imageVersions:
   # renovate: datasource=docker depName=quay.io/keycloak/keycloak
-  keycloak: "26.8.1"
+  keycloak: "26.8.2"
   # Docs images — keep these four in lockstep with the chart version (the chart's
   # appVersion is "latest", so every tag is pinned explicitly).
   # renovate: datasource=docker depName=lasuite/impress-backend
@@ -136,13 +136,13 @@ imageVersions:
   # rclone image for the off-site object copy CronJob / restore Job (ADR-006/ADR-017),
   # and the RustFS bucket-creation bootstrap Job (ADR-046: `rclone mkdir` per bucket).
   # renovate: datasource=docker depName=rclone/rclone
-  rclone: "1.75.2"
+  rclone: "1.76.0"
   # nginx for the media-proxy chart: the authenticated /media/ download path on Traefik
   # (ADR-016). The upstream apps' media-auth is nginx-coupled (auth_request + X-Original-URL
   # + upstream-vhost) which Traefik forwardAuth cannot satisfy, so a tiny in-cluster nginx
   # honours that contract. Stable branch, Alpine.
   # renovate: datasource=docker depName=nginx
-  nginx: "1.31.2-alpine"
+  nginx: "1.31.10-alpine"
   # postgres client (psql) for the Grist bootstrap Job: it grants everyone@getgrist.com
   # editor on the single team site so every SSO user shares it (Grist has no native SSO
   # auto-join — only SCIM in the enterprise build).
@@ -157,4 +157,4 @@ manifestVersions:
   # that file with the new release's manifest.yaml (the operator + sidecar images are
   # pinned inside it).
   # renovate: datasource=github-releases depName=cloudnative-pg/plugin-barman-cloud
-  barmanCloudPlugin: "v0.15.1"
+  barmanCloudPlugin: "v0.16.0"
